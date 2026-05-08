@@ -1,7 +1,9 @@
-const DATA_URL = "karaoke_songs_enriched.json";
+const APP_VERSION = "20260508-3";
+const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const RESULT_BATCH_SIZE = 160;
 const SEARCH_SCOPES = ["song", "artist", "mood", "genre", "holiday"];
 const FACET_SCOPES = ["mood", "genre", "holiday"];
+const loadStatusTimers = [];
 const state = {
     songs: [],
     visibleSongs: [],
@@ -56,24 +58,50 @@ const els = {
     fileInput: document.getElementById("fileInput"),
 };
 
+window.addEventListener("error", (event) => {
+    if (event.target !== window || state.songs.length) {
+        return;
+    }
+
+    els.status.textContent = "Songbook failed to load";
+});
+
+window.addEventListener("unhandledrejection", () => {
+    if (!state.songs.length) {
+        els.status.textContent = "Songbook failed to load";
+    }
+});
+
 init();
 
 async function init() {
     bindEvents();
     applyInitialRoute();
+    startLoadStatus();
+
     try {
         const response = await fetch(DATA_URL, { cache: "no-store" });
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}`);
         }
 
-        const songs = await response.json();
+        const text = await response.text();
+        els.status.textContent = "Preparing songbook";
+        await nextFrame();
+
+        const songs = JSON.parse(text);
+        els.status.textContent = "Building songbook";
+        await nextFrame();
+
         useSongs(songs);
     } catch (error) {
+        console.error(error);
         els.status.textContent = "Songbook JSON not loaded";
         if (typeof els.dataDialog.showModal === "function") {
             els.dataDialog.showModal();
         }
+    } finally {
+        stopLoadStatus();
     }
 }
 
@@ -225,6 +253,32 @@ function useSongs(songs) {
     ensureBrowseLetter();
     renderSetlist();
     render();
+}
+
+function startLoadStatus() {
+    els.status.textContent = "Loading songbook";
+
+    for (const [delay, message] of [
+        [2000, "Downloading songbook"],
+        [8000, "Still downloading songbook"],
+        [16000, "Large songbook, still loading"],
+    ]) {
+        loadStatusTimers.push(setTimeout(() => {
+            if (!state.songs.length) {
+                els.status.textContent = message;
+            }
+        }, delay));
+    }
+}
+
+function stopLoadStatus() {
+    while (loadStatusTimers.length) {
+        clearTimeout(loadStatusTimers.pop());
+    }
+}
+
+function nextFrame() {
+    return new Promise((resolve) => requestAnimationFrame(resolve));
 }
 
 function render() {
