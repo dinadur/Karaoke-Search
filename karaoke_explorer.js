@@ -1,8 +1,12 @@
-const APP_VERSION = "20260508-6";
+const APP_VERSION = "20260508-7";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const RESULT_BATCH_SIZE = 160;
 const SEARCH_SCOPES = ["song", "artist"];
+const THEME_STORAGE_KEY = "karaokeTheme";
+const LINK_MENU_STORAGE = new WeakMap();
 const loadStatusTimers = [];
+applyStoredTheme();
+
 const state = {
     songs: [],
     visibleSongs: [],
@@ -35,6 +39,7 @@ const els = {
     searchInput: document.getElementById("searchInput"),
     randomButton: document.getElementById("randomButton"),
     clearButton: document.getElementById("clearButton"),
+    themeButton: document.getElementById("themeButton"),
     searchModeButton: document.getElementById("searchModeButton"),
     browseModeButton: document.getElementById("browseModeButton"),
     searchScope: document.getElementById("searchScope"),
@@ -90,6 +95,7 @@ init();
 
 async function init() {
     bindEvents();
+    renderThemeButton();
     applyInitialRoute();
     startLoadStatus();
 
@@ -120,6 +126,11 @@ async function init() {
 }
 
 function bindEvents() {
+    els.themeButton.addEventListener("click", () => {
+        const nextTheme = getTheme() === "dark" ? "light" : "dark";
+        setTheme(nextTheme);
+    });
+
     els.searchInput.addEventListener("input", () => {
         state.query = els.searchInput.value.trim();
         state.mode = "search";
@@ -249,6 +260,18 @@ function bindEvents() {
         document.body.classList.remove("setlist-open");
     });
 
+    document.addEventListener("click", (event) => {
+        if (!event.target.closest(".song-links")) {
+            closeSongLinkMenus();
+        }
+    });
+
+    document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+            closeSongLinkMenus();
+        }
+    });
+
     els.copySetlistButton.addEventListener("click", async () => {
         const text = state.setlist.map((song, index) => `${index + 1}. ${song.song} - ${song.artist}`).join("\n");
         if (!text) {
@@ -291,6 +314,7 @@ function useSongs(songs) {
     updateSearchPlaceholder();
     ensureBrowseLetter();
     renderSetlist();
+    renderThemeButton();
     render();
 }
 
@@ -639,7 +663,7 @@ function renderArtistBrowse(songs, fragment) {
             title.textContent = song.song || "Untitled";
 
             const add = createMiniAddButton(song);
-            row.append(title, add);
+            row.append(title, createSongLinks(song), add);
             body.appendChild(row);
         }
 
@@ -677,7 +701,7 @@ function createBrowseRow(song) {
     artist.textContent = song.artist || song.lookupArtist || "Unknown artist";
 
     const add = createMiniAddButton(song);
-    row.append(title, artist, add);
+    row.append(title, artist, createSongLinks(song), add);
     return row;
 }
 
@@ -739,21 +763,64 @@ function createSongLinks(song) {
     container.className = "song-links";
 
     const query = encodeURIComponent(`${song.artist || song.lookupArtist || ""} ${song.song || ""}`.trim());
+    const button = document.createElement("button");
+    button.className = "icon-button link-popout-button";
+    button.type = "button";
+    button.title = "Music links";
+    button.setAttribute("aria-label", "Music links");
+    button.setAttribute("aria-haspopup", "true");
+    button.setAttribute("aria-expanded", "false");
+    button.innerHTML = '<i data-lucide="headphones" aria-hidden="true"></i>';
+
+    const menu = document.createElement("div");
+    menu.className = "song-links-popout";
+    menu.hidden = true;
+
     const links = [
-        ["Spotify", `https://open.spotify.com/search/${query}`],
-        ["YouTube Music", `https://music.youtube.com/search?q=${query}`],
+        ["Spotify", "music", `https://open.spotify.com/search/${query}`],
+        ["YouTube Music", "play-circle", `https://music.youtube.com/search?q=${query}`],
     ];
 
-    for (const [label, href] of links) {
+    for (const [label, icon, href] of links) {
         const link = document.createElement("a");
         link.href = href;
         link.target = "_blank";
         link.rel = "noopener noreferrer";
-        link.textContent = label;
-        container.appendChild(link);
+        link.innerHTML = `<i data-lucide="${icon}" aria-hidden="true"></i><span>${label}</span>`;
+        menu.appendChild(link);
     }
 
+    LINK_MENU_STORAGE.set(container, { button, menu });
+    button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        toggleSongLinkMenu(container);
+    });
+
+    container.append(button, menu);
     return container;
+}
+
+function toggleSongLinkMenu(container) {
+    const isOpen = container.classList.contains("is-open");
+    closeSongLinkMenus();
+
+    if (!isOpen) {
+        const controls = LINK_MENU_STORAGE.get(container);
+        container.classList.add("is-open");
+        controls.button.setAttribute("aria-expanded", "true");
+        controls.menu.hidden = false;
+    }
+}
+
+function closeSongLinkMenus() {
+    for (const container of document.querySelectorAll(".song-links.is-open")) {
+        const controls = LINK_MENU_STORAGE.get(container);
+        container.classList.remove("is-open");
+        if (controls) {
+            controls.button.setAttribute("aria-expanded", "false");
+            controls.menu.hidden = true;
+        }
+    }
 }
 
 function appendPills(container, values = [], className, filterName = "") {
@@ -1008,6 +1075,48 @@ function loadSetlist() {
         return JSON.parse(localStorage.getItem("karaokeSetlist") || "[]");
     } catch {
         return [];
+    }
+}
+
+function applyStoredTheme() {
+    document.documentElement.dataset.theme = getStoredTheme();
+}
+
+function getStoredTheme() {
+    try {
+        const stored = localStorage.getItem(THEME_STORAGE_KEY);
+        if (stored === "dark" || stored === "light") {
+            return stored;
+        }
+    } catch {
+        return "light";
+    }
+
+    return "light";
+}
+
+function getTheme() {
+    return document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+}
+
+function setTheme(theme) {
+    document.documentElement.dataset.theme = theme;
+    try {
+        localStorage.setItem(THEME_STORAGE_KEY, theme);
+    } catch {
+        // Theme persistence is a nicety; the UI should still toggle if storage is unavailable.
+    }
+    renderThemeButton();
+}
+
+function renderThemeButton() {
+    const isDark = getTheme() === "dark";
+    els.themeButton.title = isDark ? "Light mode" : "Dark mode";
+    els.themeButton.setAttribute("aria-label", isDark ? "Switch to light mode" : "Switch to dark mode");
+    els.themeButton.innerHTML = `<i data-lucide="${isDark ? "sun" : "moon"}" aria-hidden="true"></i>`;
+
+    if (window.lucide) {
+        window.lucide.createIcons();
     }
 }
 
