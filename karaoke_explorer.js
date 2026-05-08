@@ -1,10 +1,156 @@
-const APP_VERSION = "20260508-8";
+const APP_VERSION = "20260508-9";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const RESULT_BATCH_SIZE = 160;
 const SEARCH_SCOPES = ["song", "artist"];
+const TAG_GENRE_MIN_COUNT = 50;
 const THEME_STORAGE_KEY = "karaokeTheme";
 const LINK_MENU_STORAGE = new WeakMap();
 const TAG_MENU_STORAGE = new WeakMap();
+const GENRE_TAG_PHRASES = [
+    "acoustic",
+    "adult contemporary",
+    "ambient",
+    "americana",
+    "aor",
+    "ballad",
+    "bluegrass",
+    "blues",
+    "britpop",
+    "ccm",
+    "celtic",
+    "classical",
+    "country",
+    "dance",
+    "disco",
+    "doo wop",
+    "dub",
+    "easy listening",
+    "electro",
+    "electronic",
+    "electronica",
+    "emo",
+    "folk",
+    "funk",
+    "gospel",
+    "grime",
+    "grunge",
+    "hardcore",
+    "hip hop",
+    "house",
+    "industrial",
+    "jazz",
+    "latin",
+    "mariachi",
+    "metal",
+    "motown",
+    "musical",
+    "new wave",
+    "oldies",
+    "opera",
+    "pop",
+    "punk",
+    "ranchera",
+    "rap",
+    "reggae",
+    "rhythm and blues",
+    "rnb",
+    "rock",
+    "rockabilly",
+    "salsa",
+    "shoegaze",
+    "singer songwriter",
+    "ska",
+    "soul",
+    "soundtrack",
+    "swing",
+    "synthpop",
+    "techno",
+    "trance",
+    "world",
+];
+const NON_GENRE_TAGS = new Set([
+    "alabama",
+    "all",
+    "american",
+    "american idol",
+    "australia",
+    "australian",
+    "british",
+    "california",
+    "canada",
+    "canadian",
+    "chicago",
+    "christmas",
+    "detroit",
+    "england",
+    "eurovision",
+    "country group",
+    "female",
+    "female vocalist",
+    "female vocalists",
+    "female voices",
+    "finnish",
+    "frank sinatra",
+    "french",
+    "funny",
+    "george strait",
+    "georgia",
+    "german",
+    "girl group",
+    "girl groups",
+    "guitar",
+    "guilty pleasure",
+    "home collection",
+    "humor",
+    "ireland",
+    "irish",
+    "japanese",
+    "king of pop",
+    "legend",
+    "love",
+    "male",
+    "male vocalist",
+    "male vocalists",
+    "manchester",
+    "mexican",
+    "mexico",
+    "my top songs",
+    "need to rate",
+    "new york",
+    "oklahoma",
+    "parody",
+    "piano",
+    "political",
+    "puerto rico",
+    "queen of pop",
+    "romantic",
+    "scottish",
+    "seattle",
+    "sexy",
+    "spain",
+    "spotify",
+    "sweden",
+    "swedish",
+    "texas",
+    "the beatles",
+    "uk",
+    "usa",
+    "vocal",
+    "x factor",
+]);
+const GENRE_TAG_LABELS = {
+    aor: "AOR",
+    ccm: "CCM",
+    "doo wop": "Doo-wop",
+    "g funk": "G-funk",
+    "hip hop": "Hip hop",
+    "lo fi": "Lo-fi",
+    "neo soul": "Neo-soul",
+    "nu metal": "Nu metal",
+    "r and b": "R&B",
+    rnb: "R&B",
+    "singer songwriter": "Singer-songwriter",
+};
 const loadStatusTimers = [];
 applyStoredTheme();
 
@@ -20,6 +166,7 @@ const state = {
     availableGenres: [],
     availableDecades: [],
     availableHolidays: [],
+    promotedGenreTags: new Map(),
     filters: {
         mood: "",
         genre: "",
@@ -299,18 +446,33 @@ function bindEvents() {
 }
 
 function useSongs(songs) {
-    state.songs = songs.map((song, index) => ({
+    const preparedSongs = songs.map((song, index) => ({
         ...song,
         id: `${normalize(song.artist)}\u001f${normalize(song.song)}\u001f${index}`,
         songLetter: getBrowseLetter(song.song),
         artistLetter: getBrowseLetter(song.artist || song.lookupArtist),
-        searchText: normalize(song.searchText || buildSearchText(song)),
         songWords: getSearchWords(song.song),
         artistWords: getSearchWords([song.artist, song.lookupArtist].join(" ")),
     }));
 
+    state.promotedGenreTags = getPromotedGenreTagMap(preparedSongs);
+    state.songs = preparedSongs.map((song) => {
+        const sourceGenres = getPromotedGenresForSong(song, state.promotedGenreTags);
+        const allGenres = dedupeValues([...(song.genres || []), ...sourceGenres]);
+        const enrichedSong = {
+            ...song,
+            sourceGenres,
+            allGenres,
+        };
+
+        return {
+            ...enrichedSong,
+            searchText: normalize(song.searchText || buildSearchText(enrichedSong)),
+        };
+    });
+
     state.availableMoods = getAvailableValues((song) => song.moods);
-    state.availableGenres = getAvailableValues((song) => song.genres);
+    state.availableGenres = getAvailableValues(getSongGenres);
     state.availableDecades = getAvailableDecades();
     state.availableHolidays = getAvailableValues(getHolidayValues);
     renderFilterOptions();
@@ -436,7 +598,7 @@ function applySearchFilters(songs) {
             return false;
         }
 
-        if (state.filters.genre && !(song.genres || []).includes(state.filters.genre)) {
+        if (state.filters.genre && !includesValue(getSongGenres(song), state.filters.genre)) {
             return false;
         }
 
@@ -741,7 +903,7 @@ function createSongCard(song) {
     const meta = document.createElement("div");
     meta.className = "meta-row";
     appendPills(meta, song.moods, "mood", "mood");
-    appendPills(meta, song.genres, "genre", "genre");
+    appendPills(meta, getSongGenres(song), "genre", "genre");
     appendPills(meta, song.eras, "era", "decade");
     appendPills(meta, getHolidayValues(song), "flag", "holiday");
     appendPills(meta, getDisplayFlags(song), "flag");
@@ -918,10 +1080,17 @@ function getSongTagGroups(song) {
     };
 
     addGroup("Mood", song.moods, "mood", "mood");
-    addGroup("Genre", song.genres, "genre", "genre");
+    addGroup("Genre", getSongGenres(song), "genre", "genre");
     addGroup("Decade", song.eras, "era", "decade");
     addGroup("Holiday", getHolidayValues(song), "flag", "holiday");
     addGroup("Details", getDisplayFlags(song), "flag");
+
+    for (const tag of song.tags || []) {
+        const key = normalize(tag);
+        if (state.promotedGenreTags.has(key)) {
+            used.add(key);
+        }
+    }
 
     const otherTags = dedupeValues(song.tags).filter((value) => !used.has(normalize(value)));
     addGroup("Other", otherTags, "", "", 10);
@@ -1401,9 +1570,102 @@ function getAvailableValues(getValues) {
     return [...values].sort(compareText);
 }
 
+function getPromotedGenreTagMap(songs) {
+    const counts = new Map();
+    const labelsByKey = new Map();
+
+    for (const song of songs) {
+        const seen = new Set();
+        for (const tag of song.tags || []) {
+            const key = normalize(tag);
+            if (!key || seen.has(key)) {
+                continue;
+            }
+
+            seen.add(key);
+            counts.set(key, (counts.get(key) || 0) + 1);
+
+            if (!labelsByKey.has(key)) {
+                labelsByKey.set(key, new Map());
+            }
+
+            const labels = labelsByKey.get(key);
+            labels.set(tag, (labels.get(tag) || 0) + 1);
+        }
+    }
+
+    return new Map([...counts.entries()]
+        .filter(([key, count]) => count >= TAG_GENRE_MIN_COUNT && isGenreLikeTag(key))
+        .map(([key]) => [key, formatGenreTagLabel(key, labelsByKey.get(key))])
+        .sort((a, b) => compareText(a[1], b[1])));
+}
+
+function isGenreLikeTag(key) {
+    if (!key || NON_GENRE_TAGS.has(key) || /^(female|male|my) /.test(key)) {
+        return false;
+    }
+
+    return GENRE_TAG_PHRASES.some((phrase) => {
+        return key === phrase ||
+            key.startsWith(`${phrase} `) ||
+            key.endsWith(` ${phrase}`) ||
+            key.includes(` ${phrase} `);
+    });
+}
+
+function formatGenreTagLabel(key, labels = new Map()) {
+    if (GENRE_TAG_LABELS[key]) {
+        return GENRE_TAG_LABELS[key];
+    }
+
+    const [popularLabel] = [...labels.entries()].sort((a, b) => b[1] - a[1] || compareText(a[0], b[0]))[0] || [key];
+    return toGenreLabel(popularLabel);
+}
+
+function toGenreLabel(value) {
+    const normalized = normalize(value);
+    if (GENRE_TAG_LABELS[normalized]) {
+        return GENRE_TAG_LABELS[normalized];
+    }
+
+    return normalized.split(" ").map((word, index) => {
+        if (["and", "en", "of"].includes(word)) {
+            return word;
+        }
+
+        if (["aor", "ccm"].includes(word)) {
+            return word.toUpperCase();
+        }
+
+        return index === 0 ? word.charAt(0).toUpperCase() + word.slice(1) : word;
+    }).join(" ");
+}
+
+function getPromotedGenresForSong(song, promotedGenreTags = state.promotedGenreTags) {
+    const values = [];
+
+    for (const tag of song.tags || []) {
+        const label = promotedGenreTags.get(normalize(tag));
+        if (label) {
+            values.push(label);
+        }
+    }
+
+    return dedupeValues(values);
+}
+
+function getSongGenres(song) {
+    return song.allGenres || song.genres || [];
+}
+
+function includesValue(values, target) {
+    const normalizedTarget = normalize(target);
+    return (values || []).some((value) => normalize(value) === normalizedTarget);
+}
+
 function getTagValues(song) {
     return [
-        ...(song.genres || []),
+        ...getSongGenres(song),
         ...(song.eras || []),
         ...(song.flags || []),
         ...getHolidayValues(song),
@@ -1456,7 +1718,7 @@ function buildSearchText(song) {
     return [
         song.artist,
         song.song,
-        ...(song.genres || []),
+        ...getSongGenres(song),
         ...(song.moods || []),
         ...(song.eras || []),
         ...(song.flags || []),
