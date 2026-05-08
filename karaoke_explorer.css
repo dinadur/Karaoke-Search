@@ -700,15 +700,6 @@ select:hover {
     text-decoration: underline;
 }
 
-.source-badge {
-    min-width: 0;
-    color: var(--muted);
-    font-size: 12px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
 .add-button {
     min-height: 34px;
     border: 0;

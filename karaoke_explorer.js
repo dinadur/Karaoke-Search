@@ -1,4 +1,4 @@
-const APP_VERSION = "20260508-4";
+const APP_VERSION = "20260508-5";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const RESULT_BATCH_SIZE = 160;
 const SEARCH_SCOPES = ["song", "artist", "mood", "genre", "holiday"];
@@ -709,10 +709,6 @@ function createSongCard(song) {
     const actions = document.createElement("div");
     actions.className = "card-actions";
 
-    const source = document.createElement("span");
-    source.className = "source-badge";
-    source.textContent = getSourceLabel(song);
-
     const links = createSongLinks(song);
 
     const button = document.createElement("button");
@@ -721,7 +717,7 @@ function createSongCard(song) {
     button.textContent = "Add";
     button.addEventListener("click", () => addToSetlist(song));
 
-    actions.append(source, links, button);
+    actions.append(links, button);
     card.append(text, meta, actions);
     return card;
 }
@@ -966,13 +962,6 @@ function loadSetlist() {
     } catch {
         return [];
     }
-}
-
-function getSourceLabel(song) {
-    if (song.status === "ok" && song.source === "lastfm_artist") return "Last.fm artist";
-    if (song.status === "ok" && song.source === "lastfm_track") return "Last.fm track";
-    if ((song.flags || []).length) return "Local tag";
-    return "Untagged";
 }
 
 function updateSearchPlaceholder() {
