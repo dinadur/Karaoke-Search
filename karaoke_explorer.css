@@ -93,7 +93,7 @@ h2 {
 
 .toolbar {
     display: grid;
-    grid-template-columns: minmax(220px, 1fr) 168px auto 44px;
+    grid-template-columns: minmax(220px, 1fr) auto 44px;
     gap: 10px;
     align-items: center;
 }
@@ -281,8 +281,9 @@ select:hover {
     display: none;
 }
 
-.filter-group,
-.filter-checks {
+.select-filter,
+.filter-checks,
+.search-order {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -296,24 +297,33 @@ select:hover {
     font-weight: 800;
 }
 
-.checkbox-strip,
 .filter-checks {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
 }
 
-.search-filters label {
+.select-filter {
     flex: 0 0 auto;
 }
 
-.search-filters input {
+.select-filter select {
+    width: 142px;
+    min-height: 36px;
+    box-shadow: none;
+}
+
+.filter-checks label {
+    flex: 0 0 auto;
+}
+
+.filter-checks input {
     position: absolute;
     opacity: 0;
     pointer-events: none;
 }
 
-.search-filters label span {
+.filter-checks label span {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -327,11 +337,29 @@ select:hover {
     white-space: nowrap;
 }
 
-.search-filters label:hover span,
-.search-filters input:checked + span {
+.filter-checks label:hover span,
+.filter-checks input:checked + span {
     border-color: var(--teal);
     background: #dcece7;
     color: #123f43;
+}
+
+.search-order {
+    gap: 4px;
+    min-height: 42px;
+    padding: 4px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+}
+
+.search-order .filter-label {
+    margin: 0 4px 0 6px;
+}
+
+.search-order .choice-button {
+    min-height: 34px;
+    padding: 0 11px;
 }
 
 .filter-clear {
@@ -464,6 +492,23 @@ select:hover {
 .results-list[hidden],
 .browse-list[hidden] {
     display: none;
+}
+
+.result-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    padding: 0 14px 16px;
+}
+
+.result-actions[hidden] {
+    display: none;
+}
+
+.subtle-command {
+    min-height: 38px;
+    box-shadow: none;
 }
 
 .browse-list {
@@ -759,8 +804,8 @@ dialog {
     .search-scope,
     .search-filters,
     .browse-tools {
-        width: 100%;
-        max-width: 100%;
+        width: calc(100vw - 28px);
+        max-width: calc(100vw - 28px);
     }
 
     .mode-tabs,
@@ -776,13 +821,14 @@ dialog {
     .letter-strip,
     .results-panel,
     .setlist-panel {
-        width: 100%;
-        max-width: 100%;
+        width: calc(100vw - 28px);
+        max-width: calc(100vw - 28px);
     }
 
     .content-grid {
+        width: calc(100vw - 28px);
         min-width: 0;
-        max-width: 100%;
+        max-width: calc(100vw - 28px);
     }
 
     .letter-strip {
@@ -792,18 +838,36 @@ dialog {
     }
 
     .search-scope {
-        overflow-x: auto;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        overflow-x: visible;
     }
 
-    .filter-group,
-    .filter-checks {
+    .search-scope label {
+        min-width: 0;
+    }
+
+    .search-scope span,
+    .mode-tab {
+        width: 100%;
+        padding-right: 10px;
+        padding-left: 10px;
+    }
+
+    .select-filter,
+    .filter-checks,
+    .search-order {
         width: 100%;
     }
 
-    .checkbox-strip {
-        flex-wrap: nowrap;
+    .select-filter select {
+        flex: 1 1 160px;
+        width: auto;
+    }
+
+    .search-order {
         overflow-x: auto;
-        padding-bottom: 3px;
+        flex-wrap: nowrap;
     }
 
     .letter-button {

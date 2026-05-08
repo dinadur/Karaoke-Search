@@ -23,11 +23,6 @@
                 <i data-lucide="search" aria-hidden="true"></i>
                 <input id="searchInput" type="search" autocomplete="off" placeholder="Search song titles">
             </label>
-            <select id="sortSelect" aria-label="Order results">
-                <option value="relevance">Relevance</option>
-                <option value="song">Song title</option>
-                <option value="artist">Artist</option>
-            </select>
             <button id="randomButton" class="command" type="button" title="Random song">
                 <i data-lucide="shuffle" aria-hidden="true"></i>
                 <span>Random</span>
@@ -72,10 +67,12 @@
         </section>
 
         <section class="search-filters" id="searchFilters" aria-label="Filter search results">
-            <div class="filter-group">
+            <label class="select-filter" for="decadeFilter">
                 <span class="filter-label">Decade</span>
-                <div class="checkbox-strip" id="decadeFilters"></div>
-            </div>
+                <select id="decadeFilter" aria-label="Filter by decade">
+                    <option value="">Any decade</option>
+                </select>
+            </label>
             <div class="filter-checks" aria-label="More filters">
                 <label>
                     <input id="duetFilter" type="checkbox">
@@ -85,14 +82,16 @@
                     <input id="explicitFilter" type="checkbox">
                     <span>Explicit</span>
                 </label>
-                <label>
-                    <input id="sourceTagsFilter" type="checkbox">
-                    <span>Source tags</span>
-                </label>
                 <button id="clearFiltersButton" class="filter-clear" type="button" title="Clear filters" hidden>
                     <i data-lucide="x" aria-hidden="true"></i>
                     <span>Clear</span>
                 </button>
+            </div>
+            <div class="search-order" role="group" aria-label="Order search results">
+                <span class="filter-label">Order</span>
+                <button id="orderRelevanceButton" class="choice-button is-active" type="button">Relevance</button>
+                <button id="orderSongButton" class="choice-button" type="button">Song title</button>
+                <button id="orderArtistButton" class="choice-button" type="button">Artist</button>
             </div>
         </section>
 
@@ -113,6 +112,10 @@
                     </div>
                 </div>
                 <div class="results-list" id="resultsList"></div>
+                <div class="result-actions" id="resultActions" hidden>
+                    <button id="showMoreResultsButton" class="command subtle-command" type="button">Show more</button>
+                    <button id="showAllResultsButton" class="command subtle-command" type="button">Show all</button>
+                </div>
                 <div class="browse-list" id="browseList" hidden></div>
             </section>
 

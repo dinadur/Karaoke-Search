@@ -1,18 +1,20 @@
 const DATA_URL = "karaoke_songs_enriched.json";
-const MAX_RESULTS = 160;
+const RESULT_BATCH_SIZE = 160;
 const SEARCH_SCOPES = ["song", "artist", "mood", "genre", "holiday"];
 const FACET_SCOPES = ["mood", "genre", "holiday"];
 const state = {
     songs: [],
     visibleSongs: [],
+    matchCount: 0,
+    resultLimit: RESULT_BATCH_SIZE,
     query: "",
     searchScope: "song",
+    sortMode: "relevance",
     availableDecades: [],
     filters: {
-        decades: new Set(),
+        decade: "",
         duet: false,
         explicit: false,
-        sourceTags: false,
     },
     mode: "search",
     browseBy: "song",
@@ -23,7 +25,6 @@ const state = {
 const els = {
     status: document.getElementById("status"),
     searchInput: document.getElementById("searchInput"),
-    sortSelect: document.getElementById("sortSelect"),
     randomButton: document.getElementById("randomButton"),
     clearButton: document.getElementById("clearButton"),
     searchModeButton: document.getElementById("searchModeButton"),
@@ -31,16 +32,21 @@ const els = {
     searchScope: document.getElementById("searchScope"),
     searchScopeInputs: [...document.querySelectorAll('input[name="searchScope"]')],
     searchFilters: document.getElementById("searchFilters"),
-    decadeFilters: document.getElementById("decadeFilters"),
+    decadeFilter: document.getElementById("decadeFilter"),
     duetFilter: document.getElementById("duetFilter"),
     explicitFilter: document.getElementById("explicitFilter"),
-    sourceTagsFilter: document.getElementById("sourceTagsFilter"),
     clearFiltersButton: document.getElementById("clearFiltersButton"),
+    orderRelevanceButton: document.getElementById("orderRelevanceButton"),
+    orderSongButton: document.getElementById("orderSongButton"),
+    orderArtistButton: document.getElementById("orderArtistButton"),
     browseTools: document.getElementById("browseTools"),
     browseSongButton: document.getElementById("browseSongButton"),
     browseArtistButton: document.getElementById("browseArtistButton"),
     letterStrip: document.getElementById("letterStrip"),
     resultsList: document.getElementById("resultsList"),
+    resultActions: document.getElementById("resultActions"),
+    showMoreResultsButton: document.getElementById("showMoreResultsButton"),
+    showAllResultsButton: document.getElementById("showAllResultsButton"),
     browseList: document.getElementById("browseList"),
     resultCount: document.getElementById("resultCount"),
     setlist: document.getElementById("setlist"),
@@ -75,6 +81,7 @@ function bindEvents() {
     els.searchInput.addEventListener("input", () => {
         state.query = els.searchInput.value.trim();
         state.mode = "search";
+        resetResultLimit();
         render();
     });
 
@@ -82,61 +89,52 @@ function bindEvents() {
         input.addEventListener("change", () => {
             state.searchScope = input.value;
             state.mode = "search";
+            resetResultLimit();
             updateSearchPlaceholder();
             render();
             els.searchInput.focus();
         });
     }
 
-    els.sortSelect.addEventListener("change", render);
-
-    els.decadeFilters.addEventListener("change", (event) => {
-        const input = event.target.closest('input[type="checkbox"][data-decade]');
-        if (!input) {
-            return;
-        }
-
-        if (input.checked) {
-            state.filters.decades.add(input.value);
-        } else {
-            state.filters.decades.delete(input.value);
-        }
-
+    els.decadeFilter.addEventListener("change", () => {
+        state.filters.decade = els.decadeFilter.value;
         state.mode = "search";
+        resetResultLimit();
         render();
     });
 
     els.duetFilter.addEventListener("change", () => {
         state.filters.duet = els.duetFilter.checked;
         state.mode = "search";
+        resetResultLimit();
         render();
     });
 
     els.explicitFilter.addEventListener("change", () => {
         state.filters.explicit = els.explicitFilter.checked;
         state.mode = "search";
-        render();
-    });
-
-    els.sourceTagsFilter.addEventListener("change", () => {
-        state.filters.sourceTags = els.sourceTagsFilter.checked;
-        state.mode = "search";
+        resetResultLimit();
         render();
     });
 
     els.clearFiltersButton.addEventListener("click", () => {
-        state.filters.decades.clear();
+        state.filters.decade = "";
         state.filters.duet = false;
         state.filters.explicit = false;
-        state.filters.sourceTags = false;
         state.mode = "search";
+        resetResultLimit();
         render();
     });
+
+    els.orderRelevanceButton.addEventListener("click", () => setSearchOrder("relevance"));
+    els.orderSongButton.addEventListener("click", () => setSearchOrder("song"));
+    els.orderArtistButton.addEventListener("click", () => setSearchOrder("artist"));
 
     els.clearButton.addEventListener("click", () => {
         state.query = "";
         els.searchInput.value = "";
         state.mode = "search";
+        resetResultLimit();
         render();
         els.searchInput.focus();
     });
@@ -175,6 +173,17 @@ function bindEvents() {
         addToSetlist(song);
         state.query = `${song.artist} ${song.song}`;
         els.searchInput.value = state.query;
+        resetResultLimit();
+        render();
+    });
+
+    els.showMoreResultsButton.addEventListener("click", () => {
+        state.resultLimit = Math.min(state.resultLimit + RESULT_BATCH_SIZE, state.matchCount);
+        render();
+    });
+
+    els.showAllResultsButton.addEventListener("click", () => {
+        state.resultLimit = state.matchCount;
         render();
     });
 
@@ -211,7 +220,7 @@ function useSongs(songs) {
     }));
 
     state.availableDecades = getAvailableDecades();
-    renderDecadeFilters();
+    renderDecadeFilterOptions();
     updateSearchPlaceholder();
     ensureBrowseLetter();
     renderSetlist();
@@ -233,10 +242,12 @@ function render() {
 
     const ranked = rankSongs(state.songs, state.query);
     const filtered = applySearchFilters(ranked);
-    state.visibleSongs = sortSongs(filtered).slice(0, MAX_RESULTS);
+    state.matchCount = filtered.length;
+    state.visibleSongs = sortSongs(filtered).slice(0, state.resultLimit);
 
     renderResults();
     renderStatus(filtered.length);
+    renderResultActions(filtered.length);
 
     if (window.lucide) {
         window.lucide.createIcons();
@@ -251,8 +262,8 @@ function renderMode() {
     els.searchScope.hidden = isBrowse;
     els.searchFilters.hidden = isBrowse;
     els.resultsList.hidden = isBrowse;
+    els.resultActions.hidden = true;
     els.browseList.hidden = !isBrowse;
-    els.sortSelect.disabled = isBrowse;
 }
 
 function rankSongs(songs, query) {
@@ -321,7 +332,7 @@ function rankSongs(songs, query) {
 
 function applySearchFilters(songs) {
     return songs.filter((song) => {
-        if (state.filters.decades.size && !(song.eras || []).some((era) => state.filters.decades.has(era))) {
+        if (state.filters.decade && !(song.eras || []).includes(state.filters.decade)) {
             return false;
         }
 
@@ -333,16 +344,12 @@ function applySearchFilters(songs) {
             return false;
         }
 
-        if (state.filters.sourceTags && !(song.tags || []).length) {
-            return false;
-        }
-
         return true;
     });
 }
 
 function sortSongs(songs) {
-    const mode = els.sortSelect.value;
+    const mode = state.sortMode;
     const copy = [...songs];
 
     if (mode === "artist") {
@@ -358,6 +365,17 @@ function sortSongs(songs) {
     }
 
     return copy;
+}
+
+function setSearchOrder(mode) {
+    state.sortMode = mode;
+    state.mode = "search";
+    resetResultLimit();
+    render();
+}
+
+function resetResultLimit() {
+    state.resultLimit = RESULT_BATCH_SIZE;
 }
 
 function renderResults() {
@@ -384,7 +402,7 @@ function renderResults() {
 
 function renderGroupedSearchResults() {
     const fragment = document.createDocumentFragment();
-    const sortMode = els.sortSelect.value;
+    const sortMode = state.sortMode;
 
     if (sortMode === "artist") {
         for (const group of groupByArtist(state.visibleSongs)) {
@@ -629,6 +647,20 @@ function renderStatus(totalMatches) {
     }
 }
 
+function renderResultActions(totalMatches) {
+    const remaining = totalMatches - state.visibleSongs.length;
+    els.resultActions.hidden = state.mode !== "search" || remaining <= 0;
+
+    if (els.resultActions.hidden) {
+        return;
+    }
+
+    const nextCount = Math.min(RESULT_BATCH_SIZE, remaining).toLocaleString();
+    els.showMoreResultsButton.textContent = `Show ${nextCount} more`;
+    els.showAllResultsButton.textContent = `Show all ${totalMatches.toLocaleString()}`;
+    els.showAllResultsButton.hidden = totalMatches > 10000;
+}
+
 function applyInitialRoute() {
     const params = new URLSearchParams(window.location.search);
     const mode = params.get("mode");
@@ -665,7 +697,7 @@ function applyInitialRoute() {
     }
 
     if (["relevance", "artist", "song"].includes(sort)) {
-        els.sortSelect.value = sort;
+        state.sortMode = sort;
     }
 }
 
@@ -751,7 +783,7 @@ function groupBySongLetter(songs) {
 
 function shouldGroupSearchResults() {
     return state.mode === "search" &&
-        (els.sortSelect.value === "artist" || els.sortSelect.value === "song");
+        (state.sortMode === "artist" || state.sortMode === "song");
 }
 
 function renderSetlist() {
@@ -843,41 +875,31 @@ function getScopedSearchText(song) {
     return normalize(song.song);
 }
 
-function renderDecadeFilters() {
-    els.decadeFilters.innerHTML = "";
+function renderDecadeFilterOptions() {
+    els.decadeFilter.innerHTML = '<option value="">Any decade</option>';
 
     for (const decade of state.availableDecades) {
-        const label = document.createElement("label");
-        const input = document.createElement("input");
-        const text = document.createElement("span");
-
-        input.type = "checkbox";
-        input.value = decade;
-        input.dataset.decade = decade;
-        input.checked = state.filters.decades.has(decade);
-        text.textContent = decade;
-
-        label.append(input, text);
-        els.decadeFilters.appendChild(label);
+        const option = document.createElement("option");
+        option.value = decade;
+        option.textContent = decade;
+        els.decadeFilter.appendChild(option);
     }
 }
 
 function renderSearchFilters() {
-    for (const input of els.decadeFilters.querySelectorAll('input[type="checkbox"][data-decade]')) {
-        input.checked = state.filters.decades.has(input.value);
-    }
-
+    els.decadeFilter.value = state.filters.decade;
     els.duetFilter.checked = state.filters.duet;
     els.explicitFilter.checked = state.filters.explicit;
-    els.sourceTagsFilter.checked = state.filters.sourceTags;
     els.clearFiltersButton.hidden = !hasActiveSearchFilters();
+    els.orderRelevanceButton.classList.toggle("is-active", state.sortMode === "relevance");
+    els.orderSongButton.classList.toggle("is-active", state.sortMode === "song");
+    els.orderArtistButton.classList.toggle("is-active", state.sortMode === "artist");
 }
 
 function hasActiveSearchFilters() {
-    return state.filters.decades.size > 0 ||
+    return Boolean(state.filters.decade) ||
         state.filters.duet ||
-        state.filters.explicit ||
-        state.filters.sourceTags;
+        state.filters.explicit;
 }
 
 function getAvailableDecades() {
