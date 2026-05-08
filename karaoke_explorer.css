@@ -264,6 +264,99 @@ select:hover {
     background: #dcece7;
 }
 
+.search-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 16px;
+    min-width: 0;
+    margin: -2px 0 16px;
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #f8faf7;
+}
+
+.search-filters[hidden] {
+    display: none;
+}
+
+.filter-group,
+.filter-checks {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.filter-label {
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.checkbox-strip,
+.filter-checks {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.search-filters label {
+    flex: 0 0 auto;
+}
+
+.search-filters input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.search-filters label span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 34px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 0 12px;
+    background: var(--panel);
+    color: #26372f;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.search-filters label:hover span,
+.search-filters input:checked + span {
+    border-color: var(--teal);
+    background: #dcece7;
+    color: #123f43;
+}
+
+.filter-clear {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 34px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 0 11px;
+    background: var(--panel);
+    color: var(--ink);
+    font-weight: 800;
+}
+
+.filter-clear[hidden] {
+    display: none;
+}
+
+.filter-clear svg {
+    width: 15px;
+    height: 15px;
+}
+
 .browse-tools {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
@@ -313,7 +406,8 @@ select:hover {
 
 .letter-button:hover,
 .choice-button:hover,
-.mode-tab:hover {
+.mode-tab:hover,
+.filter-clear:hover {
     background: #eaf2ed;
 }
 
@@ -663,6 +757,7 @@ dialog {
 
     .mode-tabs,
     .search-scope,
+    .search-filters,
     .browse-tools {
         width: 100%;
         max-width: 100%;
@@ -698,6 +793,17 @@ dialog {
 
     .search-scope {
         overflow-x: auto;
+    }
+
+    .filter-group,
+    .filter-checks {
+        width: 100%;
+    }
+
+    .checkbox-strip {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        padding-bottom: 3px;
     }
 
     .letter-button {

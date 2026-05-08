@@ -1,12 +1,19 @@
 const DATA_URL = "karaoke_songs_enriched.json";
 const MAX_RESULTS = 160;
-const SEARCH_SCOPES = ["song", "artist", "mood", "genre", "decade", "holiday", "duet", "explicit", "tag"];
-const FACET_SCOPES = ["mood", "genre", "decade", "holiday", "duet", "explicit", "tag"];
+const SEARCH_SCOPES = ["song", "artist", "mood", "genre", "holiday"];
+const FACET_SCOPES = ["mood", "genre", "holiday"];
 const state = {
     songs: [],
     visibleSongs: [],
     query: "",
     searchScope: "song",
+    availableDecades: [],
+    filters: {
+        decades: new Set(),
+        duet: false,
+        explicit: false,
+        sourceTags: false,
+    },
     mode: "search",
     browseBy: "song",
     browseLetter: "#",
@@ -23,6 +30,12 @@ const els = {
     browseModeButton: document.getElementById("browseModeButton"),
     searchScope: document.getElementById("searchScope"),
     searchScopeInputs: [...document.querySelectorAll('input[name="searchScope"]')],
+    searchFilters: document.getElementById("searchFilters"),
+    decadeFilters: document.getElementById("decadeFilters"),
+    duetFilter: document.getElementById("duetFilter"),
+    explicitFilter: document.getElementById("explicitFilter"),
+    sourceTagsFilter: document.getElementById("sourceTagsFilter"),
+    clearFiltersButton: document.getElementById("clearFiltersButton"),
     browseTools: document.getElementById("browseTools"),
     browseSongButton: document.getElementById("browseSongButton"),
     browseArtistButton: document.getElementById("browseArtistButton"),
@@ -76,6 +89,49 @@ function bindEvents() {
     }
 
     els.sortSelect.addEventListener("change", render);
+
+    els.decadeFilters.addEventListener("change", (event) => {
+        const input = event.target.closest('input[type="checkbox"][data-decade]');
+        if (!input) {
+            return;
+        }
+
+        if (input.checked) {
+            state.filters.decades.add(input.value);
+        } else {
+            state.filters.decades.delete(input.value);
+        }
+
+        state.mode = "search";
+        render();
+    });
+
+    els.duetFilter.addEventListener("change", () => {
+        state.filters.duet = els.duetFilter.checked;
+        state.mode = "search";
+        render();
+    });
+
+    els.explicitFilter.addEventListener("change", () => {
+        state.filters.explicit = els.explicitFilter.checked;
+        state.mode = "search";
+        render();
+    });
+
+    els.sourceTagsFilter.addEventListener("change", () => {
+        state.filters.sourceTags = els.sourceTagsFilter.checked;
+        state.mode = "search";
+        render();
+    });
+
+    els.clearFiltersButton.addEventListener("click", () => {
+        state.filters.decades.clear();
+        state.filters.duet = false;
+        state.filters.explicit = false;
+        state.filters.sourceTags = false;
+        state.mode = "search";
+        render();
+    });
 
     els.clearButton.addEventListener("click", () => {
         state.query = "";
@@ -154,6 +210,8 @@ function useSongs(songs) {
         searchText: normalize(song.searchText || buildSearchText(song)),
     }));
 
+    state.availableDecades = getAvailableDecades();
+    renderDecadeFilters();
     updateSearchPlaceholder();
     ensureBrowseLetter();
     renderSetlist();
@@ -162,6 +220,7 @@ function useSongs(songs) {
 
 function render() {
     renderMode();
+    renderSearchFilters();
 
     if (state.mode === "browse") {
         renderBrowse();
@@ -173,10 +232,11 @@ function render() {
     }
 
     const ranked = rankSongs(state.songs, state.query);
-    state.visibleSongs = sortSongs(ranked).slice(0, MAX_RESULTS);
+    const filtered = applySearchFilters(ranked);
+    state.visibleSongs = sortSongs(filtered).slice(0, MAX_RESULTS);
 
     renderResults();
-    renderStatus(ranked.length);
+    renderStatus(filtered.length);
 
     if (window.lucide) {
         window.lucide.createIcons();
@@ -189,6 +249,7 @@ function renderMode() {
     els.browseModeButton.classList.toggle("is-active", isBrowse);
     els.browseTools.hidden = !isBrowse;
     els.searchScope.hidden = isBrowse;
+    els.searchFilters.hidden = isBrowse;
     els.resultsList.hidden = isBrowse;
     els.browseList.hidden = !isBrowse;
     els.sortSelect.disabled = isBrowse;
@@ -256,6 +317,28 @@ function rankSongs(songs, query) {
         .filter((item) => item.score > 0)
         .sort((a, b) => b.score - a.score || compareText(a.song.artist, b.song.artist))
         .map((item) => item.song);
+}
+
+function applySearchFilters(songs) {
+    return songs.filter((song) => {
+        if (state.filters.decades.size && !(song.eras || []).some((era) => state.filters.decades.has(era))) {
+            return false;
+        }
+
+        if (state.filters.duet && !hasFlag(song, "Duet")) {
+            return false;
+        }
+
+        if (state.filters.explicit && !hasFlag(song, "Explicit")) {
+            return false;
+        }
+
+        if (state.filters.sourceTags && !(song.tags || []).length) {
+            return false;
+        }
+
+        return true;
+    });
 }
 
 function sortSongs(songs) {
@@ -581,7 +664,7 @@ function applyInitialRoute() {
         els.searchInput.value = query;
     }
 
-    if (["relevance", "artist", "song", "confidence"].includes(sort)) {
+    if (["relevance", "artist", "song"].includes(sort)) {
         els.sortSelect.value = sort;
     }
 }
@@ -668,7 +751,6 @@ function groupBySongLetter(songs) {
 
 function shouldGroupSearchResults() {
     return state.mode === "search" &&
-        isFacetScope(state.searchScope) &&
         (els.sortSelect.value === "artist" || els.sortSelect.value === "song");
 }
 
@@ -735,11 +817,7 @@ function updateSearchPlaceholder() {
         artist: "Search artists",
         mood: "Search moods",
         genre: "Search genres",
-        decade: "Search decades",
         holiday: "Search Christmas, Halloween, New Year",
-        duet: "Search duets",
-        explicit: "Search explicit songs",
-        tag: "Search Last.fm source tags",
     };
 
     els.searchInput.placeholder = placeholders[state.searchScope] || placeholders.song;
@@ -758,27 +836,62 @@ function getScopedSearchText(song) {
         return normalize((song.genres || []).join(" "));
     }
 
-    if (state.searchScope === "decade") {
-        return normalize((song.eras || []).join(" "));
-    }
-
     if (state.searchScope === "holiday") {
         return normalize(getHolidayValues(song).join(" "));
     }
 
-    if (state.searchScope === "duet") {
-        return normalize(hasFlag(song, "Duet") ? "duet" : "");
-    }
-
-    if (state.searchScope === "explicit") {
-        return normalize(hasFlag(song, "Explicit") ? "explicit" : "");
-    }
-
-    if (state.searchScope === "tag") {
-        return normalize((song.tags || []).join(" "));
-    }
-
     return normalize(song.song);
+}
+
+function renderDecadeFilters() {
+    els.decadeFilters.innerHTML = "";
+
+    for (const decade of state.availableDecades) {
+        const label = document.createElement("label");
+        const input = document.createElement("input");
+        const text = document.createElement("span");
+
+        input.type = "checkbox";
+        input.value = decade;
+        input.dataset.decade = decade;
+        input.checked = state.filters.decades.has(decade);
+        text.textContent = decade;
+
+        label.append(input, text);
+        els.decadeFilters.appendChild(label);
+    }
+}
+
+function renderSearchFilters() {
+    for (const input of els.decadeFilters.querySelectorAll('input[type="checkbox"][data-decade]')) {
+        input.checked = state.filters.decades.has(input.value);
+    }
+
+    els.duetFilter.checked = state.filters.duet;
+    els.explicitFilter.checked = state.filters.explicit;
+    els.sourceTagsFilter.checked = state.filters.sourceTags;
+    els.clearFiltersButton.hidden = !hasActiveSearchFilters();
+}
+
+function hasActiveSearchFilters() {
+    return state.filters.decades.size > 0 ||
+        state.filters.duet ||
+        state.filters.explicit ||
+        state.filters.sourceTags;
+}
+
+function getAvailableDecades() {
+    const values = new Set();
+
+    for (const song of state.songs) {
+        for (const era of song.eras || []) {
+            if (era) {
+                values.add(era);
+            }
+        }
+    }
+
+    return [...values].sort(compareDecade);
 }
 
 function getTagValues(song) {
@@ -869,4 +982,11 @@ function getBrowseLetter(value) {
 
 function compareText(a, b) {
     return String(a || "").localeCompare(String(b || ""), undefined, { sensitivity: "base" });
+}
+
+function compareDecade(a, b) {
+    const aYear = Number(String(a).match(/\d+/)?.[0] || 0);
+    const bYear = Number(String(b).match(/\d+/)?.[0] || 0);
+
+    return aYear - bYear || compareText(a, b);
 }

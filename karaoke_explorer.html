@@ -23,11 +23,10 @@
                 <i data-lucide="search" aria-hidden="true"></i>
                 <input id="searchInput" type="search" autocomplete="off" placeholder="Search song titles">
             </label>
-            <select id="sortSelect" aria-label="Sort results">
+            <select id="sortSelect" aria-label="Order results">
                 <option value="relevance">Relevance</option>
+                <option value="song">Song title</option>
                 <option value="artist">Artist</option>
-                <option value="song">Song</option>
-                <option value="confidence">Tagged first</option>
             </select>
             <button id="randomButton" class="command" type="button" title="Random song">
                 <i data-lucide="shuffle" aria-hidden="true"></i>
@@ -67,25 +66,34 @@
                 <span>Genre</span>
             </label>
             <label>
-                <input type="radio" name="searchScope" value="decade">
-                <span>Decade</span>
-            </label>
-            <label>
                 <input type="radio" name="searchScope" value="holiday">
                 <span>Holiday</span>
             </label>
-            <label>
-                <input type="radio" name="searchScope" value="duet">
-                <span>Duet</span>
-            </label>
-            <label>
-                <input type="radio" name="searchScope" value="explicit">
-                <span>Explicit</span>
-            </label>
-            <label>
-                <input type="radio" name="searchScope" value="tag">
-                <span>Source tags</span>
-            </label>
+        </section>
+
+        <section class="search-filters" id="searchFilters" aria-label="Filter search results">
+            <div class="filter-group">
+                <span class="filter-label">Decade</span>
+                <div class="checkbox-strip" id="decadeFilters"></div>
+            </div>
+            <div class="filter-checks" aria-label="More filters">
+                <label>
+                    <input id="duetFilter" type="checkbox">
+                    <span>Duet</span>
+                </label>
+                <label>
+                    <input id="explicitFilter" type="checkbox">
+                    <span>Explicit</span>
+                </label>
+                <label>
+                    <input id="sourceTagsFilter" type="checkbox">
+                    <span>Source tags</span>
+                </label>
+                <button id="clearFiltersButton" class="filter-clear" type="button" title="Clear filters" hidden>
+                    <i data-lucide="x" aria-hidden="true"></i>
+                    <span>Clear</span>
+                </button>
+            </div>
         </section>
 
         <section class="browse-tools" id="browseTools" aria-label="Browse tools" hidden>
