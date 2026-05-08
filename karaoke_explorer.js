@@ -1,9 +1,10 @@
-const APP_VERSION = "20260508-7";
+const APP_VERSION = "20260508-8";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const RESULT_BATCH_SIZE = 160;
 const SEARCH_SCOPES = ["song", "artist"];
 const THEME_STORAGE_KEY = "karaokeTheme";
 const LINK_MENU_STORAGE = new WeakMap();
+const TAG_MENU_STORAGE = new WeakMap();
 const loadStatusTimers = [];
 applyStoredTheme();
 
@@ -261,14 +262,16 @@ function bindEvents() {
     });
 
     document.addEventListener("click", (event) => {
-        if (!event.target.closest(".song-links")) {
+        if (!event.target.closest(".song-popout")) {
             closeSongLinkMenus();
+            closeSongTagMenus();
         }
     });
 
     document.addEventListener("keydown", (event) => {
         if (event.key === "Escape") {
             closeSongLinkMenus();
+            closeSongTagMenus();
         }
     });
 
@@ -583,9 +586,9 @@ function createGroupedSongRow(song, showArtist) {
         const artist = document.createElement("div");
         artist.className = "browse-artist";
         artist.textContent = song.artist || song.lookupArtist || "Unknown artist";
-        row.append(title, artist, createSongLinks(song), createMiniAddButton(song));
+        row.append(title, artist, createRowTools(song));
     } else {
-        row.append(title, createSongLinks(song), createMiniAddButton(song));
+        row.append(title, createRowTools(song));
     }
 
     return row;
@@ -662,8 +665,7 @@ function renderArtistBrowse(songs, fragment) {
             title.className = "browse-title";
             title.textContent = song.song || "Untitled";
 
-            const add = createMiniAddButton(song);
-            row.append(title, createSongLinks(song), add);
+            row.append(title, createRowTools(song));
             body.appendChild(row);
         }
 
@@ -700,9 +702,15 @@ function createBrowseRow(song) {
     artist.className = "browse-artist";
     artist.textContent = song.artist || song.lookupArtist || "Unknown artist";
 
-    const add = createMiniAddButton(song);
-    row.append(title, artist, createSongLinks(song), add);
+    row.append(title, artist, createRowTools(song));
     return row;
+}
+
+function createRowTools(song) {
+    const tools = document.createElement("div");
+    tools.className = "row-tools";
+    tools.append(createSongTags(song), createSongLinks(song), createMiniAddButton(song));
+    return tools;
 }
 
 function createMiniAddButton(song) {
@@ -760,7 +768,7 @@ function createSongCard(song) {
 
 function createSongLinks(song) {
     const container = document.createElement("div");
-    container.className = "song-links";
+    container.className = "song-popout song-links";
 
     const query = encodeURIComponent(`${song.artist || song.lookupArtist || ""} ${song.song || ""}`.trim());
     const button = document.createElement("button");
@@ -802,6 +810,7 @@ function createSongLinks(song) {
 
 function toggleSongLinkMenu(container) {
     const isOpen = container.classList.contains("is-open");
+    closeSongTagMenus();
     closeSongLinkMenus();
 
     if (!isOpen) {
@@ -809,6 +818,75 @@ function toggleSongLinkMenu(container) {
         container.classList.add("is-open");
         controls.button.setAttribute("aria-expanded", "true");
         controls.menu.hidden = false;
+    }
+}
+
+function createSongTags(song) {
+    const container = document.createElement("div");
+    container.className = "song-popout song-tags";
+
+    const groups = getSongTagGroups(song);
+    const button = document.createElement("button");
+    button.className = "icon-button link-popout-button tag-popout-button";
+    button.type = "button";
+    button.title = groups.length ? "Song tags" : "No tags";
+    button.disabled = !groups.length;
+    button.setAttribute("aria-label", groups.length ? "Song tags" : "No tags");
+    button.setAttribute("aria-haspopup", "true");
+    button.setAttribute("aria-expanded", "false");
+    button.innerHTML = '<i data-lucide="tags" aria-hidden="true"></i>';
+
+    const menu = document.createElement("div");
+    menu.className = "song-tags-popout";
+    menu.hidden = true;
+
+    for (const group of groups) {
+        const section = document.createElement("section");
+        section.className = "tag-popout-group";
+
+        const label = document.createElement("div");
+        label.className = "tag-popout-label";
+        label.textContent = group.label;
+
+        const pills = document.createElement("div");
+        pills.className = "tag-popout-pills";
+        appendPills(pills, group.values, group.className, group.filterName, group.limit);
+
+        section.append(label, pills);
+        menu.appendChild(section);
+    }
+
+    TAG_MENU_STORAGE.set(container, { button, menu });
+    button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        toggleSongTagMenu(container);
+    });
+
+    container.append(button, menu);
+    return container;
+}
+
+function toggleSongTagMenu(container) {
+    const isOpen = container.classList.contains("is-open");
+    closeSongLinkMenus();
+    closeSongTagMenus();
+
+    if (!isOpen) {
+        const controls = TAG_MENU_STORAGE.get(container);
+        container.classList.add("is-open");
+        controls.button.setAttribute("aria-expanded", "true");
+        controls.menu.hidden = false;
+    }
+}
+
+function closeSongTagMenus() {
+    for (const container of document.querySelectorAll(".song-tags.is-open")) {
+        const controls = TAG_MENU_STORAGE.get(container);
+        container.classList.remove("is-open");
+        if (controls) {
+            controls.button.setAttribute("aria-expanded", "false");
+            controls.menu.hidden = true;
+        }
     }
 }
 
@@ -823,8 +901,53 @@ function closeSongLinkMenus() {
     }
 }
 
-function appendPills(container, values = [], className, filterName = "") {
-    for (const value of values.slice(0, 4)) {
+function getSongTagGroups(song) {
+    const groups = [];
+    const used = new Set();
+    const addGroup = (label, values, className, filterName = "", limit = 8) => {
+        const deduped = dedupeValues(values).slice(0, limit);
+        if (!deduped.length) {
+            return;
+        }
+
+        for (const value of deduped) {
+            used.add(normalize(value));
+        }
+
+        groups.push({ label, values: deduped, className, filterName, limit });
+    };
+
+    addGroup("Mood", song.moods, "mood", "mood");
+    addGroup("Genre", song.genres, "genre", "genre");
+    addGroup("Decade", song.eras, "era", "decade");
+    addGroup("Holiday", getHolidayValues(song), "flag", "holiday");
+    addGroup("Details", getDisplayFlags(song), "flag");
+
+    const otherTags = dedupeValues(song.tags).filter((value) => !used.has(normalize(value)));
+    addGroup("Other", otherTags, "", "", 10);
+
+    return groups;
+}
+
+function dedupeValues(values = []) {
+    const seen = new Set();
+    const deduped = [];
+
+    for (const value of values || []) {
+        const key = normalize(value);
+        if (!key || seen.has(key)) {
+            continue;
+        }
+
+        seen.add(key);
+        deduped.push(value);
+    }
+
+    return deduped;
+}
+
+function appendPills(container, values = [], className, filterName = "", limit = 4) {
+    for (const value of values.slice(0, limit)) {
         if (!value) continue;
         const pill = document.createElement(filterName ? "button" : "span");
         pill.className = className ? `pill ${className}` : "pill";

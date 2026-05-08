@@ -636,7 +636,7 @@ select:hover {
 .browse-row,
 .artist-song-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(160px, 260px) auto auto;
+    grid-template-columns: minmax(0, 1fr) minmax(160px, 260px) auto;
     gap: 12px;
     align-items: center;
     min-height: 46px;
@@ -645,7 +645,7 @@ select:hover {
 }
 
 .artist-song-row {
-    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     padding-left: 28px;
 }
 
@@ -759,7 +759,14 @@ select:hover {
     margin-top: auto;
 }
 
-.song-links {
+.row-tools {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.song-popout {
     position: relative;
     display: inline-flex;
     justify-content: flex-end;
@@ -772,13 +779,19 @@ select:hover {
     background: var(--panel-strong);
 }
 
-.song-links.is-open .link-popout-button {
+.link-popout-button:disabled {
+    cursor: default;
+    opacity: 0.44;
+}
+
+.song-popout.is-open .link-popout-button {
     border-color: var(--teal);
     color: var(--active-ink);
     background: var(--active-bg);
 }
 
-.song-links-popout {
+.song-links-popout,
+.song-tags-popout {
     position: absolute;
     right: 0;
     bottom: calc(100% + 7px);
@@ -793,12 +806,22 @@ select:hover {
     box-shadow: var(--shadow);
 }
 
-.card-actions .song-links-popout {
+.song-tags-popout {
+    gap: 9px;
+    min-width: 230px;
+    max-width: min(320px, calc(100vw - 36px));
+    max-height: 360px;
+    overflow: auto;
+}
+
+.card-actions .song-links-popout,
+.card-actions .song-tags-popout {
     right: auto;
     left: 0;
 }
 
-.song-links-popout[hidden] {
+.song-links-popout[hidden],
+.song-tags-popout[hidden] {
     display: none;
 }
 
@@ -827,6 +850,25 @@ select:hover {
     width: 16px;
     height: 16px;
     color: var(--teal);
+}
+
+.tag-popout-group {
+    display: grid;
+    gap: 5px;
+}
+
+.tag-popout-label {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 0;
+    text-transform: uppercase;
+}
+
+.tag-popout-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
 }
 
 .add-button {
@@ -1050,14 +1092,10 @@ dialog::backdrop {
         grid-column: 1 / -1;
     }
 
-    .browse-row .mini-add,
-    .artist-song-row .mini-add {
-        width: 100%;
-    }
-
-    .browse-row .song-links,
-    .artist-song-row .song-links {
+    .browse-row .row-tools,
+    .artist-song-row .row-tools {
         grid-column: 1 / -1;
+        justify-content: center;
     }
 
     .card-actions {
@@ -1065,12 +1103,14 @@ dialog::backdrop {
         flex-direction: column;
     }
 
-    .song-links {
+    .song-popout {
         justify-content: center;
     }
 
     .song-links-popout,
-    .card-actions .song-links-popout {
+    .song-tags-popout,
+    .card-actions .song-links-popout,
+    .card-actions .song-tags-popout {
         right: auto;
         left: 50%;
         transform: translateX(-50%);
