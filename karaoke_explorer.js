@@ -1,8 +1,7 @@
-const APP_VERSION = "20260508-5";
+const APP_VERSION = "20260508-6";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const RESULT_BATCH_SIZE = 160;
-const SEARCH_SCOPES = ["song", "artist", "mood", "genre", "holiday"];
-const FACET_SCOPES = ["mood", "genre", "holiday"];
+const SEARCH_SCOPES = ["song", "artist"];
 const loadStatusTimers = [];
 const state = {
     songs: [],
@@ -12,9 +11,15 @@ const state = {
     query: "",
     searchScope: "song",
     sortMode: "relevance",
+    availableMoods: [],
+    availableGenres: [],
     availableDecades: [],
+    availableHolidays: [],
     filters: {
+        mood: "",
+        genre: "",
         decade: "",
+        holiday: "",
         duet: false,
         explicit: false,
     },
@@ -35,7 +40,10 @@ const els = {
     searchScope: document.getElementById("searchScope"),
     searchScopeInputs: [...document.querySelectorAll('input[name="searchScope"]')],
     searchFilters: document.getElementById("searchFilters"),
+    moodFilter: document.getElementById("moodFilter"),
+    genreFilter: document.getElementById("genreFilter"),
     decadeFilter: document.getElementById("decadeFilter"),
+    holidayFilter: document.getElementById("holidayFilter"),
     duetFilter: document.getElementById("duetFilter"),
     explicitFilter: document.getElementById("explicitFilter"),
     clearFiltersButton: document.getElementById("clearFiltersButton"),
@@ -130,12 +138,19 @@ function bindEvents() {
         });
     }
 
-    els.decadeFilter.addEventListener("change", () => {
-        state.filters.decade = els.decadeFilter.value;
-        state.mode = "search";
-        resetResultLimit();
-        render();
-    });
+    for (const [filterName, element] of [
+        ["mood", els.moodFilter],
+        ["genre", els.genreFilter],
+        ["decade", els.decadeFilter],
+        ["holiday", els.holidayFilter],
+    ]) {
+        element.addEventListener("change", () => {
+            state.filters[filterName] = element.value;
+            state.mode = "search";
+            resetResultLimit();
+            render();
+        });
+    }
 
     els.duetFilter.addEventListener("change", () => {
         state.filters.duet = els.duetFilter.checked;
@@ -152,7 +167,10 @@ function bindEvents() {
     });
 
     els.clearFiltersButton.addEventListener("click", () => {
+        state.filters.mood = "";
+        state.filters.genre = "";
         state.filters.decade = "";
+        state.filters.holiday = "";
         state.filters.duet = false;
         state.filters.explicit = false;
         state.mode = "search";
@@ -263,13 +281,13 @@ function useSongs(songs) {
         searchText: normalize(song.searchText || buildSearchText(song)),
         songWords: getSearchWords(song.song),
         artistWords: getSearchWords([song.artist, song.lookupArtist].join(" ")),
-        moodWords: getSearchWords((song.moods || []).join(" ")),
-        genreWords: getSearchWords((song.genres || []).join(" ")),
-        holidayWords: getSearchWords(getHolidayValues(song).join(" ")),
     }));
 
+    state.availableMoods = getAvailableValues((song) => song.moods);
+    state.availableGenres = getAvailableValues((song) => song.genres);
     state.availableDecades = getAvailableDecades();
-    renderDecadeFilterOptions();
+    state.availableHolidays = getAvailableValues(getHolidayValues);
+    renderFilterOptions();
     updateSearchPlaceholder();
     ensureBrowseLetter();
     renderSetlist();
@@ -345,12 +363,6 @@ function renderMode() {
 function rankSongs(songs, query) {
     const tokens = normalize(query).split(" ").filter(Boolean);
     if (!tokens.length) {
-        if (isFacetScope(state.searchScope)) {
-            return songs
-                .filter((song) => getScopedSearchText(song))
-                .sort((a, b) => (b.confidence || 0) - (a.confidence || 0) || compareText(a.artist, b.artist));
-        }
-
         return songs
             .map((song) => ({ song, score: song.confidence || 0 }))
             .sort((a, b) => b.score - a.score)
@@ -384,18 +396,6 @@ function rankSongs(songs, query) {
                 score += 10;
             }
 
-            if (state.searchScope === "mood" && (song.moods || []).some((mood) => normalize(mood) === phrase)) {
-                score += 14;
-            }
-
-            if (state.searchScope === "genre" && (song.genres || []).some((genre) => normalize(genre) === phrase)) {
-                score += 14;
-            }
-
-            if (state.searchScope === "holiday" && getHolidayValues(song).some((holiday) => normalize(holiday) === phrase)) {
-                score += 14;
-            }
-
             return { song, score };
         })
         .filter((item) => item.score > 0)
@@ -405,7 +405,19 @@ function rankSongs(songs, query) {
 
 function applySearchFilters(songs) {
     return songs.filter((song) => {
+        if (state.filters.mood && !(song.moods || []).includes(state.filters.mood)) {
+            return false;
+        }
+
+        if (state.filters.genre && !(song.genres || []).includes(state.filters.genre)) {
+            return false;
+        }
+
         if (state.filters.decade && !(song.eras || []).includes(state.filters.decade)) {
+            return false;
+        }
+
+        if (state.filters.holiday && !getHolidayValues(song).includes(state.filters.holiday)) {
             return false;
         }
 
@@ -696,10 +708,10 @@ function createSongCard(song) {
 
     const meta = document.createElement("div");
     meta.className = "meta-row";
-    appendPills(meta, song.moods, "mood");
-    appendPills(meta, song.genres, "genre");
-    appendPills(meta, song.eras, "");
-    appendPills(meta, getHolidayValues(song), "flag");
+    appendPills(meta, song.moods, "mood", "mood");
+    appendPills(meta, song.genres, "genre", "genre");
+    appendPills(meta, song.eras, "era", "decade");
+    appendPills(meta, getHolidayValues(song), "flag", "holiday");
     appendPills(meta, getDisplayFlags(song), "flag");
 
     if (!meta.childElementCount && (song.tags || []).length) {
@@ -744,14 +756,49 @@ function createSongLinks(song) {
     return container;
 }
 
-function appendPills(container, values = [], className) {
+function appendPills(container, values = [], className, filterName = "") {
     for (const value of values.slice(0, 4)) {
         if (!value) continue;
-        const pill = document.createElement("span");
+        const pill = document.createElement(filterName ? "button" : "span");
         pill.className = className ? `pill ${className}` : "pill";
         pill.textContent = value;
+
+        if (filterName) {
+            pill.type = "button";
+            pill.classList.add("is-clickable");
+            pill.title = `Filter by ${value}`;
+            pill.addEventListener("click", () => applyPillFilter(filterName, value));
+        }
+
         container.appendChild(pill);
     }
+}
+
+function applyPillFilter(filterName, value) {
+    state.filters[filterName] = value;
+    state.mode = "search";
+    state.query = "";
+    state.searchScope = "song";
+    state.sortMode = "relevance";
+    state.groupOpenMode = "auto";
+    els.searchInput.value = "";
+    syncSearchScopeInput();
+    updateSearchPlaceholder();
+    resetResultLimit();
+    render();
+    scrollResultsIntoView();
+}
+
+function syncSearchScopeInput() {
+    for (const input of els.searchScopeInputs) {
+        input.checked = input.value === state.searchScope;
+    }
+}
+
+function scrollResultsIntoView() {
+    window.requestAnimationFrame(() => {
+        els.resultsList.closest(".results-panel")?.scrollIntoView({ block: "start", behavior: "smooth" });
+    });
 }
 
 function renderStatus(totalMatches) {
@@ -968,9 +1015,6 @@ function updateSearchPlaceholder() {
     const placeholders = {
         song: "Search song titles",
         artist: "Search artists",
-        mood: "Search moods",
-        genre: "Search genres",
-        holiday: "Search Christmas, Halloween, New Year",
     };
 
     els.searchInput.placeholder = placeholders[state.searchScope] || placeholders.song;
@@ -981,36 +1025,12 @@ function getScopedSearchText(song) {
         return normalize([song.artist, song.lookupArtist].join(" "));
     }
 
-    if (state.searchScope === "mood") {
-        return normalize((song.moods || []).join(" "));
-    }
-
-    if (state.searchScope === "genre") {
-        return normalize((song.genres || []).join(" "));
-    }
-
-    if (state.searchScope === "holiday") {
-        return normalize(getHolidayValues(song).join(" "));
-    }
-
     return normalize(song.song);
 }
 
 function getScopedSearchWords(song) {
     if (state.searchScope === "artist") {
         return song.artistWords;
-    }
-
-    if (state.searchScope === "mood") {
-        return song.moodWords;
-    }
-
-    if (state.searchScope === "genre") {
-        return song.genreWords;
-    }
-
-    if (state.searchScope === "holiday") {
-        return song.holidayWords;
     }
 
     return song.songWords;
@@ -1076,19 +1096,34 @@ function boundedEditDistance(a, b, maxDistance) {
     return previous[b.length];
 }
 
-function renderDecadeFilterOptions() {
-    els.decadeFilter.innerHTML = '<option value="">Any decade</option>';
+function renderFilterOptions() {
+    fillSelectOptions(els.moodFilter, "Any mood", state.availableMoods);
+    fillSelectOptions(els.genreFilter, "Any genre", state.availableGenres);
+    fillSelectOptions(els.decadeFilter, "Any decade", state.availableDecades);
+    fillSelectOptions(els.holidayFilter, "Any holiday", state.availableHolidays);
+}
 
-    for (const decade of state.availableDecades) {
+function fillSelectOptions(select, emptyLabel, values) {
+    select.innerHTML = "";
+
+    const emptyOption = document.createElement("option");
+    emptyOption.value = "";
+    emptyOption.textContent = emptyLabel;
+    select.appendChild(emptyOption);
+
+    for (const value of values) {
         const option = document.createElement("option");
-        option.value = decade;
-        option.textContent = decade;
-        els.decadeFilter.appendChild(option);
+        option.value = value;
+        option.textContent = value;
+        select.appendChild(option);
     }
 }
 
 function renderSearchFilters() {
+    els.moodFilter.value = state.filters.mood;
+    els.genreFilter.value = state.filters.genre;
     els.decadeFilter.value = state.filters.decade;
+    els.holidayFilter.value = state.filters.holiday;
     els.duetFilter.checked = state.filters.duet;
     els.explicitFilter.checked = state.filters.explicit;
     els.clearFiltersButton.hidden = !hasActiveSearchFilters();
@@ -1098,7 +1133,10 @@ function renderSearchFilters() {
 }
 
 function hasActiveSearchFilters() {
-    return Boolean(state.filters.decade) ||
+    return Boolean(state.filters.mood) ||
+        Boolean(state.filters.genre) ||
+        Boolean(state.filters.decade) ||
+        Boolean(state.filters.holiday) ||
         state.filters.duet ||
         state.filters.explicit;
 }
@@ -1115,6 +1153,20 @@ function getAvailableDecades() {
     }
 
     return [...values].sort(compareDecade);
+}
+
+function getAvailableValues(getValues) {
+    const values = new Set();
+
+    for (const song of state.songs) {
+        for (const value of getValues(song) || []) {
+            if (value) {
+                values.add(value);
+            }
+        }
+    }
+
+    return [...values].sort(compareText);
 }
 
 function getTagValues(song) {
@@ -1166,10 +1218,6 @@ function getDisplayFlags(song) {
 
         return true;
     });
-}
-
-function isFacetScope(scope) {
-    return FACET_SCOPES.includes(scope);
 }
 
 function buildSearchText(song) {

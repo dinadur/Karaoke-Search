@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Karaoke Finder</title>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="karaoke_explorer.css?v=20260508-5">
+    <link rel="stylesheet" href="karaoke_explorer.css?v=20260508-6">
     <script defer src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-    <script defer src="karaoke_explorer.js?v=20260508-5"></script>
+    <script defer src="karaoke_explorer.js?v=20260508-6"></script>
 </head>
 <body>
     <header class="topbar">
@@ -53,25 +53,31 @@
                 <input type="radio" name="searchScope" value="artist">
                 <span>Artist</span>
             </label>
-            <label>
-                <input type="radio" name="searchScope" value="mood">
-                <span>Mood</span>
-            </label>
-            <label>
-                <input type="radio" name="searchScope" value="genre">
-                <span>Genre</span>
-            </label>
-            <label>
-                <input type="radio" name="searchScope" value="holiday">
-                <span>Holiday</span>
-            </label>
         </section>
 
         <section class="search-filters" id="searchFilters" aria-label="Filter search results">
+            <label class="select-filter" for="moodFilter">
+                <span class="filter-label">Mood</span>
+                <select id="moodFilter" aria-label="Filter by mood">
+                    <option value="">Any mood</option>
+                </select>
+            </label>
+            <label class="select-filter" for="genreFilter">
+                <span class="filter-label">Genre</span>
+                <select id="genreFilter" aria-label="Filter by genre">
+                    <option value="">Any genre</option>
+                </select>
+            </label>
             <label class="select-filter" for="decadeFilter">
                 <span class="filter-label">Decade</span>
                 <select id="decadeFilter" aria-label="Filter by decade">
                     <option value="">Any decade</option>
+                </select>
+            </label>
+            <label class="select-filter" for="holidayFilter">
+                <span class="filter-label">Holiday</span>
+                <select id="holidayFilter" aria-label="Filter by holiday">
+                    <option value="">Any holiday</option>
                 </select>
             </label>
             <div class="filter-checks" aria-label="More filters">

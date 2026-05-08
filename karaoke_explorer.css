@@ -308,7 +308,7 @@ select:hover {
 }
 
 .select-filter select {
-    width: 142px;
+    width: 156px;
     min-height: 36px;
     box-shadow: none;
 }
@@ -646,16 +646,28 @@ select:hover {
 }
 
 .pill {
+    display: inline-flex;
+    align-items: center;
     max-width: 100%;
     min-height: 24px;
+    border: 0;
     border-radius: 999px;
+    appearance: none;
     padding: 4px 8px;
     color: #26302c;
     background: #edf0eb;
+    font: inherit;
     font-size: 12px;
     font-weight: 700;
     line-height: 1.2;
+    text-align: left;
     overflow-wrap: anywhere;
+}
+
+.pill.is-clickable:hover,
+.pill.is-clickable:focus-visible {
+    outline: 2px solid rgba(40, 114, 122, 0.28);
+    outline-offset: 1px;
 }
 
 .pill.mood {
@@ -666,6 +678,11 @@ select:hover {
 .pill.genre {
     color: #5b3415;
     background: #f2e8d7;
+}
+
+.pill.era {
+    color: #3e3a15;
+    background: #eee9c8;
 }
 
 .pill.flag {
