@@ -1,4 +1,4 @@
-const APP_VERSION = "20260508-3";
+const APP_VERSION = "20260508-4";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const RESULT_BATCH_SIZE = 160;
 const SEARCH_SCOPES = ["song", "artist", "mood", "genre", "holiday"];
@@ -21,6 +21,7 @@ const state = {
     mode: "search",
     browseBy: "song",
     browseLetter: "#",
+    groupOpenMode: "auto",
     setlist: loadSetlist(),
 };
 
@@ -47,6 +48,9 @@ const els = {
     letterStrip: document.getElementById("letterStrip"),
     resultsList: document.getElementById("resultsList"),
     resultActions: document.getElementById("resultActions"),
+    groupActions: document.getElementById("groupActions"),
+    expandGroupsButton: document.getElementById("expandGroupsButton"),
+    collapseGroupsButton: document.getElementById("collapseGroupsButton"),
     showMoreResultsButton: document.getElementById("showMoreResultsButton"),
     showAllResultsButton: document.getElementById("showAllResultsButton"),
     browseList: document.getElementById("browseList"),
@@ -54,6 +58,8 @@ const els = {
     setlist: document.getElementById("setlist"),
     setlistCount: document.getElementById("setlistCount"),
     copySetlistButton: document.getElementById("copySetlistButton"),
+    closeSetlistButton: document.getElementById("closeSetlistButton"),
+    mobileSetlistButton: document.getElementById("mobileSetlistButton"),
     dataDialog: document.getElementById("dataDialog"),
     fileInput: document.getElementById("fileInput"),
 };
@@ -157,6 +163,8 @@ function bindEvents() {
     els.orderRelevanceButton.addEventListener("click", () => setSearchOrder("relevance"));
     els.orderSongButton.addEventListener("click", () => setSearchOrder("song"));
     els.orderArtistButton.addEventListener("click", () => setSearchOrder("artist"));
+    els.expandGroupsButton.addEventListener("click", () => setGroupedResultsOpen(true));
+    els.collapseGroupsButton.addEventListener("click", () => setGroupedResultsOpen(false));
 
     els.clearButton.addEventListener("click", () => {
         state.query = "";
@@ -215,6 +223,14 @@ function bindEvents() {
         render();
     });
 
+    els.mobileSetlistButton.addEventListener("click", () => {
+        document.body.classList.add("setlist-open");
+    });
+
+    els.closeSetlistButton.addEventListener("click", () => {
+        document.body.classList.remove("setlist-open");
+    });
+
     els.copySetlistButton.addEventListener("click", async () => {
         const text = state.setlist.map((song, index) => `${index + 1}. ${song.song} - ${song.artist}`).join("\n");
         if (!text) {
@@ -245,6 +261,11 @@ function useSongs(songs) {
         songLetter: getBrowseLetter(song.song),
         artistLetter: getBrowseLetter(song.artist || song.lookupArtist),
         searchText: normalize(song.searchText || buildSearchText(song)),
+        songWords: getSearchWords(song.song),
+        artistWords: getSearchWords([song.artist, song.lookupArtist].join(" ")),
+        moodWords: getSearchWords((song.moods || []).join(" ")),
+        genreWords: getSearchWords((song.genres || []).join(" ")),
+        holidayWords: getSearchWords(getHolidayValues(song).join(" ")),
     }));
 
     state.availableDecades = getAvailableDecades();
@@ -317,6 +338,7 @@ function renderMode() {
     els.searchFilters.hidden = isBrowse;
     els.resultsList.hidden = isBrowse;
     els.resultActions.hidden = true;
+    els.groupActions.hidden = true;
     els.browseList.hidden = !isBrowse;
 }
 
@@ -338,11 +360,16 @@ function rankSongs(songs, query) {
     return songs
         .map((song) => {
             const haystack = getScopedSearchText(song);
+            const fuzzyWords = getScopedSearchWords(song);
             const phrase = tokens.join(" ");
             let score = 0;
 
             for (const token of tokens) {
-                if (haystack.includes(token)) score += 8;
+                if (haystack.includes(token)) {
+                    score += 8;
+                } else {
+                    score += getFuzzyTokenScore(token, fuzzyWords);
+                }
             }
 
             if (haystack.includes(phrase)) {
@@ -365,15 +392,7 @@ function rankSongs(songs, query) {
                 score += 14;
             }
 
-            if (state.searchScope === "decade" && (song.eras || []).some((era) => normalize(era) === phrase)) {
-                score += 14;
-            }
-
             if (state.searchScope === "holiday" && getHolidayValues(song).some((holiday) => normalize(holiday) === phrase)) {
-                score += 14;
-            }
-
-            if (state.searchScope === "tag" && (song.tags || []).some((tag) => normalize(tag) === phrase)) {
                 score += 14;
             }
 
@@ -423,6 +442,7 @@ function sortSongs(songs) {
 
 function setSearchOrder(mode) {
     state.sortMode = mode;
+    state.groupOpenMode = "auto";
     state.mode = "search";
     resetResultLimit();
     render();
@@ -435,6 +455,7 @@ function resetResultLimit() {
 function renderResults() {
     els.resultsList.innerHTML = "";
     els.resultsList.classList.toggle("is-grouped", shouldGroupSearchResults());
+    renderGroupActions();
 
     if (!state.visibleSongs.length) {
         els.resultsList.innerHTML = '<p class="empty-state">No matches</p>';
@@ -462,7 +483,7 @@ function renderGroupedSearchResults() {
         for (const group of groupByArtist(state.visibleSongs)) {
             const section = createBrowseSection(group.artist, group.songs.length, false);
             const body = section.querySelector(".browse-items");
-            section.open = group.songs.length <= 8;
+            section.open = shouldOpenGroup(group.songs.length);
 
             for (const song of group.songs) {
                 body.appendChild(createGroupedSongRow(song, false));
@@ -475,6 +496,7 @@ function renderGroupedSearchResults() {
         for (const group of groups) {
             const section = createBrowseSection(group.letter, group.songs.length, true);
             const body = section.querySelector(".browse-items");
+            section.open = shouldOpenGroup(group.songs.length);
 
             for (const song of group.songs) {
                 body.appendChild(createGroupedSongRow(song, true));
@@ -485,6 +507,32 @@ function renderGroupedSearchResults() {
     }
 
     els.resultsList.appendChild(fragment);
+}
+
+function renderGroupActions() {
+    els.groupActions.hidden = !shouldGroupSearchResults() || !state.visibleSongs.length;
+    els.expandGroupsButton.disabled = state.groupOpenMode === "expanded";
+    els.collapseGroupsButton.disabled = state.groupOpenMode === "collapsed";
+}
+
+function setGroupedResultsOpen(open) {
+    state.groupOpenMode = open ? "expanded" : "collapsed";
+    for (const section of els.resultsList.querySelectorAll(".browse-section")) {
+        section.open = open;
+    }
+    renderGroupActions();
+}
+
+function shouldOpenGroup(count) {
+    if (state.groupOpenMode === "expanded") {
+        return true;
+    }
+
+    if (state.groupOpenMode === "collapsed") {
+        return false;
+    }
+
+    return state.sortMode === "artist" && count <= 8;
 }
 
 function createGroupedSongRow(song, showArtist) {
@@ -499,9 +547,9 @@ function createGroupedSongRow(song, showArtist) {
         const artist = document.createElement("div");
         artist.className = "browse-artist";
         artist.textContent = song.artist || song.lookupArtist || "Unknown artist";
-        row.append(title, artist, createMiniAddButton(song));
+        row.append(title, artist, createSongLinks(song), createMiniAddButton(song));
     } else {
-        row.append(title, createMiniAddButton(song));
+        row.append(title, createSongLinks(song), createMiniAddButton(song));
     }
 
     return row;
@@ -665,15 +713,39 @@ function createSongCard(song) {
     source.className = "source-badge";
     source.textContent = getSourceLabel(song);
 
+    const links = createSongLinks(song);
+
     const button = document.createElement("button");
     button.className = "add-button";
     button.type = "button";
     button.textContent = "Add";
     button.addEventListener("click", () => addToSetlist(song));
 
-    actions.append(source, button);
+    actions.append(source, links, button);
     card.append(text, meta, actions);
     return card;
+}
+
+function createSongLinks(song) {
+    const container = document.createElement("div");
+    container.className = "song-links";
+
+    const query = encodeURIComponent(`${song.artist || song.lookupArtist || ""} ${song.song || ""}`.trim());
+    const links = [
+        ["Spotify", `https://open.spotify.com/search/${query}`],
+        ["YouTube Music", `https://music.youtube.com/search?q=${query}`],
+    ];
+
+    for (const [label, href] of links) {
+        const link = document.createElement("a");
+        link.href = href;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.textContent = label;
+        container.appendChild(link);
+    }
+
+    return container;
 }
 
 function appendPills(container, values = [], className) {
@@ -843,6 +915,12 @@ function shouldGroupSearchResults() {
 function renderSetlist() {
     els.setlist.innerHTML = "";
     els.setlistCount.textContent = `${state.setlist.length} ${state.setlist.length === 1 ? "song" : "songs"}`;
+    els.mobileSetlistButton.querySelector("span").textContent =
+        state.setlist.length ? `Setlist (${state.setlist.length})` : "Setlist";
+    els.mobileSetlistButton.setAttribute(
+        "aria-label",
+        state.setlist.length ? `Open setlist, ${state.setlist.length} songs` : "Open setlist"
+    );
 
     if (!state.setlist.length) {
         els.setlist.innerHTML = '<li class="empty-state">Nothing queued</li>';
@@ -927,6 +1005,86 @@ function getScopedSearchText(song) {
     }
 
     return normalize(song.song);
+}
+
+function getScopedSearchWords(song) {
+    if (state.searchScope === "artist") {
+        return song.artistWords;
+    }
+
+    if (state.searchScope === "mood") {
+        return song.moodWords;
+    }
+
+    if (state.searchScope === "genre") {
+        return song.genreWords;
+    }
+
+    if (state.searchScope === "holiday") {
+        return song.holidayWords;
+    }
+
+    return song.songWords;
+}
+
+function getSearchWords(value) {
+    return [...new Set(normalize(value).split(" ").filter((word) => word.length > 2))];
+}
+
+function getFuzzyTokenScore(token, words) {
+    if (token.length < 4) {
+        return 0;
+    }
+
+    const threshold = token.length > 6 ? 2 : 1;
+    for (const word of words || []) {
+        if (Math.abs(word.length - token.length) > threshold) {
+            continue;
+        }
+
+        const distance = boundedEditDistance(token, word, threshold);
+        if (distance <= threshold) {
+            return token.length > 6 ? 5 : 4;
+        }
+    }
+
+    return 0;
+}
+
+function boundedEditDistance(a, b, maxDistance) {
+    if (a === b) {
+        return 0;
+    }
+
+    if (Math.abs(a.length - b.length) > maxDistance) {
+        return maxDistance + 1;
+    }
+
+    let previous = Array.from({ length: b.length + 1 }, (_, index) => index);
+
+    for (let i = 1; i <= a.length; i++) {
+        const current = [i];
+        let rowMin = current[0];
+
+        for (let j = 1; j <= b.length; j++) {
+            const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+            const value = Math.min(
+                previous[j] + 1,
+                current[j - 1] + 1,
+                previous[j - 1] + cost
+            );
+            current[j] = value;
+            rowMin = Math.min(rowMin, value);
+        }
+
+        if (rowMin > maxDistance) {
+            return maxDistance + 1;
+        }
+
+        previous = current;
+    }
+
+    return previous[b.length];
 }
 
 function renderDecadeFilterOptions() {

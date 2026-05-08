@@ -478,6 +478,22 @@ select:hover {
     font-size: 13px;
 }
 
+.group-actions {
+    display: inline-flex;
+    gap: 6px;
+}
+
+.group-actions[hidden],
+.close-setlist,
+.mobile-setlist-button {
+    display: none;
+}
+
+.group-actions .icon-button:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
 .results-list {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -559,7 +575,7 @@ select:hover {
 .browse-row,
 .artist-song-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(160px, 260px) auto;
+    grid-template-columns: minmax(0, 1fr) minmax(160px, 260px) auto auto;
     gap: 12px;
     align-items: center;
     min-height: 46px;
@@ -568,7 +584,7 @@ select:hover {
 }
 
 .artist-song-row {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto auto;
     padding-left: 28px;
 }
 
@@ -663,6 +679,25 @@ select:hover {
     justify-content: space-between;
     gap: 8px;
     margin-top: auto;
+}
+
+.song-links {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    min-width: 0;
+}
+
+.song-links a {
+    color: var(--teal);
+    font-size: 12px;
+    font-weight: 800;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.song-links a:hover {
+    text-decoration: underline;
 }
 
 .source-badge {
@@ -770,7 +805,7 @@ dialog {
     }
 
     .shell {
-        padding: 16px 14px 24px;
+        padding: 16px 14px 92px;
     }
 
     .toolbar {
@@ -880,6 +915,7 @@ dialog {
 
     .artist-song-row {
         grid-template-columns: 1fr;
+        padding-left: 14px;
     }
 
     .browse-row .browse-artist {
@@ -891,12 +927,71 @@ dialog {
         width: 100%;
     }
 
+    .browse-row .song-links,
+    .artist-song-row .song-links {
+        grid-column: 1 / -1;
+    }
+
     .card-actions {
         align-items: stretch;
         flex-direction: column;
     }
 
+    .song-links {
+        justify-content: center;
+    }
+
     .add-button {
         width: 100%;
+    }
+
+    body.setlist-open {
+        overflow: hidden;
+    }
+
+    .setlist-panel {
+        display: none;
+        position: fixed;
+        right: 12px;
+        bottom: 12px;
+        left: 12px;
+        z-index: 20;
+        width: auto;
+        max-width: none;
+        max-height: min(76vh, 620px);
+        overflow: auto;
+        box-shadow: 0 18px 52px rgba(15, 23, 20, 0.28);
+    }
+
+    body.setlist-open .setlist-panel {
+        display: block;
+    }
+
+    .close-setlist {
+        display: inline-flex;
+    }
+
+    .mobile-setlist-button {
+        position: fixed;
+        right: 14px;
+        bottom: 14px;
+        z-index: 18;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        min-height: 46px;
+        border: 0;
+        border-radius: 999px;
+        padding: 0 16px;
+        color: var(--accent-ink);
+        background: var(--accent);
+        box-shadow: 0 10px 24px rgba(92, 36, 27, 0.28);
+        font-weight: 900;
+    }
+
+    .mobile-setlist-button svg {
+        width: 18px;
+        height: 18px;
     }
 }

@@ -4,9 +4,10 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Karaoke Finder</title>
-    <link rel="stylesheet" href="karaoke_explorer.css?v=20260508-3">
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="karaoke_explorer.css?v=20260508-4">
     <script defer src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-    <script defer src="karaoke_explorer.js?v=20260508-3"></script>
+    <script defer src="karaoke_explorer.js?v=20260508-4"></script>
 </head>
 <body>
     <header class="topbar">
@@ -110,6 +111,14 @@
                         <h2 id="resultsTitle">Songs</h2>
                         <p id="resultCount"></p>
                     </div>
+                    <div class="group-actions" id="groupActions" hidden>
+                        <button id="expandGroupsButton" class="icon-button" type="button" title="Expand all" aria-label="Expand all groups">
+                            <i data-lucide="chevrons-down" aria-hidden="true"></i>
+                        </button>
+                        <button id="collapseGroupsButton" class="icon-button" type="button" title="Collapse all" aria-label="Collapse all groups">
+                            <i data-lucide="chevrons-up" aria-hidden="true"></i>
+                        </button>
+                    </div>
                 </div>
                 <div class="results-list" id="resultsList"></div>
                 <div class="result-actions" id="resultActions" hidden>
@@ -128,11 +137,19 @@
                     <button id="copySetlistButton" class="icon-button" type="button" title="Copy setlist">
                         <i data-lucide="copy" aria-hidden="true"></i>
                     </button>
+                    <button id="closeSetlistButton" class="icon-button close-setlist" type="button" title="Close setlist" aria-label="Close setlist">
+                        <i data-lucide="x" aria-hidden="true"></i>
+                    </button>
                 </div>
                 <ol class="setlist" id="setlist"></ol>
             </aside>
         </section>
     </main>
+
+    <button id="mobileSetlistButton" class="mobile-setlist-button" type="button" aria-label="Open setlist">
+        <i data-lucide="list-music" aria-hidden="true"></i>
+        <span>Setlist</span>
+    </button>
 
     <dialog id="dataDialog">
         <form method="dialog" class="dialog-body">
