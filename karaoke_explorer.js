@@ -1,4 +1,4 @@
-const APP_VERSION = "20260508-9";
+const APP_VERSION = "20260508-10";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const RESULT_BATCH_SIZE = 160;
 const SEARCH_SCOPES = ["song", "artist"];
