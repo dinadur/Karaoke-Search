@@ -1,0 +1,10 @@
+.env
+.env.*
+metadata_cache/
+*.ps1
+*.csv
+*.state.json
+*.png
+*.log
+.vercel/
+node_modules/

@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/",
+      "destination": "/karaoke_explorer.html"
+    }
+  ]
+}

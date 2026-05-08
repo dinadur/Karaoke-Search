@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Karaoke Finder</title>
+    <link rel="stylesheet" href="karaoke_explorer.css">
+    <script defer src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script defer src="karaoke_explorer.js"></script>
+</head>
+<body>
+    <header class="topbar">
+        <div>
+            <p class="eyebrow">Karaoke songbook</p>
+            <h1>Find tonight's song</h1>
+        </div>
+        <div class="status" id="status">Loading songbook</div>
+    </header>
+
+    <main class="shell">
+        <section class="toolbar" aria-label="Song search tools">
+            <label class="search-box" for="searchInput">
+                <i data-lucide="search" aria-hidden="true"></i>
+                <input id="searchInput" type="search" autocomplete="off" placeholder="Search song titles">
+            </label>
+            <select id="sortSelect" aria-label="Sort results">
+                <option value="relevance">Relevance</option>
+                <option value="artist">Artist</option>
+                <option value="song">Song</option>
+                <option value="confidence">Tagged first</option>
+            </select>
+            <button id="randomButton" class="command" type="button" title="Random song">
+                <i data-lucide="shuffle" aria-hidden="true"></i>
+                <span>Random</span>
+            </button>
+            <button id="clearButton" class="icon-button" type="button" title="Clear search">
+                <i data-lucide="x" aria-hidden="true"></i>
+            </button>
+        </section>
+
+        <section class="mode-tabs" aria-label="View mode">
+            <button id="searchModeButton" class="mode-tab is-active" type="button">
+                <i data-lucide="search" aria-hidden="true"></i>
+                <span>Search</span>
+            </button>
+            <button id="browseModeButton" class="mode-tab" type="button">
+                <i data-lucide="list-tree" aria-hidden="true"></i>
+                <span>Browse</span>
+            </button>
+        </section>
+
+        <section class="search-scope" id="searchScope" aria-label="Search by">
+            <label>
+                <input type="radio" name="searchScope" value="song" checked>
+                <span>Song title</span>
+            </label>
+            <label>
+                <input type="radio" name="searchScope" value="artist">
+                <span>Artist</span>
+            </label>
+            <label>
+                <input type="radio" name="searchScope" value="mood">
+                <span>Mood</span>
+            </label>
+            <label>
+                <input type="radio" name="searchScope" value="genre">
+                <span>Genre</span>
+            </label>
+            <label>
+                <input type="radio" name="searchScope" value="decade">
+                <span>Decade</span>
+            </label>
+            <label>
+                <input type="radio" name="searchScope" value="holiday">
+                <span>Holiday</span>
+            </label>
+            <label>
+                <input type="radio" name="searchScope" value="duet">
+                <span>Duet</span>
+            </label>
+            <label>
+                <input type="radio" name="searchScope" value="explicit">
+                <span>Explicit</span>
+            </label>
+            <label>
+                <input type="radio" name="searchScope" value="tag">
+                <span>Source tags</span>
+            </label>
+        </section>
+
+        <section class="browse-tools" id="browseTools" aria-label="Browse tools" hidden>
+            <div class="browse-choice" role="group" aria-label="Browse by">
+                <button id="browseSongButton" class="choice-button is-active" type="button">Song title</button>
+                <button id="browseArtistButton" class="choice-button" type="button">Artist</button>
+            </div>
+            <div class="letter-strip" id="letterStrip" aria-label="Browse letters"></div>
+        </section>
+
+        <section class="content-grid">
+            <section class="results-panel" aria-labelledby="resultsTitle">
+                <div class="panel-heading">
+                    <div>
+                        <h2 id="resultsTitle">Songs</h2>
+                        <p id="resultCount"></p>
+                    </div>
+                </div>
+                <div class="results-list" id="resultsList"></div>
+                <div class="browse-list" id="browseList" hidden></div>
+            </section>
+
+            <aside class="setlist-panel" aria-labelledby="setlistTitle">
+                <div class="panel-heading">
+                    <div>
+                        <h2 id="setlistTitle">Setlist</h2>
+                        <p id="setlistCount">0 songs</p>
+                    </div>
+                    <button id="copySetlistButton" class="icon-button" type="button" title="Copy setlist">
+                        <i data-lucide="copy" aria-hidden="true"></i>
+                    </button>
+                </div>
+                <ol class="setlist" id="setlist"></ol>
+            </aside>
+        </section>
+    </main>
+
+    <dialog id="dataDialog">
+        <form method="dialog" class="dialog-body">
+            <h2>Songbook data</h2>
+            <p>Start a local server from this folder, or choose <code>karaoke_songs_enriched.json</code>.</p>
+            <input id="fileInput" type="file" accept=".json,application/json">
+            <button class="command" type="submit">Close</button>
+        </form>
+    </dialog>
+</body>
+</html>

@@ -1,0 +1,9 @@
+.git/
+metadata_cache/
+*.csv
+*.state.json
+*.ps1
+*.png
+*.log
+.env
+.env.*
