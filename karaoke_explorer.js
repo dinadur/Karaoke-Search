@@ -1,5 +1,6 @@
-const APP_VERSION = "20260508-10";
+const APP_VERSION = "20260509-1";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
+const TAG_CONSOLIDATION_URL = `tag_consolidation.json?v=${APP_VERSION}`;
 const RESULT_BATCH_SIZE = 160;
 const SEARCH_SCOPES = ["song", "artist"];
 const TAG_GENRE_MIN_COUNT = 50;
@@ -167,6 +168,7 @@ const state = {
     availableDecades: [],
     availableHolidays: [],
     promotedGenreTags: new Map(),
+    tagConsolidation: createEmptyTagConsolidation(),
     filters: {
         mood: "",
         genre: "",
@@ -248,6 +250,7 @@ async function init() {
     startLoadStatus();
 
     try {
+        const tagConsolidationPromise = loadTagConsolidation();
         const response = await fetch(DATA_URL, { cache: "no-store" });
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}`);
@@ -261,6 +264,7 @@ async function init() {
         els.status.textContent = "Building songbook";
         await nextFrame();
 
+        state.tagConsolidation = await tagConsolidationPromise;
         useSongs(songs);
     } catch (error) {
         console.error(error);
@@ -507,6 +511,62 @@ function stopLoadStatus() {
 
 function nextFrame() {
     return new Promise((resolve) => requestAnimationFrame(resolve));
+}
+
+async function loadTagConsolidation() {
+    try {
+        const response = await fetch(TAG_CONSOLIDATION_URL, { cache: "no-store" });
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        return normalizeTagConsolidation(await response.json());
+    } catch (error) {
+        console.warn("Tag consolidation did not load; using local genre heuristics.", error);
+        return createEmptyTagConsolidation();
+    }
+}
+
+function createEmptyTagConsolidation() {
+    return {
+        minLastFmSongs: TAG_GENRE_MIN_COUNT,
+        genreTags: new Map(),
+        hiddenOtherTags: new Set(),
+    };
+}
+
+function normalizeTagConsolidation(raw = {}) {
+    const normalized = createEmptyTagConsolidation();
+    const minLastFmSongs = Number(raw.thresholds?.minLastFmSongs || raw.minLastFmSongs || TAG_GENRE_MIN_COUNT);
+    normalized.minLastFmSongs = Number.isFinite(minLastFmSongs) ? minLastFmSongs : TAG_GENRE_MIN_COUNT;
+
+    for (const item of raw.genreTags || []) {
+        const key = normalize(item.tag);
+        const label = item.label || toGenreLabel(item.tag);
+        if (key && label) {
+            normalized.genreTags.set(key, label);
+        }
+    }
+
+    for (const [tag, label] of Object.entries(raw.aliases || {})) {
+        const key = normalize(tag);
+        if (key && label) {
+            normalized.genreTags.set(key, label);
+        }
+    }
+
+    for (const tag of raw.hiddenOtherTags || []) {
+        const key = normalize(tag);
+        if (key) {
+            normalized.hiddenOtherTags.add(key);
+        }
+    }
+
+    for (const key of normalized.genreTags.keys()) {
+        normalized.hiddenOtherTags.add(key);
+    }
+
+    return normalized;
 }
 
 function render() {
@@ -1092,7 +1152,11 @@ function getSongTagGroups(song) {
         }
     }
 
-    const otherTags = dedupeValues(song.tags).filter((value) => !used.has(normalize(value)));
+    const hiddenOtherTags = state.tagConsolidation.hiddenOtherTags;
+    const otherTags = dedupeValues(song.tags).filter((value) => {
+        const key = normalize(value);
+        return !used.has(key) && !hiddenOtherTags.has(key);
+    });
     addGroup("Other", otherTags, "", "", 10);
 
     return groups;
@@ -1592,6 +1656,14 @@ function getPromotedGenreTagMap(songs) {
             const labels = labelsByKey.get(key);
             labels.set(tag, (labels.get(tag) || 0) + 1);
         }
+    }
+
+    const consolidatedGenres = state.tagConsolidation.genreTags;
+    if (consolidatedGenres.size) {
+        return new Map([...counts.entries()]
+            .filter(([key, count]) => count >= state.tagConsolidation.minLastFmSongs && consolidatedGenres.has(key))
+            .map(([key]) => [key, consolidatedGenres.get(key)])
+            .sort((a, b) => compareText(a[1], b[1])));
     }
 
     return new Map([...counts.entries()]
