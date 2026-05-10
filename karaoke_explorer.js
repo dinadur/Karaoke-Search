@@ -1,4 +1,4 @@
-const APP_VERSION = "20260509-1";
+const APP_VERSION = "20260510-1";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const TAG_CONSOLIDATION_URL = `tag_consolidation.json?v=${APP_VERSION}`;
 const RESULT_BATCH_SIZE = 160;
@@ -954,9 +954,16 @@ function createSongCard(song) {
     title.className = "song-title";
     title.textContent = song.song || "Untitled";
 
-    const artist = document.createElement("div");
+    const artistName = song.artist || song.lookupArtist || "";
+    const artist = document.createElement(artistName ? "button" : "div");
     artist.className = "song-artist";
-    artist.textContent = song.artist || song.lookupArtist || "Unknown artist";
+    artist.textContent = artistName || "Unknown artist";
+
+    if (artistName) {
+        artist.type = "button";
+        artist.title = `Show songs by ${artistName}`;
+        artist.addEventListener("click", () => applyArtistSearch(artistName));
+    }
 
     text.append(title, artist);
 
@@ -1205,6 +1212,26 @@ function applyPillFilter(filterName, value) {
     state.sortMode = "relevance";
     state.groupOpenMode = "auto";
     els.searchInput.value = "";
+    syncSearchScopeInput();
+    updateSearchPlaceholder();
+    resetResultLimit();
+    render();
+    scrollResultsIntoView();
+}
+
+function applyArtistSearch(artistName) {
+    state.filters.mood = "";
+    state.filters.genre = "";
+    state.filters.decade = "";
+    state.filters.holiday = "";
+    state.filters.duet = false;
+    state.filters.explicit = false;
+    state.mode = "search";
+    state.query = artistName;
+    state.searchScope = "artist";
+    state.sortMode = "song";
+    state.groupOpenMode = "auto";
+    els.searchInput.value = artistName;
     syncSearchScopeInput();
     updateSearchPlaceholder();
     resetResultLimit();
