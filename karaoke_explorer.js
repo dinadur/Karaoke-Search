@@ -1,4 +1,4 @@
-const APP_VERSION = "20260510-1";
+const APP_VERSION = "20260510-2";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const TAG_CONSOLIDATION_URL = `tag_consolidation.json?v=${APP_VERSION}`;
 const RESULT_BATCH_SIZE = 160;
@@ -162,6 +162,7 @@ const state = {
     resultLimit: RESULT_BATCH_SIZE,
     query: "",
     searchScope: "song",
+    fuzzySearch: false,
     sortMode: "relevance",
     availableMoods: [],
     availableGenres: [],
@@ -201,6 +202,7 @@ const els = {
     holidayFilter: document.getElementById("holidayFilter"),
     duetFilter: document.getElementById("duetFilter"),
     explicitFilter: document.getElementById("explicitFilter"),
+    fuzzySearch: document.getElementById("fuzzySearch"),
     clearFiltersButton: document.getElementById("clearFiltersButton"),
     orderRelevanceButton: document.getElementById("orderRelevanceButton"),
     orderSongButton: document.getElementById("orderSongButton"),
@@ -329,6 +331,13 @@ function bindEvents() {
         render();
     });
 
+    els.fuzzySearch.addEventListener("change", () => {
+        state.fuzzySearch = els.fuzzySearch.checked;
+        state.mode = "search";
+        resetResultLimit();
+        render();
+    });
+
     els.clearFiltersButton.addEventListener("click", () => {
         state.filters.mood = "";
         state.filters.genre = "";
@@ -336,6 +345,7 @@ function bindEvents() {
         state.filters.holiday = "";
         state.filters.duet = false;
         state.filters.explicit = false;
+        state.fuzzySearch = false;
         state.mode = "search";
         resetResultLimit();
         render();
@@ -628,9 +638,19 @@ function rankSongs(songs, query) {
             for (const token of tokens) {
                 if (haystack.includes(token)) {
                     score += 8;
-                } else {
-                    score += getFuzzyTokenScore(token, fuzzyWords);
+                    continue;
                 }
+
+                if (!state.fuzzySearch) {
+                    return { song, score: 0 };
+                }
+
+                const fuzzyScore = getFuzzyTokenScore(token, fuzzyWords);
+                if (!fuzzyScore) {
+                    return { song, score: 0 };
+                }
+
+                score += fuzzyScore;
             }
 
             if (haystack.includes(phrase)) {
@@ -1209,6 +1229,7 @@ function applyPillFilter(filterName, value) {
     state.mode = "search";
     state.query = "";
     state.searchScope = "song";
+    state.fuzzySearch = false;
     state.sortMode = "relevance";
     state.groupOpenMode = "auto";
     els.searchInput.value = "";
@@ -1229,6 +1250,7 @@ function applyArtistSearch(artistName) {
     state.mode = "search";
     state.query = artistName;
     state.searchScope = "artist";
+    state.fuzzySearch = false;
     state.sortMode = "song";
     state.groupOpenMode = "auto";
     els.searchInput.value = artistName;
@@ -1618,6 +1640,7 @@ function renderSearchFilters() {
     els.holidayFilter.value = state.filters.holiday;
     els.duetFilter.checked = state.filters.duet;
     els.explicitFilter.checked = state.filters.explicit;
+    els.fuzzySearch.checked = state.fuzzySearch;
     els.clearFiltersButton.hidden = !hasActiveSearchFilters();
     els.orderRelevanceButton.classList.toggle("is-active", state.sortMode === "relevance");
     els.orderSongButton.classList.toggle("is-active", state.sortMode === "song");
@@ -1630,7 +1653,8 @@ function hasActiveSearchFilters() {
         Boolean(state.filters.decade) ||
         Boolean(state.filters.holiday) ||
         state.filters.duet ||
-        state.filters.explicit;
+        state.filters.explicit ||
+        state.fuzzySearch;
 }
 
 function getAvailableDecades() {
