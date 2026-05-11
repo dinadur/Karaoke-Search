@@ -1,4 +1,4 @@
-const APP_VERSION = "20260510-6";
+const APP_VERSION = "20260510-7";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const TAG_CONSOLIDATION_URL = `tag_consolidation.json?v=${APP_VERSION}`;
 const MOOD_CONSOLIDATION_URL = `mood_consolidation.json?v=${APP_VERSION}`;
@@ -8,6 +8,23 @@ const TAG_GENRE_MIN_COUNT = 50;
 const THEME_STORAGE_KEY = "karaokeTheme";
 const LINK_MENU_STORAGE = new WeakMap();
 const TAG_MENU_STORAGE = new WeakMap();
+const SMALL_ARTIST_WORDS = new Set([
+    "a",
+    "an",
+    "and",
+    "at",
+    "by",
+    "for",
+    "from",
+    "in",
+    "of",
+    "on",
+    "or",
+    "the",
+    "to",
+    "with",
+    "vs",
+]);
 const GENRE_TAG_PHRASES = [
     "acoustic",
     "adult contemporary",
@@ -447,7 +464,7 @@ function bindEvents() {
     });
 
     els.copySetlistButton.addEventListener("click", async () => {
-        const text = state.setlist.map((song, index) => `${index + 1}. ${song.song} - ${song.artist}`).join("\n");
+        const text = state.setlist.map((song, index) => `${index + 1}. ${song.song} - ${getDisplayArtist(song) || "Unknown artist"}`).join("\n");
         if (!text) {
             return;
         }
@@ -470,14 +487,26 @@ function bindEvents() {
 }
 
 function useSongs(songs) {
-    const preparedSongs = songs.map((song, index) => ({
-        ...song,
-        id: `${normalize(song.artist)}\u001f${normalize(song.song)}\u001f${index}`,
-        songLetter: getBrowseLetter(song.song),
-        artistLetter: getBrowseLetter(song.artist || song.lookupArtist),
-        songWords: getSearchWords(song.song),
-        artistWords: getSearchWords([song.artist, song.lookupArtist].join(" ")),
-    }));
+    const artistNames = buildCanonicalArtistNames(songs);
+    const preparedSongs = songs.map((song, index) => {
+        const artistKey = getArtistKey(song);
+        const displayArtist = artistNames.get(artistKey) || getPrimaryArtistName(song);
+
+        return {
+            ...song,
+            artistKey,
+            displayArtist,
+            id: `${artistKey || normalize(song.artist)}\u001f${normalize(song.song)}\u001f${index}`,
+            songLetter: getBrowseLetter(song.song),
+            artistLetter: getBrowseLetter(displayArtist),
+            songWords: getSearchWords(song.song),
+            artistWords: getSearchWords([
+                displayArtist,
+                song.artist,
+                song.lookupArtist,
+            ].join(" ")),
+        };
+    });
 
     state.promotedGenreTags = getPromotedGenreTagMap(preparedSongs);
     state.songs = preparedSongs.map((song) => {
@@ -721,14 +750,14 @@ function rankSongs(songs, query) {
                 score += 10;
             }
 
-            if (state.searchScope === "artist" && normalize(song.artist || song.lookupArtist).startsWith(phrase)) {
+            if (state.searchScope === "artist" && normalize(getDisplayArtist(song)).startsWith(phrase)) {
                 score += 10;
             }
 
             return { song, score };
         })
         .filter((item) => item.score > 0)
-        .sort((a, b) => b.score - a.score || compareText(a.song.artist, b.song.artist))
+        .sort((a, b) => b.score - a.score || compareText(getDisplayArtist(a.song), getDisplayArtist(b.song)))
         .map((item) => item.song);
 }
 
@@ -767,15 +796,15 @@ function sortSongs(songs) {
     const copy = [...songs];
 
     if (mode === "artist") {
-        return copy.sort((a, b) => compareText(a.artist, b.artist) || compareText(a.song, b.song));
+        return copy.sort((a, b) => compareText(getDisplayArtist(a), getDisplayArtist(b)) || compareText(a.song, b.song));
     }
 
     if (mode === "song") {
-        return copy.sort((a, b) => compareText(a.song, b.song) || compareText(a.artist, b.artist));
+        return copy.sort((a, b) => compareText(a.song, b.song) || compareText(getDisplayArtist(a), getDisplayArtist(b)));
     }
 
     if (mode === "confidence") {
-        return copy.sort((a, b) => (b.confidence || 0) - (a.confidence || 0) || compareText(a.artist, b.artist));
+        return copy.sort((a, b) => (b.confidence || 0) - (a.confidence || 0) || compareText(getDisplayArtist(a), getDisplayArtist(b)));
     }
 
     return copy;
@@ -800,7 +829,7 @@ function collapseSongVersions(songs) {
 }
 
 function getSongVersionKey(song) {
-    const artistKey = normalize(song.lookupArtist || song.artist);
+    const artistKey = song.artistKey || getArtistKey(song) || normalize(song.lookupArtist || song.artist);
     const titleKey = normalizeVersionTitle(song.lookupSong || song.song);
     return `${artistKey}\u001f${titleKey || normalize(song.song)}`;
 }
@@ -1200,7 +1229,7 @@ function createVersionGroupCard(songs) {
 }
 
 function createArtistSearchControl(song, className) {
-    const artistName = song.artist || song.lookupArtist || "";
+    const artistName = getDisplayArtist(song);
     const artist = document.createElement(artistName ? "button" : "div");
     artist.className = className;
     artist.textContent = artistName || "Unknown artist";
@@ -1218,7 +1247,7 @@ function createSongLinks(song) {
     const container = document.createElement("div");
     container.className = "song-popout song-links";
 
-    const query = encodeURIComponent(`${song.artist || song.lookupArtist || ""} ${song.song || ""}`.trim());
+    const query = encodeURIComponent(`${getDisplayArtist(song)} ${song.song || ""}`.trim());
     const button = document.createElement("button");
     button.className = "icon-button link-popout-button";
     button.type = "button";
@@ -1615,35 +1644,35 @@ function getBrowseSongs() {
 function sortForBrowse(songs) {
     return [...songs].sort((a, b) => {
         if (state.browseBy === "artist") {
-            return compareText(a.artist || a.lookupArtist, b.artist || b.lookupArtist) || compareText(a.song, b.song);
+            return compareText(getDisplayArtist(a), getDisplayArtist(b)) || compareText(a.song, b.song);
         }
 
-        return compareText(a.song, b.song) || compareText(a.artist, b.artist);
+        return compareText(a.song, b.song) || compareText(getDisplayArtist(a), getDisplayArtist(b));
     });
 }
 
 function groupByArtist(songs) {
     const groups = new Map();
     const sortedSongs = [...songs].sort((a, b) =>
-        compareText(a.artist || a.lookupArtist, b.artist || b.lookupArtist) || compareText(a.song, b.song)
+        compareText(getDisplayArtist(a), getDisplayArtist(b)) || compareText(a.song, b.song)
     );
 
     for (const song of sortedSongs) {
-        const artist = song.artist || song.lookupArtist || "Unknown artist";
-        if (!groups.has(artist)) {
-            groups.set(artist, []);
+        const artist = getDisplayArtist(song) || "Unknown artist";
+        const key = song.artistKey || normalizeArtistKey(artist) || artist;
+        if (!groups.has(key)) {
+            groups.set(key, { artist, songs: [] });
         }
-        groups.get(artist).push(song);
+        groups.get(key).songs.push(song);
     }
 
-    return [...groups.entries()]
-        .map(([artist, artistSongs]) => ({ artist, songs: artistSongs }))
+    return [...groups.values()]
         .sort((a, b) => compareText(a.artist, b.artist));
 }
 
 function groupBySongLetter(songs) {
     const groups = new Map();
-    for (const song of [...songs].sort((a, b) => compareText(a.song, b.song) || compareText(a.artist, b.artist))) {
+    for (const song of [...songs].sort((a, b) => compareText(a.song, b.song) || compareText(getDisplayArtist(a), getDisplayArtist(b)))) {
         const letter = getBrowseLetter(song.song);
         if (!groups.has(letter)) {
             groups.set(letter, []);
@@ -1687,7 +1716,7 @@ function renderSetlist() {
 
         const artist = document.createElement("span");
         artist.className = "setlist-artist";
-        artist.textContent = song.artist || "Unknown artist";
+        artist.textContent = getDisplayArtist(song) || "Unknown artist";
 
         const remove = document.createElement("button");
         remove.className = "remove-button";
@@ -1772,7 +1801,11 @@ function updateSearchPlaceholder() {
 
 function getScopedSearchText(song) {
     if (state.searchScope === "artist") {
-        return normalize([song.artist, song.lookupArtist].join(" "));
+        return normalize([
+            getDisplayArtist(song),
+            song.artist,
+            song.lookupArtist,
+        ].join(" "));
     }
 
     return normalize(song.song);
@@ -2013,6 +2046,95 @@ function getPromotedGenresForSong(song, promotedGenreTags = state.promotedGenreT
     return dedupeValues(values);
 }
 
+function buildCanonicalArtistNames(songs) {
+    const variantsByKey = new Map();
+
+    for (const song of songs) {
+        const key = getArtistKey(song);
+        if (!key) {
+            continue;
+        }
+
+        if (!variantsByKey.has(key)) {
+            variantsByKey.set(key, new Map());
+        }
+
+        const variants = variantsByKey.get(key);
+        for (const name of getArtistNameCandidates(song)) {
+            variants.set(name, (variants.get(name) || 0) + 1);
+        }
+    }
+
+    return new Map([...variantsByKey.entries()].map(([key, variants]) => [
+        key,
+        chooseArtistNameVariant(variants),
+    ]));
+}
+
+function chooseArtistNameVariant(variants) {
+    return [...variants.entries()]
+        .sort((a, b) => getArtistNameScore(b[0], b[1]) - getArtistNameScore(a[0], a[1]) ||
+            b[1] - a[1] ||
+            compareText(a[0], b[0]))
+        [0]?.[0] || "";
+}
+
+function getArtistNameScore(name, count) {
+    let score = count;
+
+    if (name.includes("&")) {
+        score += 100;
+    }
+
+    if (/[!?]/.test(name)) {
+        score += 100;
+    }
+
+    if (name.includes(",")) {
+        score -= 600;
+    }
+
+    const words = name.match(/[A-Za-z]+/g) || [];
+    words.forEach((word, index) => {
+        const lower = word.toLowerCase();
+        if (index > 0 && SMALL_ARTIST_WORDS.has(lower)) {
+            score += word === lower ? 400 : -200;
+        }
+    });
+
+    return score;
+}
+
+function getArtistNameCandidates(song) {
+    return [
+        song.lookupArtist,
+        song.artist,
+    ].map(cleanDisplayValue)
+        .filter(Boolean)
+        .filter((value, index, values) => values.indexOf(value) === index);
+}
+
+function getArtistKey(song) {
+    const primaryName = cleanDisplayValue(song.lookupArtist) || cleanDisplayValue(song.artist);
+    return normalizeArtistKey(primaryName);
+}
+
+function getPrimaryArtistName(song) {
+    return cleanDisplayValue(song.lookupArtist) || cleanDisplayValue(song.artist);
+}
+
+function getDisplayArtist(song) {
+    return cleanDisplayValue(song.displayArtist) || getPrimaryArtistName(song);
+}
+
+function normalizeArtistKey(value) {
+    return normalize(String(value || "").replace(/[’'!?.]/g, ""));
+}
+
+function cleanDisplayValue(value) {
+    return String(value || "").replace(/\s+/g, " ").trim();
+}
+
 function getConsolidatedMoodsForSong(song) {
     const values = [];
     const rules = state.moodConsolidation.moods || [];
@@ -2112,6 +2234,7 @@ function getDisplayFlags(song) {
 
 function buildSearchText(song) {
     return [
+        getDisplayArtist(song),
         song.artist,
         song.song,
         ...getSongGenres(song),
