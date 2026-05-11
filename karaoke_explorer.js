@@ -1,4 +1,4 @@
-const APP_VERSION = "20260510-9";
+const APP_VERSION = "20260510-10";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const TAG_CONSOLIDATION_URL = `tag_consolidation.json?v=${APP_VERSION}`;
 const MOOD_CONSOLIDATION_URL = `mood_consolidation.json?v=${APP_VERSION}`;
@@ -488,9 +488,22 @@ function bindEvents() {
             return;
         }
 
-        await navigator.clipboard.writeText(text);
-        els.copySetlistButton.classList.add("copied");
-        setTimeout(() => els.copySetlistButton.classList.remove("copied"), 800);
+        try {
+            await navigator.clipboard.writeText(text);
+            els.copySetlistButton.classList.add("copied");
+            els.copySetlistButton.title = "Copied";
+            setTimeout(() => {
+                els.copySetlistButton.classList.remove("copied");
+                els.copySetlistButton.title = "Copy setlist";
+            }, 800);
+        } catch {
+            els.copySetlistButton.classList.add("copy-failed");
+            els.copySetlistButton.title = "Copy failed";
+            setTimeout(() => {
+                els.copySetlistButton.classList.remove("copy-failed");
+                els.copySetlistButton.title = "Copy setlist";
+            }, 1200);
+        }
     });
 
     els.clearSetlistButton.addEventListener("click", () => {
@@ -531,7 +544,8 @@ function useSongs(songs) {
             ...song,
             artistKey,
             displayArtist,
-            id: `${artistKey || normalize(song.artist)}\u001f${normalize(song.song)}\u001f${index}`,
+            id: getSongIdentity(song),
+            legacyId: `${artistKey || normalize(song.artist)}\u001f${normalize(song.song)}\u001f${index}`,
             songLetter: getBrowseLetter(song.song),
             artistLetter: getBrowseLetter(displayArtist),
             songSearchText,
@@ -1057,10 +1071,11 @@ function getEmptySearchSuggestions(limit = 5) {
     }
 
     const isArtistSearch = state.searchScope === "artist";
+    const sourceSongs = hasSongFilters() ? applySearchFilters(state.songs) : state.songs;
     const seen = new Set();
     const suggestions = [];
 
-    for (const song of state.songs) {
+    for (const song of sourceSongs) {
         const haystack = getScopedSearchText(song, isArtistSearch);
         const words = getScopedSearchWords(song);
         let score = 0;
@@ -1269,10 +1284,14 @@ function createBrowseSection(label, count, open) {
     const title = document.createElement("span");
     title.textContent = label || "Unknown";
 
+    const countLabel = document.createElement("span");
+    countLabel.className = "browse-count";
+    countLabel.textContent = `${Number(count || 0).toLocaleString()} ${count === 1 ? "song" : "songs"}`;
+
     const body = document.createElement("div");
     body.className = "browse-items";
 
-    summary.append(title);
+    summary.append(title, countLabel);
     section.append(summary, body);
     return section;
 }
@@ -1880,7 +1899,7 @@ function saveUiState() {
 }
 
 function addToSetlist(song) {
-    const exists = state.setlist.some((item) => item.id === song.id);
+    const exists = state.setlist.some((item) => isSameSong(item, song));
     if (!exists) {
         state.setlist.push(song);
         saveSetlist();
@@ -1891,6 +1910,9 @@ function addToSetlist(song) {
 function toggleFavorite(song) {
     if (isFavorite(song)) {
         state.favorites.delete(song.id);
+        if (song.legacyId) {
+            state.favorites.delete(song.legacyId);
+        }
     } else {
         state.favorites.add(song.id);
     }
@@ -1900,7 +1922,19 @@ function toggleFavorite(song) {
 }
 
 function isFavorite(song) {
-    return Boolean(song?.id && state.favorites.has(song.id));
+    return Boolean(song?.id && (state.favorites.has(song.id) || state.favorites.has(song.legacyId)));
+}
+
+function isSameSong(left, right) {
+    if (!left || !right) {
+        return false;
+    }
+
+    if (left.id && right.id && left.id === right.id) {
+        return true;
+    }
+
+    return getSongIdentity(left) === getSongIdentity(right);
 }
 
 function ensureBrowseLetter() {
@@ -2658,6 +2692,14 @@ function getArtistKey(song) {
     return normalizeArtistKey(primaryName);
 }
 
+function getSongIdentity(song) {
+    return [
+        getArtistKey(song) || normalize(song.artist),
+        normalize(song.lookupSong || song.song),
+        normalize(song.song),
+    ].filter(Boolean).join("\u001f");
+}
+
 function getPrimaryArtistName(song) {
     return cleanDisplayValue(song.lookupArtist) || cleanDisplayValue(song.artist);
 }
@@ -2671,7 +2713,13 @@ function normalizeArtistKey(value) {
 }
 
 function cleanDisplayValue(value) {
-    return String(value || "").replace(/\s+/g, " ").trim();
+    return String(value || "")
+        .replace(/\bwvocals?\b/gi, " ")
+        .replace(/\bw\s*\/?\s*vocals?\b/gi, " ")
+        .replace(/[\[(]\s*karaoke\s*[\])]/gi, " ")
+        .replace(/\bkaraoke\b/gi, " ")
+        .replace(/\s+/g, " ")
+        .trim();
 }
 
 function getConsolidatedMoodsForSong(song) {
@@ -2787,6 +2835,8 @@ function buildSearchText(song) {
 function normalize(value) {
     return String(value || "")
         .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
         .replace(/&/g, " and ")
         .replace(/[^a-z0-9]+/g, " ")
         .replace(/\s+/g, " ")

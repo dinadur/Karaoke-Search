@@ -272,6 +272,17 @@ select:hover {
     border-color: var(--teal);
 }
 
+.icon-button.copied {
+    border-color: var(--teal);
+    color: var(--active-ink);
+    background: var(--active-bg);
+}
+
+.icon-button.copy-failed {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
 .mode-tabs {
     display: inline-grid;
     grid-template-columns: repeat(2, minmax(112px, 1fr));
