@@ -1,4 +1,4 @@
-const APP_VERSION = "20260510-4";
+const APP_VERSION = "20260510-5";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const TAG_CONSOLIDATION_URL = `tag_consolidation.json?v=${APP_VERSION}`;
 const RESULT_BATCH_SIZE = 160;
@@ -158,6 +158,7 @@ applyStoredTheme();
 const state = {
     songs: [],
     visibleSongs: [],
+    currentSongs: [],
     matchCount: 0,
     resultLimit: RESULT_BATCH_SIZE,
     query: "",
@@ -220,6 +221,7 @@ const els = {
     showAllResultsButton: document.getElementById("showAllResultsButton"),
     browseList: document.getElementById("browseList"),
     resultCount: document.getElementById("resultCount"),
+    resultContext: document.getElementById("resultContext"),
     setlist: document.getElementById("setlist"),
     setlistCount: document.getElementById("setlistCount"),
     copySetlistButton: document.getElementById("copySetlistButton"),
@@ -339,13 +341,7 @@ function bindEvents() {
     });
 
     els.clearFiltersButton.addEventListener("click", () => {
-        state.filters.mood = "";
-        state.filters.genre = "";
-        state.filters.decade = "";
-        state.filters.holiday = "";
-        state.filters.duet = false;
-        state.filters.explicit = false;
-        state.fuzzySearch = false;
+        clearSearchFilters();
         state.mode = "search";
         resetResultLimit();
         render();
@@ -358,8 +354,7 @@ function bindEvents() {
     els.collapseGroupsButton.addEventListener("click", () => setGroupedResultsOpen(false));
 
     els.clearButton.addEventListener("click", () => {
-        state.query = "";
-        els.searchInput.value = "";
+        clearSearchQuery();
         state.mode = "search";
         resetResultLimit();
         render();
@@ -391,15 +386,26 @@ function bindEvents() {
     });
 
     els.randomButton.addEventListener("click", () => {
-        const pool = state.visibleSongs.length ? state.visibleSongs : state.songs;
+        const isBrowseRandom = state.mode === "browse";
+        const pool = state.currentSongs.length ? state.currentSongs : state.songs;
         if (!pool.length) {
             return;
         }
 
         const song = pool[Math.floor(Math.random() * pool.length)];
         addToSetlist(song);
-        state.query = `${song.artist} ${song.song}`;
+        if (isBrowseRandom) {
+            clearSearchFilters();
+        }
+
+        state.mode = "search";
+        state.searchScope = "song";
+        state.sortMode = "relevance";
+        state.groupOpenMode = "auto";
+        state.query = song.song || song.lookupSong || "";
         els.searchInput.value = state.query;
+        syncSearchScopeInput();
+        updateSearchPlaceholder();
         resetResultLimit();
         render();
     });
@@ -586,6 +592,7 @@ function render() {
     if (state.mode === "browse") {
         renderBrowse();
         renderStatus(getBrowseSongs().length);
+        renderResultContext();
         if (window.lucide) {
             window.lucide.createIcons();
         }
@@ -594,11 +601,14 @@ function render() {
 
     const ranked = rankSongs(state.songs, state.query);
     const filtered = applySearchFilters(ranked);
-    state.matchCount = filtered.length;
-    state.visibleSongs = sortSongs(filtered).slice(0, state.resultLimit);
+    const sorted = sortSongs(filtered);
+    state.currentSongs = sorted;
+    state.matchCount = sorted.length;
+    state.visibleSongs = sorted.slice(0, state.resultLimit);
 
     renderResults();
     renderStatus(filtered.length);
+    renderResultContext();
     renderResultActions(filtered.length);
 
     if (window.lucide) {
@@ -721,6 +731,39 @@ function sortSongs(songs) {
     return copy;
 }
 
+function collapseSongVersions(songs) {
+    const groups = new Map();
+
+    for (const song of songs) {
+        const key = getSongVersionKey(song);
+        if (!groups.has(key)) {
+            groups.set(key, []);
+        }
+
+        groups.get(key).push(song);
+    }
+
+    return [...groups.values()].map((group) => ({
+        song: group[0],
+        songs: group,
+    }));
+}
+
+function getSongVersionKey(song) {
+    const artistKey = normalize(song.lookupArtist || song.artist);
+    const titleKey = normalizeVersionTitle(song.lookupSong || song.song);
+    return `${artistKey}\u001f${titleKey || normalize(song.song)}`;
+}
+
+function normalizeVersionTitle(value) {
+    let text = String(value || "");
+    text = text
+        .replace(/[\[(][^\])]*(karaoke|instrumental|vocal|version|clean|explicit|key|coros?)[^\])]*[\])]/gi, " ")
+        .replace(/\b(karaoke|instrumental|backing track|guide vocal|guide vocals|with vocals|without vocals|no lead vocals|clean version|explicit version|radio edit|album version)\b/gi, " ");
+
+    return normalize(text);
+}
+
 function setSearchOrder(mode) {
     state.sortMode = mode;
     state.groupOpenMode = "auto";
@@ -733,13 +776,37 @@ function resetResultLimit() {
     state.resultLimit = RESULT_BATCH_SIZE;
 }
 
+function clearSearchFilters({ resetFuzzy = true } = {}) {
+    state.filters.mood = "";
+    state.filters.genre = "";
+    state.filters.decade = "";
+    state.filters.holiday = "";
+    state.filters.duet = false;
+    state.filters.explicit = false;
+
+    if (resetFuzzy) {
+        state.fuzzySearch = false;
+    }
+}
+
+function clearSearchQuery({ resetScope = true } = {}) {
+    state.query = "";
+    els.searchInput.value = "";
+
+    if (resetScope) {
+        state.searchScope = "song";
+        syncSearchScopeInput();
+        updateSearchPlaceholder();
+    }
+}
+
 function renderResults() {
     els.resultsList.innerHTML = "";
     els.resultsList.classList.toggle("is-grouped", shouldGroupSearchResults());
     renderGroupActions();
 
     if (!state.visibleSongs.length) {
-        els.resultsList.innerHTML = '<p class="empty-state">No matches</p>';
+        renderEmptySearchState();
         return;
     }
 
@@ -749,11 +816,63 @@ function renderResults() {
     }
 
     const fragment = document.createDocumentFragment();
-    for (const song of state.visibleSongs) {
-        fragment.appendChild(createSongCard(song));
+    for (const item of collapseSongVersions(state.visibleSongs)) {
+        fragment.appendChild(item.songs.length > 1 ? createVersionGroupCard(item.songs) : createSongCard(item.song));
     }
 
     els.resultsList.appendChild(fragment);
+}
+
+function renderEmptySearchState() {
+    const empty = document.createElement("div");
+    empty.className = "empty-state search-empty";
+
+    const title = document.createElement("strong");
+    title.textContent = "No matches";
+    empty.appendChild(title);
+
+    const actions = document.createElement("div");
+    actions.className = "empty-actions";
+
+    if (state.query && !state.fuzzySearch) {
+        actions.appendChild(createEmptyAction("Enable fuzzy", () => {
+            state.fuzzySearch = true;
+            resetResultLimit();
+            render();
+        }));
+    }
+
+    if (hasActiveSearchFilters()) {
+        actions.appendChild(createEmptyAction("Clear filters", () => {
+            clearSearchFilters();
+            resetResultLimit();
+            render();
+        }));
+    }
+
+    if (state.query) {
+        actions.appendChild(createEmptyAction("Clear search", () => {
+            clearSearchQuery();
+            resetResultLimit();
+            render();
+            els.searchInput.focus();
+        }));
+    }
+
+    if (actions.childElementCount) {
+        empty.appendChild(actions);
+    }
+
+    els.resultsList.appendChild(empty);
+}
+
+function createEmptyAction(label, onClick) {
+    const button = document.createElement("button");
+    button.className = "choice-button empty-action";
+    button.type = "button";
+    button.textContent = label;
+    button.addEventListener("click", onClick);
+    return button;
 }
 
 function renderGroupedSearchResults() {
@@ -838,6 +957,7 @@ function renderBrowse() {
     els.browseList.innerHTML = "";
 
     const songs = getBrowseSongs();
+    state.currentSongs = sortForBrowse(songs);
     if (!songs.length) {
         els.browseList.innerHTML = '<p class="empty-state">No songs in this letter</p>';
         return;
@@ -994,6 +1114,38 @@ function createSongCard(song) {
 
     actions.append(links, button);
     card.append(text, meta, actions);
+    return card;
+}
+
+function createVersionGroupCard(songs) {
+    const [primary, ...versions] = songs;
+    const card = createSongCard(primary);
+    card.classList.add("has-versions");
+
+    const details = document.createElement("details");
+    details.className = "version-group";
+
+    const summary = document.createElement("summary");
+    summary.textContent = `${songs.length} versions`;
+    details.appendChild(summary);
+
+    const list = document.createElement("div");
+    list.className = "version-list";
+
+    for (const song of versions) {
+        const row = document.createElement("div");
+        row.className = "version-row";
+
+        const title = document.createElement("div");
+        title.className = "version-title";
+        title.textContent = song.song || "Untitled";
+
+        row.append(title, createRowTools(song));
+        list.appendChild(row);
+    }
+
+    details.appendChild(list);
+    card.appendChild(details);
     return card;
 }
 
@@ -1283,6 +1435,42 @@ function renderStatus(totalMatches) {
         const shown = state.visibleSongs.length.toLocaleString();
         els.resultCount.textContent = `${shown} shown from ${totalMatches.toLocaleString()} matches`;
     }
+}
+
+function renderResultContext() {
+    els.resultContext.innerHTML = "";
+    const hasArtistSearch = state.mode === "search" && state.searchScope === "artist" && state.query;
+    els.resultContext.hidden = !hasArtistSearch;
+
+    if (!hasArtistSearch) {
+        return;
+    }
+
+    const label = document.createElement("span");
+    label.className = "context-label";
+    label.textContent = "Artist";
+
+    const artist = document.createElement("strong");
+    artist.textContent = state.query;
+
+    const count = document.createElement("span");
+    count.className = "context-count";
+    count.textContent = `${state.matchCount.toLocaleString()} matches`;
+
+    const clear = document.createElement("button");
+    clear.className = "filter-clear context-clear";
+    clear.type = "button";
+    clear.textContent = "Clear";
+    clear.addEventListener("click", () => {
+        clearSearchQuery();
+        state.sortMode = "relevance";
+        state.groupOpenMode = "auto";
+        resetResultLimit();
+        render();
+        els.searchInput.focus();
+    });
+
+    els.resultContext.append(label, artist, count, clear);
 }
 
 function renderResultActions(totalMatches) {

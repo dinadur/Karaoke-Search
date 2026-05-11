@@ -596,6 +596,37 @@ select:hover {
     cursor: default;
 }
 
+.result-context {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--line);
+    background: var(--panel);
+}
+
+.result-context[hidden] {
+    display: none;
+}
+
+.context-label,
+.context-count {
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.result-context strong {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.context-clear {
+    min-height: 30px;
+    margin-left: auto;
+}
+
 .results-list {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -627,6 +658,30 @@ select:hover {
 .subtle-command {
     min-height: 38px;
     box-shadow: none;
+}
+
+.search-empty {
+    display: grid;
+    gap: 12px;
+    grid-column: 1 / -1;
+    justify-items: center;
+}
+
+.search-empty strong {
+    color: var(--ink);
+}
+
+.empty-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+}
+
+.empty-action {
+    min-height: 34px;
+    border: 1px solid var(--line);
+    background: var(--panel-strong);
 }
 
 .browse-list {
@@ -742,6 +797,10 @@ button.browse-artist:focus-visible {
     border-radius: 8px;
     background: var(--panel);
     overflow: visible;
+}
+
+.song-card.has-versions {
+    align-content: start;
 }
 
 .song-title {
@@ -948,6 +1007,38 @@ button.browse-artist:focus-visible {
     display: flex;
     flex-wrap: wrap;
     gap: 5px;
+}
+
+.version-group {
+    border-top: 1px solid var(--line);
+    padding-top: 10px;
+}
+
+.version-group summary {
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 900;
+}
+
+.version-list {
+    display: grid;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.version-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+}
+
+.version-title {
+    min-width: 0;
+    color: var(--muted);
+    font-size: 13px;
+    overflow-wrap: anywhere;
 }
 
 .add-button {
