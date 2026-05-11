@@ -169,6 +169,7 @@ h2 {
 }
 
 .search-box input {
+    flex: 1 1 auto;
     width: 100%;
     min-width: 0;
     border: 0;
@@ -180,6 +181,46 @@ h2 {
 
 .search-box input::placeholder {
     color: var(--muted);
+}
+
+.fuzzy-toggle {
+    position: relative;
+    flex: 0 0 auto;
+    margin-left: 10px;
+    cursor: pointer;
+}
+
+.fuzzy-toggle input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.fuzzy-toggle span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 30px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 0 10px;
+    color: var(--chip-ink);
+    background: var(--panel-strong);
+    font-size: 13px;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.fuzzy-toggle:hover span,
+.fuzzy-toggle input:checked + span {
+    border-color: var(--teal);
+    background: var(--active-bg);
+    color: var(--active-ink);
+}
+
+.fuzzy-toggle input:focus-visible + span {
+    outline: 3px solid var(--focus-ring);
+    outline-offset: 2px;
 }
 
 select,

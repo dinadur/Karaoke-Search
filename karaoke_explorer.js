@@ -1,4 +1,4 @@
-const APP_VERSION = "20260510-2";
+const APP_VERSION = "20260510-3";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const TAG_CONSOLIDATION_URL = `tag_consolidation.json?v=${APP_VERSION}`;
 const RESULT_BATCH_SIZE = 160;
@@ -1532,6 +1532,7 @@ function updateSearchPlaceholder() {
     };
 
     els.searchInput.placeholder = placeholders[state.searchScope] || placeholders.song;
+    els.searchInput.setAttribute("aria-label", els.searchInput.placeholder);
 }
 
 function getScopedSearchText(song) {

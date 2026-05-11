@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Karaoke Finder</title>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="karaoke_explorer.css?v=20260510-2">
+    <link rel="stylesheet" href="karaoke_explorer.css?v=20260510-3">
     <script defer src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-    <script defer src="karaoke_explorer.js?v=20260510-2"></script>
+    <script defer src="karaoke_explorer.js?v=20260510-3"></script>
 </head>
 <body>
     <header class="topbar">
@@ -20,10 +20,14 @@
 
     <main class="shell">
         <section class="toolbar" aria-label="Song search tools">
-            <label class="search-box" for="searchInput">
+            <div class="search-box">
                 <i data-lucide="search" aria-hidden="true"></i>
-                <input id="searchInput" type="search" autocomplete="off" placeholder="Search song titles">
-            </label>
+                <input id="searchInput" type="search" autocomplete="off" placeholder="Search song titles" aria-label="Search song titles">
+                <label class="fuzzy-toggle">
+                    <input id="fuzzySearch" type="checkbox">
+                    <span>Fuzzy</span>
+                </label>
+            </div>
             <button id="randomButton" class="command" type="button" title="Random song">
                 <i data-lucide="shuffle" aria-hidden="true"></i>
                 <span>Random</span>
@@ -91,10 +95,6 @@
                 <label>
                     <input id="explicitFilter" type="checkbox">
                     <span>Explicit</span>
-                </label>
-                <label>
-                    <input id="fuzzySearch" type="checkbox">
-                    <span>Fuzzy</span>
                 </label>
                 <button id="clearFiltersButton" class="filter-clear" type="button" title="Clear filters" hidden>
                     <i data-lucide="x" aria-hidden="true"></i>
