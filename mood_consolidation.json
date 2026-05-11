@@ -1,0 +1,96 @@
+{
+  "generatedAt": "2026-05-10T00:00:00.000Z",
+  "description": "Supplemental mood rules for the karaoke explorer. These augment the existing Last.fm-derived moods from the catalog without rewriting the song data.",
+  "sources": [
+    "karaoke_songs_enriched.json tags",
+    "metadata_cache/musicbrainz_lastfm_tag_overlap.csv for validating recurring style tags"
+  ],
+  "moods": [
+    {
+      "label": "Danceable",
+      "tags": [
+        "dance",
+        "dance pop",
+        "dance punk",
+        "dancehall",
+        "disco",
+        "edm",
+        "electro",
+        "electro house",
+        "electropop",
+        "eurodance",
+        "funk",
+        "house",
+        "synth pop",
+        "synthpop"
+      ]
+    },
+    {
+      "label": "Singalong",
+      "tags": [
+        "arena rock",
+        "broadway",
+        "disney",
+        "glam rock",
+        "guilty pleasure",
+        "motown",
+        "power pop",
+        "power ballad",
+        "show tunes",
+        "showtunes",
+        "sing along",
+        "singalong"
+      ]
+    },
+    {
+      "label": "Funny",
+      "tags": [
+        "comedy",
+        "comedy rock",
+        "funny",
+        "humor",
+        "novelty",
+        "parody"
+      ]
+    },
+    {
+      "label": "Theatrical",
+      "tags": [
+        "broadway",
+        "cabaret",
+        "disney",
+        "musical",
+        "musical theatre",
+        "opera",
+        "show tunes",
+        "showtunes",
+        "soundtrack"
+      ]
+    },
+    {
+      "label": "Mellow",
+      "tags": [
+        "ambient",
+        "chill",
+        "easy listening",
+        "lounge",
+        "mellow",
+        "quiet storm",
+        "slow jam",
+        "slow jams",
+        "soft rock",
+        "trip hop",
+        "vocal jazz"
+      ]
+    },
+    {
+      "label": "Acoustic",
+      "tags": [
+        "acoustic",
+        "americana",
+        "bluegrass",
+        "indie folk"
+      ]
+    }
+  ]
+}

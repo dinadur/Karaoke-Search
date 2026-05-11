@@ -1,6 +1,7 @@
-const APP_VERSION = "20260510-5";
+const APP_VERSION = "20260510-6";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const TAG_CONSOLIDATION_URL = `tag_consolidation.json?v=${APP_VERSION}`;
+const MOOD_CONSOLIDATION_URL = `mood_consolidation.json?v=${APP_VERSION}`;
 const RESULT_BATCH_SIZE = 160;
 const SEARCH_SCOPES = ["song", "artist"];
 const TAG_GENRE_MIN_COUNT = 50;
@@ -171,6 +172,7 @@ const state = {
     availableHolidays: [],
     promotedGenreTags: new Map(),
     tagConsolidation: createEmptyTagConsolidation(),
+    moodConsolidation: createEmptyMoodConsolidation(),
     filters: {
         mood: "",
         genre: "",
@@ -255,6 +257,7 @@ async function init() {
 
     try {
         const tagConsolidationPromise = loadTagConsolidation();
+        const moodConsolidationPromise = loadMoodConsolidation();
         const response = await fetch(DATA_URL, { cache: "no-store" });
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}`);
@@ -269,6 +272,7 @@ async function init() {
         await nextFrame();
 
         state.tagConsolidation = await tagConsolidationPromise;
+        state.moodConsolidation = await moodConsolidationPromise;
         useSongs(songs);
     } catch (error) {
         console.error(error);
@@ -484,14 +488,21 @@ function useSongs(songs) {
             sourceGenres,
             allGenres,
         };
+        const sourceMoods = getConsolidatedMoodsForSong(enrichedSong);
+        const allMoods = dedupeValues([...(song.moods || []), ...sourceMoods]);
+        const preparedSong = {
+            ...enrichedSong,
+            sourceMoods,
+            allMoods,
+        };
 
         return {
-            ...enrichedSong,
-            searchText: normalize(song.searchText || buildSearchText(enrichedSong)),
+            ...preparedSong,
+            searchText: normalize(buildSearchText(preparedSong)),
         };
     });
 
-    state.availableMoods = getAvailableValues((song) => song.moods);
+    state.availableMoods = getAvailableValues(getSongMoods);
     state.availableGenres = getAvailableValues(getSongGenres);
     state.availableDecades = getAvailableDecades();
     state.availableHolidays = getAvailableValues(getHolidayValues);
@@ -581,6 +592,45 @@ function normalizeTagConsolidation(raw = {}) {
     for (const key of normalized.genreTags.keys()) {
         normalized.hiddenOtherTags.add(key);
     }
+
+    return normalized;
+}
+
+async function loadMoodConsolidation() {
+    try {
+        const response = await fetch(MOOD_CONSOLIDATION_URL, { cache: "no-store" });
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        return normalizeMoodConsolidation(await response.json());
+    } catch (error) {
+        console.warn("Mood consolidation did not load; using catalog moods only.", error);
+        return createEmptyMoodConsolidation();
+    }
+}
+
+function createEmptyMoodConsolidation() {
+    return {
+        moods: [],
+    };
+}
+
+function normalizeMoodConsolidation(raw = {}) {
+    const normalized = createEmptyMoodConsolidation();
+
+    normalized.moods = (raw.moods || [])
+        .map((rule) => {
+            const label = String(rule.label || "").trim();
+            const tags = new Set([
+                ...(rule.tags || []),
+                ...(rule.genres || []),
+            ].map(normalize).filter(Boolean));
+            const contains = (rule.contains || []).map(normalize).filter(Boolean);
+
+            return { label, tags, contains };
+        })
+        .filter((rule) => rule.label && (rule.tags.size || rule.contains.length));
 
     return normalized;
 }
@@ -684,7 +734,7 @@ function rankSongs(songs, query) {
 
 function applySearchFilters(songs) {
     return songs.filter((song) => {
-        if (state.filters.mood && !(song.moods || []).includes(state.filters.mood)) {
+        if (state.filters.mood && !includesValue(getSongMoods(song), state.filters.mood)) {
             return false;
         }
 
@@ -1091,7 +1141,7 @@ function createSongCard(song) {
 
     const meta = document.createElement("div");
     meta.className = "meta-row";
-    appendPills(meta, song.moods, "mood", "mood");
+    appendPills(meta, getSongMoods(song), "mood", "mood");
     appendPills(meta, getSongGenres(song), "genre", "genre");
     appendPills(meta, song.eras, "era", "decade");
     appendPills(meta, getHolidayValues(song), "flag", "holiday");
@@ -1315,7 +1365,7 @@ function getSongTagGroups(song) {
         groups.push({ label, values: deduped, className, filterName, limit });
     };
 
-    addGroup("Mood", song.moods, "mood", "mood");
+    addGroup("Mood", getSongMoods(song), "mood", "mood");
     addGroup("Genre", getSongGenres(song), "genre", "genre");
     addGroup("Decade", song.eras, "era", "decade");
     addGroup("Holiday", getHolidayValues(song), "flag", "holiday");
@@ -1963,8 +2013,44 @@ function getPromotedGenresForSong(song, promotedGenreTags = state.promotedGenreT
     return dedupeValues(values);
 }
 
+function getConsolidatedMoodsForSong(song) {
+    const values = [];
+    const rules = state.moodConsolidation.moods || [];
+    if (!rules.length) {
+        return values;
+    }
+
+    const sourceKeys = new Set([
+        ...(song.tags || []),
+        ...getSongGenres(song),
+    ].map(normalize).filter(Boolean));
+    const sourceText = normalize([
+        song.artist,
+        song.lookupArtist,
+        song.song,
+        song.lookupSong,
+        ...(song.tags || []),
+        ...getSongGenres(song),
+    ].join(" "));
+
+    for (const rule of rules) {
+        const hasExactMatch = [...rule.tags].some((tag) => sourceKeys.has(tag));
+        const hasPhraseMatch = rule.contains.some((phrase) => sourceText.includes(phrase));
+
+        if (hasExactMatch || hasPhraseMatch) {
+            values.push(rule.label);
+        }
+    }
+
+    return dedupeValues(values);
+}
+
 function getSongGenres(song) {
     return song.allGenres || song.genres || [];
+}
+
+function getSongMoods(song) {
+    return song.allMoods || song.moods || [];
 }
 
 function includesValue(values, target) {
@@ -1974,6 +2060,7 @@ function includesValue(values, target) {
 
 function getTagValues(song) {
     return [
+        ...getSongMoods(song),
         ...getSongGenres(song),
         ...(song.eras || []),
         ...(song.flags || []),
@@ -2028,7 +2115,7 @@ function buildSearchText(song) {
         song.artist,
         song.song,
         ...getSongGenres(song),
-        ...(song.moods || []),
+        ...getSongMoods(song),
         ...(song.eras || []),
         ...(song.flags || []),
         ...(song.tags || []),
