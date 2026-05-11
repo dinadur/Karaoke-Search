@@ -1,8 +1,9 @@
-const APP_VERSION = "20260510-7";
+const APP_VERSION = "20260510-8";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const TAG_CONSOLIDATION_URL = `tag_consolidation.json?v=${APP_VERSION}`;
 const MOOD_CONSOLIDATION_URL = `mood_consolidation.json?v=${APP_VERSION}`;
 const RESULT_BATCH_SIZE = 160;
+const SEARCH_RENDER_DELAY = 90;
 const SEARCH_SCOPES = ["song", "artist"];
 const TAG_GENRE_MIN_COUNT = 50;
 const THEME_STORAGE_KEY = "karaokeTheme";
@@ -171,6 +172,7 @@ const GENRE_TAG_LABELS = {
     "singer songwriter": "Singer-songwriter",
 };
 const loadStatusTimers = [];
+let searchRenderTimer = 0;
 applyStoredTheme();
 
 const state = {
@@ -187,6 +189,7 @@ const state = {
     availableGenres: [],
     availableDecades: [],
     availableHolidays: [],
+    defaultRankedSongs: [],
     promotedGenreTags: new Map(),
     tagConsolidation: createEmptyTagConsolidation(),
     moodConsolidation: createEmptyMoodConsolidation(),
@@ -312,7 +315,7 @@ function bindEvents() {
         state.query = els.searchInput.value.trim();
         state.mode = "search";
         resetResultLimit();
-        render();
+        scheduleSearchRender();
     });
 
     for (const input of els.searchScopeInputs) {
@@ -491,6 +494,12 @@ function useSongs(songs) {
     const preparedSongs = songs.map((song, index) => {
         const artistKey = getArtistKey(song);
         const displayArtist = artistNames.get(artistKey) || getPrimaryArtistName(song);
+        const songSearchText = normalize(song.song);
+        const artistSearchText = normalize([
+            displayArtist,
+            song.artist,
+            song.lookupArtist,
+        ].join(" "));
 
         return {
             ...song,
@@ -499,12 +508,12 @@ function useSongs(songs) {
             id: `${artistKey || normalize(song.artist)}\u001f${normalize(song.song)}\u001f${index}`,
             songLetter: getBrowseLetter(song.song),
             artistLetter: getBrowseLetter(displayArtist),
+            songSearchText,
+            artistSearchText,
+            songSortText: songSearchText,
+            artistSortText: normalize(displayArtist),
             songWords: getSearchWords(song.song),
-            artistWords: getSearchWords([
-                displayArtist,
-                song.artist,
-                song.lookupArtist,
-            ].join(" ")),
+            artistWords: getSearchWords(artistSearchText),
         };
     });
 
@@ -530,6 +539,11 @@ function useSongs(songs) {
             searchText: normalize(buildSearchText(preparedSong)),
         };
     });
+    state.defaultRankedSongs = [...state.songs].sort((a, b) =>
+        (b.confidence || 0) - (a.confidence || 0) ||
+        compareArtistSort(a, b) ||
+        compareSongSort(a, b)
+    );
 
     state.availableMoods = getAvailableValues(getSongMoods);
     state.availableGenres = getAvailableValues(getSongGenres);
@@ -665,6 +679,7 @@ function normalizeMoodConsolidation(raw = {}) {
 }
 
 function render() {
+    cancelScheduledSearchRender();
     renderMode();
     renderSearchFilters();
 
@@ -679,7 +694,7 @@ function render() {
     }
 
     const ranked = rankSongs(state.songs, state.query);
-    const filtered = applySearchFilters(ranked);
+    const filtered = hasSongFilters() ? applySearchFilters(ranked) : ranked;
     const sorted = sortSongs(filtered);
     state.currentSongs = sorted;
     state.matchCount = sorted.length;
@@ -708,20 +723,34 @@ function renderMode() {
     els.browseList.hidden = !isBrowse;
 }
 
+function scheduleSearchRender() {
+    cancelScheduledSearchRender();
+    searchRenderTimer = window.setTimeout(() => {
+        searchRenderTimer = 0;
+        render();
+    }, SEARCH_RENDER_DELAY);
+}
+
+function cancelScheduledSearchRender() {
+    if (searchRenderTimer) {
+        window.clearTimeout(searchRenderTimer);
+        searchRenderTimer = 0;
+    }
+}
+
 function rankSongs(songs, query) {
     const tokens = normalize(query).split(" ").filter(Boolean);
     if (!tokens.length) {
-        return songs
-            .map((song) => ({ song, score: song.confidence || 0 }))
-            .sort((a, b) => b.score - a.score)
-            .map((item) => item.song);
+        return state.defaultRankedSongs.length ? state.defaultRankedSongs : songs;
     }
 
+    const phrase = tokens.join(" ");
+    const isArtistSearch = state.searchScope === "artist";
+    const fuzzySearch = state.fuzzySearch;
     return songs
         .map((song) => {
-            const haystack = getScopedSearchText(song);
+            const haystack = getScopedSearchText(song, isArtistSearch);
             const fuzzyWords = getScopedSearchWords(song);
-            const phrase = tokens.join(" ");
             let score = 0;
 
             for (const token of tokens) {
@@ -730,7 +759,7 @@ function rankSongs(songs, query) {
                     continue;
                 }
 
-                if (!state.fuzzySearch) {
+                if (!fuzzySearch) {
                     return { song, score: 0 };
                 }
 
@@ -746,18 +775,18 @@ function rankSongs(songs, query) {
                 score += 12;
             }
 
-            if (state.searchScope === "song" && normalize(song.song).startsWith(phrase)) {
+            if (!isArtistSearch && (song.songSearchText || normalize(song.song)).startsWith(phrase)) {
                 score += 10;
             }
 
-            if (state.searchScope === "artist" && normalize(getDisplayArtist(song)).startsWith(phrase)) {
+            if (isArtistSearch && (song.artistSearchText || normalize(getDisplayArtist(song))).startsWith(phrase)) {
                 score += 10;
             }
 
             return { song, score };
         })
         .filter((item) => item.score > 0)
-        .sort((a, b) => b.score - a.score || compareText(getDisplayArtist(a.song), getDisplayArtist(b.song)))
+        .sort((a, b) => b.score - a.score || compareArtistSort(a.song, b.song) || compareSongSort(a.song, b.song))
         .map((item) => item.song);
 }
 
@@ -793,21 +822,20 @@ function applySearchFilters(songs) {
 
 function sortSongs(songs) {
     const mode = state.sortMode;
-    const copy = [...songs];
 
     if (mode === "artist") {
-        return copy.sort((a, b) => compareText(getDisplayArtist(a), getDisplayArtist(b)) || compareText(a.song, b.song));
+        return [...songs].sort((a, b) => compareArtistSort(a, b) || compareSongSort(a, b));
     }
 
     if (mode === "song") {
-        return copy.sort((a, b) => compareText(a.song, b.song) || compareText(getDisplayArtist(a), getDisplayArtist(b)));
+        return [...songs].sort((a, b) => compareSongSort(a, b) || compareArtistSort(a, b));
     }
 
     if (mode === "confidence") {
-        return copy.sort((a, b) => (b.confidence || 0) - (a.confidence || 0) || compareText(getDisplayArtist(a), getDisplayArtist(b)));
+        return [...songs].sort((a, b) => (b.confidence || 0) - (a.confidence || 0) || compareArtistSort(a, b));
     }
 
-    return copy;
+    return songs;
 }
 
 function collapseSongVersions(songs) {
@@ -1644,17 +1672,17 @@ function getBrowseSongs() {
 function sortForBrowse(songs) {
     return [...songs].sort((a, b) => {
         if (state.browseBy === "artist") {
-            return compareText(getDisplayArtist(a), getDisplayArtist(b)) || compareText(a.song, b.song);
+            return compareArtistSort(a, b) || compareSongSort(a, b);
         }
 
-        return compareText(a.song, b.song) || compareText(getDisplayArtist(a), getDisplayArtist(b));
+        return compareSongSort(a, b) || compareArtistSort(a, b);
     });
 }
 
 function groupByArtist(songs) {
     const groups = new Map();
     const sortedSongs = [...songs].sort((a, b) =>
-        compareText(getDisplayArtist(a), getDisplayArtist(b)) || compareText(a.song, b.song)
+        compareArtistSort(a, b) || compareSongSort(a, b)
     );
 
     for (const song of sortedSongs) {
@@ -1672,7 +1700,7 @@ function groupByArtist(songs) {
 
 function groupBySongLetter(songs) {
     const groups = new Map();
-    for (const song of [...songs].sort((a, b) => compareText(a.song, b.song) || compareText(getDisplayArtist(a), getDisplayArtist(b)))) {
+    for (const song of [...songs].sort((a, b) => compareSongSort(a, b) || compareArtistSort(a, b))) {
         const letter = getBrowseLetter(song.song);
         if (!groups.has(letter)) {
             groups.set(letter, []);
@@ -1799,16 +1827,16 @@ function updateSearchPlaceholder() {
     els.searchInput.setAttribute("aria-label", els.searchInput.placeholder);
 }
 
-function getScopedSearchText(song) {
-    if (state.searchScope === "artist") {
-        return normalize([
+function getScopedSearchText(song, isArtistSearch = state.searchScope === "artist") {
+    if (isArtistSearch) {
+        return song.artistSearchText || normalize([
             getDisplayArtist(song),
             song.artist,
             song.lookupArtist,
         ].join(" "));
     }
 
-    return normalize(song.song);
+    return song.songSearchText || normalize(song.song);
 }
 
 function getScopedSearchWords(song) {
@@ -1924,6 +1952,15 @@ function hasActiveSearchFilters() {
         state.filters.duet ||
         state.filters.explicit ||
         state.fuzzySearch;
+}
+
+function hasSongFilters() {
+    return Boolean(state.filters.mood) ||
+        Boolean(state.filters.genre) ||
+        Boolean(state.filters.decade) ||
+        Boolean(state.filters.holiday) ||
+        state.filters.duet ||
+        state.filters.explicit;
 }
 
 function getAvailableDecades() {
@@ -2266,6 +2303,28 @@ function getBrowseLetter(value) {
 
 function compareText(a, b) {
     return String(a || "").localeCompare(String(b || ""), undefined, { sensitivity: "base" });
+}
+
+function compareSortKey(a, b) {
+    const left = String(a || "");
+    const right = String(b || "");
+    if (left < right) return -1;
+    if (left > right) return 1;
+    return 0;
+}
+
+function compareArtistSort(a, b) {
+    return compareSortKey(
+        a.artistSortText || normalize(getDisplayArtist(a)),
+        b.artistSortText || normalize(getDisplayArtist(b))
+    );
+}
+
+function compareSongSort(a, b) {
+    return compareSortKey(
+        a.songSortText || normalize(a.song),
+        b.songSortText || normalize(b.song)
+    );
 }
 
 function compareDecade(a, b) {
