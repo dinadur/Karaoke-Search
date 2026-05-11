@@ -697,9 +697,28 @@ select:hover {
 }
 
 .browse-artist {
+    display: block;
+    width: fit-content;
+    max-width: 100%;
     min-width: 0;
+    border: 0;
+    padding: 0;
+    background: transparent;
     color: var(--muted);
+    text-align: left;
     overflow-wrap: anywhere;
+}
+
+button.browse-artist:hover {
+    color: var(--teal);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+button.browse-artist:focus-visible {
+    outline: 3px solid var(--focus-ring);
+    outline-offset: 2px;
+    border-radius: 4px;
 }
 
 .mini-add {

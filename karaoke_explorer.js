@@ -1,4 +1,4 @@
-const APP_VERSION = "20260510-3";
+const APP_VERSION = "20260510-4";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const TAG_CONSOLIDATION_URL = `tag_consolidation.json?v=${APP_VERSION}`;
 const RESULT_BATCH_SIZE = 160;
@@ -825,10 +825,7 @@ function createGroupedSongRow(song, showArtist) {
     title.textContent = song.song || "Untitled";
 
     if (showArtist) {
-        const artist = document.createElement("div");
-        artist.className = "browse-artist";
-        artist.textContent = song.artist || song.lookupArtist || "Unknown artist";
-        row.append(title, artist, createRowTools(song));
+        row.append(title, createArtistSearchControl(song, "browse-artist"), createRowTools(song));
     } else {
         row.append(title, createRowTools(song));
     }
@@ -940,11 +937,7 @@ function createBrowseRow(song) {
     title.className = "browse-title";
     title.textContent = song.song || "Untitled";
 
-    const artist = document.createElement("div");
-    artist.className = "browse-artist";
-    artist.textContent = song.artist || song.lookupArtist || "Unknown artist";
-
-    row.append(title, artist, createRowTools(song));
+    row.append(title, createArtistSearchControl(song, "browse-artist"), createRowTools(song));
     return row;
 }
 
@@ -974,18 +967,7 @@ function createSongCard(song) {
     title.className = "song-title";
     title.textContent = song.song || "Untitled";
 
-    const artistName = song.artist || song.lookupArtist || "";
-    const artist = document.createElement(artistName ? "button" : "div");
-    artist.className = "song-artist";
-    artist.textContent = artistName || "Unknown artist";
-
-    if (artistName) {
-        artist.type = "button";
-        artist.title = `Show songs by ${artistName}`;
-        artist.addEventListener("click", () => applyArtistSearch(artistName));
-    }
-
-    text.append(title, artist);
+    text.append(title, createArtistSearchControl(song, "song-artist"));
 
     const meta = document.createElement("div");
     meta.className = "meta-row";
@@ -1013,6 +995,21 @@ function createSongCard(song) {
     actions.append(links, button);
     card.append(text, meta, actions);
     return card;
+}
+
+function createArtistSearchControl(song, className) {
+    const artistName = song.artist || song.lookupArtist || "";
+    const artist = document.createElement(artistName ? "button" : "div");
+    artist.className = className;
+    artist.textContent = artistName || "Unknown artist";
+
+    if (artistName) {
+        artist.type = "button";
+        artist.title = `Show songs by ${artistName}`;
+        artist.addEventListener("click", () => applyArtistSearch(artistName));
+    }
+
+    return artist;
 }
 
 function createSongLinks(song) {
