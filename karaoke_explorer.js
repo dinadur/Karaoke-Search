@@ -1,4 +1,4 @@
-const APP_VERSION = "20260510-8";
+const APP_VERSION = "20260510-9";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const TAG_CONSOLIDATION_URL = `tag_consolidation.json?v=${APP_VERSION}`;
 const MOOD_CONSOLIDATION_URL = `mood_consolidation.json?v=${APP_VERSION}`;
@@ -7,6 +7,8 @@ const SEARCH_RENDER_DELAY = 90;
 const SEARCH_SCOPES = ["song", "artist"];
 const TAG_GENRE_MIN_COUNT = 50;
 const THEME_STORAGE_KEY = "karaokeTheme";
+const UI_STATE_STORAGE_KEY = "karaokeUiState";
+const FAVORITES_STORAGE_KEY = "karaokeFavorites";
 const LINK_MENU_STORAGE = new WeakMap();
 const TAG_MENU_STORAGE = new WeakMap();
 const SMALL_ARTIST_WORDS = new Set([
@@ -173,6 +175,7 @@ const GENRE_TAG_LABELS = {
 };
 const loadStatusTimers = [];
 let searchRenderTimer = 0;
+let draggedSetlistIndex = null;
 applyStoredTheme();
 
 const state = {
@@ -184,6 +187,7 @@ const state = {
     query: "",
     searchScope: "song",
     fuzzySearch: false,
+    favoriteOnly: false,
     sortMode: "relevance",
     availableMoods: [],
     availableGenres: [],
@@ -206,6 +210,7 @@ const state = {
     browseLetter: "#",
     groupOpenMode: "auto",
     setlist: loadSetlist(),
+    favorites: loadFavorites(),
 };
 
 const els = {
@@ -225,8 +230,10 @@ const els = {
     holidayFilter: document.getElementById("holidayFilter"),
     duetFilter: document.getElementById("duetFilter"),
     explicitFilter: document.getElementById("explicitFilter"),
+    favoriteFilter: document.getElementById("favoriteFilter"),
     fuzzySearch: document.getElementById("fuzzySearch"),
     clearFiltersButton: document.getElementById("clearFiltersButton"),
+    activeFilters: document.getElementById("activeFilters"),
     orderRelevanceButton: document.getElementById("orderRelevanceButton"),
     orderSongButton: document.getElementById("orderSongButton"),
     orderArtistButton: document.getElementById("orderArtistButton"),
@@ -247,6 +254,7 @@ const els = {
     setlist: document.getElementById("setlist"),
     setlistCount: document.getElementById("setlistCount"),
     copySetlistButton: document.getElementById("copySetlistButton"),
+    clearSetlistButton: document.getElementById("clearSetlistButton"),
     closeSetlistButton: document.getElementById("closeSetlistButton"),
     mobileSetlistButton: document.getElementById("mobileSetlistButton"),
     dataDialog: document.getElementById("dataDialog"),
@@ -272,7 +280,7 @@ init();
 async function init() {
     bindEvents();
     renderThemeButton();
-    applyInitialRoute();
+    applyInitialState();
     startLoadStatus();
 
     try {
@@ -315,6 +323,7 @@ function bindEvents() {
         state.query = els.searchInput.value.trim();
         state.mode = "search";
         resetResultLimit();
+        saveUiState();
         scheduleSearchRender();
     });
 
@@ -352,6 +361,13 @@ function bindEvents() {
 
     els.explicitFilter.addEventListener("change", () => {
         state.filters.explicit = els.explicitFilter.checked;
+        state.mode = "search";
+        resetResultLimit();
+        render();
+    });
+
+    els.favoriteFilter.addEventListener("change", () => {
+        state.favoriteOnly = els.favoriteFilter.checked;
         state.mode = "search";
         resetResultLimit();
         render();
@@ -475,6 +491,16 @@ function bindEvents() {
         await navigator.clipboard.writeText(text);
         els.copySetlistButton.classList.add("copied");
         setTimeout(() => els.copySetlistButton.classList.remove("copied"), 800);
+    });
+
+    els.clearSetlistButton.addEventListener("click", () => {
+        if (!state.setlist.length) {
+            return;
+        }
+
+        state.setlist = [];
+        saveSetlist();
+        renderSetlist();
     });
 
     els.fileInput.addEventListener("change", async () => {
@@ -682,11 +708,13 @@ function render() {
     cancelScheduledSearchRender();
     renderMode();
     renderSearchFilters();
+    renderActiveFilters();
 
     if (state.mode === "browse") {
         renderBrowse();
         renderStatus(getBrowseSongs().length);
         renderResultContext();
+        saveUiState();
         if (window.lucide) {
             window.lucide.createIcons();
         }
@@ -704,6 +732,7 @@ function render() {
     renderStatus(filtered.length);
     renderResultContext();
     renderResultActions(filtered.length);
+    saveUiState();
 
     if (window.lucide) {
         window.lucide.createIcons();
@@ -717,6 +746,7 @@ function renderMode() {
     els.browseTools.hidden = !isBrowse;
     els.searchScope.hidden = isBrowse;
     els.searchFilters.hidden = isBrowse;
+    els.activeFilters.hidden = isBrowse || !els.activeFilters.childElementCount;
     els.resultsList.hidden = isBrowse;
     els.resultActions.hidden = true;
     els.groupActions.hidden = true;
@@ -816,6 +846,10 @@ function applySearchFilters(songs) {
             return false;
         }
 
+        if (state.favoriteOnly && !isFavorite(song)) {
+            return false;
+        }
+
         return true;
     });
 }
@@ -890,6 +924,7 @@ function clearSearchFilters({ resetFuzzy = true } = {}) {
     state.filters.holiday = "";
     state.filters.duet = false;
     state.filters.explicit = false;
+    state.favoriteOnly = false;
 
     if (resetFuzzy) {
         state.fuzzySearch = false;
@@ -938,6 +973,39 @@ function renderEmptySearchState() {
     title.textContent = "No matches";
     empty.appendChild(title);
 
+    const suggestions = getEmptySearchSuggestions();
+    if (suggestions.length) {
+        const suggestionWrap = document.createElement("div");
+        suggestionWrap.className = "empty-suggestions";
+
+        const suggestionLabel = document.createElement("span");
+        suggestionLabel.textContent = "Try";
+        suggestionWrap.appendChild(suggestionLabel);
+
+        for (const suggestion of suggestions) {
+            const button = document.createElement("button");
+            button.className = "empty-suggestion";
+            button.type = "button";
+            button.textContent = suggestion.label;
+            button.title = suggestion.detail || suggestion.label;
+            button.addEventListener("click", () => {
+                state.query = suggestion.query;
+                els.searchInput.value = suggestion.query;
+                state.searchScope = suggestion.scope;
+                state.fuzzySearch = false;
+                state.mode = "search";
+                syncSearchScopeInput();
+                updateSearchPlaceholder();
+                resetResultLimit();
+                render();
+                els.searchInput.focus();
+            });
+            suggestionWrap.appendChild(button);
+        }
+
+        empty.appendChild(suggestionWrap);
+    }
+
     const actions = document.createElement("div");
     actions.className = "empty-actions";
 
@@ -980,6 +1048,59 @@ function createEmptyAction(label, onClick) {
     button.textContent = label;
     button.addEventListener("click", onClick);
     return button;
+}
+
+function getEmptySearchSuggestions(limit = 5) {
+    const tokens = normalize(state.query).split(" ").filter((token) => token.length > 2);
+    if (!tokens.length || state.fuzzySearch) {
+        return [];
+    }
+
+    const isArtistSearch = state.searchScope === "artist";
+    const seen = new Set();
+    const suggestions = [];
+
+    for (const song of state.songs) {
+        const haystack = getScopedSearchText(song, isArtistSearch);
+        const words = getScopedSearchWords(song);
+        let score = 0;
+
+        for (const token of tokens) {
+            if (haystack.includes(token)) {
+                score += 8;
+                continue;
+            }
+
+            const fuzzyScore = getFuzzyTokenScore(token, words);
+            if (fuzzyScore) {
+                score += fuzzyScore;
+            }
+        }
+
+        if (!score) {
+            continue;
+        }
+
+        const query = isArtistSearch ? getDisplayArtist(song) : song.song;
+        const key = normalize(`${state.searchScope}\u001f${query}`);
+        if (!query || seen.has(key)) {
+            continue;
+        }
+
+        seen.add(key);
+        suggestions.push({
+            query,
+            scope: state.searchScope,
+            label: isArtistSearch ? query : song.song,
+            detail: isArtistSearch ? `${query}` : `${song.song} - ${getDisplayArtist(song)}`,
+            score,
+            song,
+        });
+    }
+
+    return suggestions
+        .sort((a, b) => b.score - a.score || compareSongSort(a.song, b.song))
+        .slice(0, limit);
 }
 
 function renderGroupedSearchResults() {
@@ -1171,8 +1292,21 @@ function createBrowseRow(song) {
 function createRowTools(song) {
     const tools = document.createElement("div");
     tools.className = "row-tools";
-    tools.append(createSongTags(song), createSongLinks(song), createMiniAddButton(song));
+    tools.append(createFavoriteButton(song), createSongTags(song), createSongLinks(song), createMiniAddButton(song));
     return tools;
+}
+
+function createFavoriteButton(song) {
+    const active = isFavorite(song);
+    const button = document.createElement("button");
+    button.className = "icon-button favorite-button";
+    button.classList.toggle("is-active", active);
+    button.type = "button";
+    button.title = active ? "Remove favorite" : "Add favorite";
+    button.setAttribute("aria-label", active ? "Remove favorite" : "Add favorite");
+    button.innerHTML = '<i data-lucide="star" aria-hidden="true"></i>';
+    button.addEventListener("click", () => toggleFavorite(song));
+    return button;
 }
 
 function createMiniAddButton(song) {
@@ -1211,7 +1345,9 @@ function createSongCard(song) {
     const actions = document.createElement("div");
     actions.className = "card-actions";
 
-    const links = createSongLinks(song);
+    const cardTools = document.createElement("div");
+    cardTools.className = "card-tools";
+    cardTools.append(createFavoriteButton(song), createSongLinks(song));
 
     const button = document.createElement("button");
     button.className = "add-button";
@@ -1219,7 +1355,7 @@ function createSongCard(song) {
     button.textContent = "Add";
     button.addEventListener("click", () => addToSetlist(song));
 
-    actions.append(links, button);
+    actions.append(cardTools, button);
     card.append(text, meta, actions);
     return card;
 }
@@ -1564,6 +1700,18 @@ function renderResultContext() {
     count.className = "context-count";
     count.textContent = `${state.matchCount.toLocaleString()} matches`;
 
+    const meta = document.createElement("div");
+    meta.className = "context-meta";
+    for (const value of [
+        ...getTopValues(state.currentSongs, getSongGenres, 3),
+        ...getTopValues(state.currentSongs, getSongMoods, 3),
+    ]) {
+        const chip = document.createElement("span");
+        chip.className = "context-chip";
+        chip.textContent = value;
+        meta.appendChild(chip);
+    }
+
     const clear = document.createElement("button");
     clear.className = "filter-clear context-clear";
     clear.type = "button";
@@ -1577,7 +1725,11 @@ function renderResultContext() {
         els.searchInput.focus();
     });
 
-    els.resultContext.append(label, artist, count, clear);
+    els.resultContext.append(label, artist, count);
+    if (meta.childElementCount) {
+        els.resultContext.appendChild(meta);
+    }
+    els.resultContext.appendChild(clear);
 }
 
 function renderResultActions(totalMatches) {
@@ -1594,6 +1746,69 @@ function renderResultActions(totalMatches) {
     els.showAllResultsButton.hidden = totalMatches > 10000;
 }
 
+function applyInitialState() {
+    applyStoredUiState();
+    applyInitialRoute();
+    els.searchInput.value = state.query;
+    syncSearchScopeInput();
+    updateSearchPlaceholder();
+}
+
+function applyStoredUiState() {
+    let stored;
+    try {
+        stored = JSON.parse(localStorage.getItem(UI_STATE_STORAGE_KEY) || "null");
+    } catch {
+        return;
+    }
+
+    if (!stored || typeof stored !== "object") {
+        return;
+    }
+
+    if (stored.mode === "browse" || stored.mode === "search") {
+        state.mode = stored.mode;
+    }
+
+    if (stored.browseBy === "artist" || stored.browseBy === "song") {
+        state.browseBy = stored.browseBy;
+    }
+
+    if (typeof stored.browseLetter === "string") {
+        const cleanLetter = stored.browseLetter.trim().toUpperCase();
+        state.browseLetter = cleanLetter === "#" ? "#" : cleanLetter.slice(0, 1);
+    }
+
+    if (SEARCH_SCOPES.includes(stored.searchScope)) {
+        state.searchScope = stored.searchScope;
+    }
+
+    if (typeof stored.query === "string") {
+        state.query = stored.query;
+    }
+
+    if (typeof stored.fuzzySearch === "boolean") {
+        state.fuzzySearch = stored.fuzzySearch;
+    }
+
+    if (typeof stored.favoriteOnly === "boolean") {
+        state.favoriteOnly = stored.favoriteOnly;
+    }
+
+    if (["relevance", "artist", "song"].includes(stored.sortMode)) {
+        state.sortMode = stored.sortMode;
+    }
+
+    if (stored.filters && typeof stored.filters === "object") {
+        state.filters.mood = typeof stored.filters.mood === "string" ? stored.filters.mood : "";
+        state.filters.genre = typeof stored.filters.genre === "string" ? stored.filters.genre : "";
+        state.filters.decade = typeof stored.filters.decade === "string" ? stored.filters.decade : "";
+        state.filters.holiday = typeof stored.filters.holiday === "string" ? stored.filters.holiday : "";
+        state.filters.duet = Boolean(stored.filters.duet);
+        state.filters.explicit = Boolean(stored.filters.explicit);
+    }
+}
+
 function applyInitialRoute() {
     const params = new URLSearchParams(window.location.search);
     const mode = params.get("mode");
@@ -1602,6 +1817,10 @@ function applyInitialRoute() {
     const scope = params.get("scope");
     const query = params.get("q");
     const sort = params.get("sort");
+    const mood = params.get("mood");
+    const genre = params.get("genre");
+    const decade = params.get("decade");
+    const holiday = params.get("holiday");
 
     if (mode === "browse") {
         state.mode = "browse";
@@ -1626,11 +1845,37 @@ function applyInitialRoute() {
 
     if (query) {
         state.query = query;
-        els.searchInput.value = query;
     }
 
     if (["relevance", "artist", "song"].includes(sort)) {
         state.sortMode = sort;
+    }
+
+    if (mood) state.filters.mood = mood;
+    if (genre) state.filters.genre = genre;
+    if (decade) state.filters.decade = decade;
+    if (holiday) state.filters.holiday = holiday;
+    if (params.get("duet") === "1") state.filters.duet = true;
+    if (params.get("explicit") === "1") state.filters.explicit = true;
+    if (params.get("favorites") === "1") state.favoriteOnly = true;
+    if (params.get("fuzzy") === "1") state.fuzzySearch = true;
+}
+
+function saveUiState() {
+    try {
+        localStorage.setItem(UI_STATE_STORAGE_KEY, JSON.stringify({
+            mode: state.mode,
+            browseBy: state.browseBy,
+            browseLetter: state.browseLetter,
+            searchScope: state.searchScope,
+            query: state.query,
+            fuzzySearch: state.fuzzySearch,
+            favoriteOnly: state.favoriteOnly,
+            sortMode: state.sortMode,
+            filters: state.filters,
+        }));
+    } catch {
+        // State persistence is a convenience; search should keep working if storage is blocked.
     }
 }
 
@@ -1641,6 +1886,21 @@ function addToSetlist(song) {
         saveSetlist();
         renderSetlist();
     }
+}
+
+function toggleFavorite(song) {
+    if (isFavorite(song)) {
+        state.favorites.delete(song.id);
+    } else {
+        state.favorites.add(song.id);
+    }
+
+    saveFavorites();
+    render();
+}
+
+function isFavorite(song) {
+    return Boolean(song?.id && state.favorites.has(song.id));
 }
 
 function ensureBrowseLetter() {
@@ -1722,6 +1982,8 @@ function shouldGroupSearchResults() {
 function renderSetlist() {
     els.setlist.innerHTML = "";
     els.setlistCount.textContent = `${state.setlist.length} ${state.setlist.length === 1 ? "song" : "songs"}`;
+    els.copySetlistButton.disabled = !state.setlist.length;
+    els.clearSetlistButton.disabled = !state.setlist.length;
     els.mobileSetlistButton.querySelector("span").textContent =
         state.setlist.length ? `Setlist (${state.setlist.length})` : "Setlist";
     els.mobileSetlistButton.setAttribute(
@@ -1737,6 +1999,37 @@ function renderSetlist() {
     const fragment = document.createDocumentFragment();
     state.setlist.forEach((song, index) => {
         const item = document.createElement("li");
+        item.className = "setlist-item";
+        item.draggable = true;
+        item.dataset.index = String(index);
+
+        item.addEventListener("dragstart", (event) => {
+            draggedSetlistIndex = index;
+            item.classList.add("is-dragging");
+            event.dataTransfer.effectAllowed = "move";
+            event.dataTransfer.setData("text/plain", String(index));
+        });
+
+        item.addEventListener("dragover", (event) => {
+            event.preventDefault();
+            item.classList.add("is-drop-target");
+        });
+
+        item.addEventListener("dragleave", () => {
+            item.classList.remove("is-drop-target");
+        });
+
+        item.addEventListener("drop", (event) => {
+            event.preventDefault();
+            item.classList.remove("is-drop-target");
+            const fromIndex = Number(event.dataTransfer.getData("text/plain") || draggedSetlistIndex);
+            reorderSetlist(fromIndex, index);
+        });
+
+        item.addEventListener("dragend", () => {
+            draggedSetlistIndex = null;
+            item.classList.remove("is-dragging", "is-drop-target");
+        });
 
         const title = document.createElement("span");
         title.className = "setlist-title";
@@ -1746,25 +2039,77 @@ function renderSetlist() {
         artist.className = "setlist-artist";
         artist.textContent = getDisplayArtist(song) || "Unknown artist";
 
+        const controls = document.createElement("div");
+        controls.className = "setlist-controls";
+
+        const handle = document.createElement("span");
+        handle.className = "setlist-handle";
+        handle.title = "Drag to reorder";
+        handle.innerHTML = '<i data-lucide="grip-vertical" aria-hidden="true"></i>';
+
+        const up = document.createElement("button");
+        up.className = "setlist-icon-button";
+        up.type = "button";
+        up.title = "Move up";
+        up.disabled = index === 0;
+        up.innerHTML = '<i data-lucide="chevron-up" aria-hidden="true"></i>';
+        up.addEventListener("click", () => moveSetlistItem(index, -1));
+
+        const down = document.createElement("button");
+        down.className = "setlist-icon-button";
+        down.type = "button";
+        down.title = "Move down";
+        down.disabled = index === state.setlist.length - 1;
+        down.innerHTML = '<i data-lucide="chevron-down" aria-hidden="true"></i>';
+        down.addEventListener("click", () => moveSetlistItem(index, 1));
+
         const remove = document.createElement("button");
-        remove.className = "remove-button";
+        remove.className = "setlist-icon-button remove-button";
         remove.type = "button";
-        remove.textContent = "Remove";
+        remove.title = "Remove";
+        remove.innerHTML = '<i data-lucide="x" aria-hidden="true"></i>';
         remove.addEventListener("click", () => {
             state.setlist.splice(index, 1);
             saveSetlist();
             renderSetlist();
         });
 
-        item.append(title, artist, remove);
+        controls.append(handle, up, down, remove);
+        item.append(title, artist, controls);
         fragment.appendChild(item);
     });
 
     els.setlist.appendChild(fragment);
+    if (window.lucide) {
+        window.lucide.createIcons();
+    }
+}
+
+function moveSetlistItem(index, direction) {
+    reorderSetlist(index, index + direction);
+}
+
+function reorderSetlist(fromIndex, toIndex) {
+    if (!Number.isInteger(fromIndex) || !Number.isInteger(toIndex) || fromIndex === toIndex) {
+        return;
+    }
+
+    if (fromIndex < 0 || fromIndex >= state.setlist.length || toIndex < 0 || toIndex >= state.setlist.length) {
+        return;
+    }
+
+    const [song] = state.setlist.splice(fromIndex, 1);
+    state.setlist.splice(toIndex, 0, song);
+    saveSetlist();
+    renderSetlist();
 }
 
 function saveSetlist() {
-    localStorage.setItem("karaokeSetlist", JSON.stringify(state.setlist));
+    try {
+        localStorage.setItem("karaokeSetlist", JSON.stringify(state.setlist));
+    } catch {
+        // Setlist remains available in memory for the current page.
+    }
 }
 
 function loadSetlist() {
@@ -1772,6 +2117,23 @@ function loadSetlist() {
         return JSON.parse(localStorage.getItem("karaokeSetlist") || "[]");
     } catch {
         return [];
+    }
+}
+
+function saveFavorites() {
+    try {
+        localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify([...state.favorites]));
+    } catch {
+        // Favorites are still usable for the current page if storage is unavailable.
+    }
+}
+
+function loadFavorites() {
+    try {
+        const values = JSON.parse(localStorage.getItem(FAVORITES_STORAGE_KEY) || "[]");
+        return new Set(Array.isArray(values) ? values : []);
+    } catch {
+        return new Set();
     }
 }
 
@@ -1937,11 +2299,123 @@ function renderSearchFilters() {
     els.holidayFilter.value = state.filters.holiday;
     els.duetFilter.checked = state.filters.duet;
     els.explicitFilter.checked = state.filters.explicit;
+    els.favoriteFilter.checked = state.favoriteOnly;
     els.fuzzySearch.checked = state.fuzzySearch;
     els.clearFiltersButton.hidden = !hasActiveSearchFilters();
     els.orderRelevanceButton.classList.toggle("is-active", state.sortMode === "relevance");
     els.orderSongButton.classList.toggle("is-active", state.sortMode === "song");
     els.orderArtistButton.classList.toggle("is-active", state.sortMode === "artist");
+}
+
+function renderActiveFilters() {
+    els.activeFilters.innerHTML = "";
+    if (state.mode === "browse") {
+        els.activeFilters.hidden = true;
+        return;
+    }
+
+    const chips = [];
+    if (state.query) {
+        chips.push({
+            label: `${state.searchScope === "artist" ? "Artist" : "Song"}: ${state.query}`,
+            onClear: () => clearSearchQuery({ resetScope: false }),
+        });
+    }
+
+    for (const [filterName, label] of [
+        ["mood", "Mood"],
+        ["genre", "Genre"],
+        ["decade", "Decade"],
+        ["holiday", "Holiday"],
+    ]) {
+        if (state.filters[filterName]) {
+            chips.push({
+                label: `${label}: ${state.filters[filterName]}`,
+                onClear: () => {
+                    state.filters[filterName] = "";
+                },
+            });
+        }
+    }
+
+    if (state.filters.duet) {
+        chips.push({
+            label: "Duet",
+            onClear: () => {
+                state.filters.duet = false;
+            },
+        });
+    }
+
+    if (state.filters.explicit) {
+        chips.push({
+            label: "Explicit",
+            onClear: () => {
+                state.filters.explicit = false;
+            },
+        });
+    }
+
+    if (state.favoriteOnly) {
+        chips.push({
+            label: "Favorites",
+            onClear: () => {
+                state.favoriteOnly = false;
+            },
+        });
+    }
+
+    if (state.fuzzySearch) {
+        chips.push({
+            label: "Fuzzy",
+            onClear: () => {
+                state.fuzzySearch = false;
+            },
+        });
+    }
+
+    for (const chip of chips) {
+        els.activeFilters.appendChild(createActiveFilterChip(chip.label, chip.onClear));
+    }
+
+    if (chips.length > 1) {
+        const clearAll = document.createElement("button");
+        clearAll.className = "active-filter-clear";
+        clearAll.type = "button";
+        clearAll.textContent = "Clear all";
+        clearAll.addEventListener("click", () => {
+            clearSearchQuery();
+            clearSearchFilters();
+            state.sortMode = "relevance";
+            state.groupOpenMode = "auto";
+            resetResultLimit();
+            render();
+            els.searchInput.focus();
+        });
+        els.activeFilters.appendChild(clearAll);
+    }
+
+    els.activeFilters.hidden = !chips.length;
+}
+
+function createActiveFilterChip(label, onClear) {
+    const chip = document.createElement("button");
+    chip.className = "active-filter-chip";
+    chip.type = "button";
+    chip.title = `Remove ${label}`;
+    const text = document.createElement("span");
+    text.textContent = label;
+    const icon = document.createElement("i");
+    icon.setAttribute("data-lucide", "x");
+    icon.setAttribute("aria-hidden", "true");
+    chip.append(text, icon);
+    chip.addEventListener("click", () => {
+        onClear();
+        resetResultLimit();
+        render();
+        els.searchInput.focus();
+    });
+    return chip;
 }
 
 function hasActiveSearchFilters() {
@@ -1951,6 +2425,7 @@ function hasActiveSearchFilters() {
         Boolean(state.filters.holiday) ||
         state.filters.duet ||
         state.filters.explicit ||
+        state.favoriteOnly ||
         state.fuzzySearch;
 }
 
@@ -1960,7 +2435,8 @@ function hasSongFilters() {
         Boolean(state.filters.decade) ||
         Boolean(state.filters.holiday) ||
         state.filters.duet ||
-        state.filters.explicit;
+        state.filters.explicit ||
+        state.favoriteOnly;
 }
 
 function getAvailableDecades() {
@@ -1989,6 +2465,32 @@ function getAvailableValues(getValues) {
     }
 
     return [...values].sort(compareText);
+}
+
+function getTopValues(songs, getValues, limit) {
+    const counts = new Map();
+    const labels = new Map();
+
+    for (const song of songs || []) {
+        const seen = new Set();
+        for (const value of getValues(song) || []) {
+            const key = normalize(value);
+            if (!key || seen.has(key)) {
+                continue;
+            }
+
+            seen.add(key);
+            counts.set(key, (counts.get(key) || 0) + 1);
+            if (!labels.has(key)) {
+                labels.set(key, value);
+            }
+        }
+    }
+
+    return [...counts.entries()]
+        .sort((a, b) => b[1] - a[1] || compareText(labels.get(a[0]), labels.get(b[0])))
+        .slice(0, limit)
+        .map(([key]) => labels.get(key));
 }
 
 function getPromotedGenreTagMap(songs) {

@@ -383,6 +383,52 @@ select:hover {
     display: none;
 }
 
+.active-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin: -6px 0 16px;
+}
+
+.active-filters[hidden] {
+    display: none;
+}
+
+.active-filter-chip,
+.active-filter-clear {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 100%;
+    min-height: 32px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 0 10px;
+    color: var(--active-ink);
+    background: var(--active-bg);
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.active-filter-chip span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.active-filter-chip svg {
+    flex: 0 0 auto;
+    width: 14px;
+    height: 14px;
+}
+
+.active-filter-clear {
+    color: var(--ink);
+    background: var(--panel);
+}
+
 .select-filter,
 .filter-checks,
 .search-order {
@@ -627,6 +673,25 @@ select:hover {
     margin-left: auto;
 }
 
+.context-meta {
+    display: flex;
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.context-chip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    border-radius: 999px;
+    padding: 0 8px;
+    color: var(--chip-ink);
+    background: var(--chip-bg);
+    font-size: 12px;
+    font-weight: 800;
+}
+
 .results-list {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -676,6 +741,42 @@ select:hover {
     flex-wrap: wrap;
     justify-content: center;
     gap: 8px;
+}
+
+.empty-suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    max-width: 100%;
+}
+
+.empty-suggestions > span {
+    display: inline-flex;
+    align-items: center;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.empty-suggestion {
+    max-width: min(240px, 100%);
+    min-height: 34px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 0 11px;
+    color: var(--ink);
+    background: var(--panel-strong);
+    font-size: 13px;
+    font-weight: 800;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.empty-suggestion:hover {
+    border-color: var(--teal);
+    background: var(--hover-bg);
 }
 
 .empty-action {
@@ -897,6 +998,11 @@ button.browse-artist:focus-visible {
     margin-top: auto;
 }
 
+.card-tools {
+    display: inline-flex;
+    gap: 6px;
+}
+
 .row-tools {
     display: inline-flex;
     align-items: center;
@@ -915,6 +1021,23 @@ button.browse-artist:focus-visible {
     width: 36px;
     min-height: 34px;
     background: var(--panel-strong);
+}
+
+.favorite-button {
+    width: 36px;
+    min-height: 34px;
+    color: var(--muted);
+    background: var(--panel-strong);
+}
+
+.favorite-button.is-active {
+    border-color: var(--gold);
+    color: var(--gold);
+    background: var(--panel-strong);
+}
+
+.favorite-button.is-active svg {
+    fill: currentColor;
 }
 
 .link-popout-button:disabled {
@@ -1058,31 +1181,84 @@ button.browse-artist:focus-visible {
     padding: 14px 14px 16px 34px;
 }
 
-.setlist li {
+.setlist-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 4px 10px;
+    align-items: center;
     padding: 9px 8px;
     border-bottom: 1px solid var(--line);
 }
 
+.setlist-item.is-dragging {
+    opacity: 0.55;
+}
+
+.setlist-item.is-drop-target {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: -2px;
+}
+
 .setlist-title {
     display: block;
+    grid-column: 1;
     font-weight: 800;
     line-height: 1.25;
 }
 
 .setlist-artist {
     display: block;
+    grid-column: 1;
     margin-top: 3px;
     color: var(--muted);
     font-size: 13px;
 }
 
+.setlist-controls {
+    display: inline-flex;
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    gap: 4px;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+.setlist-handle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    min-height: 30px;
+    color: var(--muted);
+    cursor: grab;
+}
+
+.setlist-handle svg,
+.setlist-icon-button svg {
+    width: 16px;
+    height: 16px;
+}
+
+.setlist-icon-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    min-height: 30px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    color: var(--ink);
+    background: var(--panel-strong);
+}
+
+.setlist-icon-button:disabled,
+.icon-button:disabled {
+    opacity: 0.42;
+    cursor: default;
+}
+
 .remove-button {
-    margin-top: 8px;
-    border: 0;
-    padding: 0;
     color: var(--accent);
-    background: transparent;
-    font-weight: 800;
 }
 
 .empty-state {
@@ -1178,6 +1354,7 @@ dialog::backdrop {
     .mode-tabs,
     .search-scope,
     .search-filters,
+    .active-filters,
     .browse-tools {
         width: calc(100vw - 28px);
         max-width: calc(100vw - 28px);
@@ -1273,6 +1450,10 @@ dialog::backdrop {
         flex-direction: column;
     }
 
+    .card-tools {
+        justify-content: center;
+    }
+
     .song-popout {
         justify-content: center;
     }
@@ -1288,6 +1469,17 @@ dialog::backdrop {
 
     .add-button {
         width: 100%;
+    }
+
+    .setlist-item {
+        grid-template-columns: 1fr;
+    }
+
+    .setlist-controls {
+        grid-column: 1;
+        grid-row: auto;
+        justify-content: flex-start;
+        margin-top: 4px;
     }
 
     body.setlist-open {

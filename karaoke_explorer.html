@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Karaoke Finder</title>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="karaoke_explorer.css?v=20260510-8">
+    <link rel="stylesheet" href="karaoke_explorer.css?v=20260510-9">
     <script defer src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-    <script defer src="karaoke_explorer.js?v=20260510-8"></script>
+    <script defer src="karaoke_explorer.js?v=20260510-9"></script>
 </head>
 <body>
     <header class="topbar">
@@ -96,6 +96,10 @@
                     <input id="explicitFilter" type="checkbox">
                     <span>Explicit</span>
                 </label>
+                <label>
+                    <input id="favoriteFilter" type="checkbox">
+                    <span>Favorites</span>
+                </label>
                 <button id="clearFiltersButton" class="filter-clear" type="button" title="Clear filters" hidden>
                     <i data-lucide="x" aria-hidden="true"></i>
                     <span>Clear</span>
@@ -108,6 +112,7 @@
                 <button id="orderArtistButton" class="choice-button" type="button">Artist</button>
             </div>
         </section>
+        <section class="active-filters" id="activeFilters" aria-label="Active filters" hidden></section>
 
         <section class="browse-tools" id="browseTools" aria-label="Browse tools" hidden>
             <div class="browse-choice" role="group" aria-label="Browse by">
@@ -150,6 +155,9 @@
                     </div>
                     <button id="copySetlistButton" class="icon-button" type="button" title="Copy setlist">
                         <i data-lucide="copy" aria-hidden="true"></i>
+                    </button>
+                    <button id="clearSetlistButton" class="icon-button" type="button" title="Clear setlist" aria-label="Clear setlist">
+                        <i data-lucide="trash-2" aria-hidden="true"></i>
                     </button>
                     <button id="closeSetlistButton" class="icon-button close-setlist" type="button" title="Close setlist" aria-label="Close setlist">
                         <i data-lucide="x" aria-hidden="true"></i>
