@@ -1070,10 +1070,31 @@ select:hover {
     gap: 20px;
 }
 
+.recent-searches {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
 .shelf {
     display: grid;
     gap: 10px;
     min-width: 0;
+}
+
+.version-badge {
+    display: inline-block;
+    margin-left: 7px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 1px 7px;
+    color: var(--muted);
+    background: var(--panel-strong);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    vertical-align: 1px;
 }
 
 .shelf-head {

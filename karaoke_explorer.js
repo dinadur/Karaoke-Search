@@ -50,6 +50,8 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 const XLINK_NS = "http://www.w3.org/1999/xlink";
 const UI_STATE_STORAGE_KEY = "karaokeUiState";
 const FAVORITES_STORAGE_KEY = "karaokeFavorites";
+const RECENT_SEARCHES_STORAGE_KEY = "karaokeRecentSearches";
+const RECENT_SEARCHES_LIMIT = 8;
 const LINK_MENU_STORAGE = new WeakMap();
 const TAG_MENU_STORAGE = new WeakMap();
 const SMALL_ARTIST_WORDS = new Set([
@@ -259,6 +261,7 @@ const state = {
     groupOpenMode: "auto",
     setlist: loadSetlist(),
     favorites: loadFavorites(),
+    recentSearches: loadRecentSearches(),
 };
 
 const els = {
@@ -393,6 +396,12 @@ function bindEvents() {
         resetResultLimit();
         saveUiState();
         scheduleSearchRender();
+    });
+
+    els.searchInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+            recordRecentSearch(els.searchInput.value);
+        }
     });
 
     for (const input of els.searchScopeInputs) {
@@ -1311,6 +1320,11 @@ function renderDiscover() {
     renderGroupActions();
 
     const fragment = document.createDocumentFragment();
+    const recents = createRecentSearchesRow();
+    if (recents) {
+        fragment.appendChild(recents);
+    }
+
     for (const shelf of buildDiscoverShelves()) {
         fragment.appendChild(createShelf(shelf));
     }
@@ -1332,6 +1346,50 @@ function renderDiscover() {
     fragment.appendChild(foot);
 
     els.resultsList.appendChild(fragment);
+}
+
+function createRecentSearchesRow() {
+    if (!state.recentSearches.length) {
+        return null;
+    }
+
+    const row = document.createElement("div");
+    row.className = "recent-searches";
+
+    const label = document.createElement("span");
+    label.className = "filter-label";
+    label.textContent = "Recent";
+    row.appendChild(label);
+
+    for (const query of state.recentSearches) {
+        const chip = document.createElement("button");
+        chip.className = "empty-suggestion";
+        chip.type = "button";
+        chip.textContent = query;
+        chip.title = `Search “${query}” again`;
+        chip.addEventListener("click", () => {
+            state.query = query;
+            els.searchInput.value = query;
+            state.mode = "search";
+            resetResultLimit();
+            render();
+        });
+        row.appendChild(chip);
+    }
+
+    const clear = document.createElement("button");
+    clear.className = "multi-clear";
+    clear.type = "button";
+    clear.textContent = "Clear";
+    clear.title = "Clear recent searches";
+    clear.addEventListener("click", () => {
+        state.recentSearches = [];
+        saveRecentSearches();
+        render();
+    });
+    row.appendChild(clear);
+
+    return row;
 }
 
 function buildDiscoverShelves() {
@@ -2143,6 +2201,13 @@ function createVersionGroupCard(songs) {
         title.className = "version-title";
         title.textContent = getDisplaySongTitle(song);
 
+        for (const marker of getVersionMarkers(song)) {
+            const badge = document.createElement("span");
+            badge.className = "version-badge";
+            badge.textContent = marker;
+            title.appendChild(badge);
+        }
+
         row.append(title, createRowTools(song));
         list.appendChild(row);
     }
@@ -2150,6 +2215,11 @@ function createVersionGroupCard(songs) {
     details.appendChild(list);
     card.appendChild(details);
     return card;
+}
+
+function getVersionMarkers(song) {
+    const markers = String(song.song || "").match(/\b(multiplex|(?:sf|sbi|mm|hmx)\d{3,6})\b/gi) || [];
+    return [...new Set(markers.map((marker) => marker.toUpperCase()))];
 }
 
 function createArtistSearchControl(song, className) {
@@ -2737,6 +2807,7 @@ function syncUrlState() {
 }
 
 function addToSetlist(song) {
+    recordRecentSearch();
     const exists = state.setlist.some((item) => isSameSong(item, song));
     if (!exists) {
         // Copy so setlist-only fields (e.g. singer) never mutate catalog entries.
@@ -2747,6 +2818,10 @@ function addToSetlist(song) {
 }
 
 function toggleFavorite(song) {
+    if (!isFavorite(song)) {
+        recordRecentSearch();
+    }
+
     if (isFavorite(song)) {
         state.favorites.delete(song.id);
         if (song.legacyId) {
@@ -3310,6 +3385,39 @@ function loadSetlist() {
     } catch {
         return [];
     }
+}
+
+function loadRecentSearches() {
+    try {
+        const values = JSON.parse(localStorage.getItem(RECENT_SEARCHES_STORAGE_KEY) || "[]");
+        return Array.isArray(values)
+            ? values.filter((value) => typeof value === "string" && value).slice(0, RECENT_SEARCHES_LIMIT)
+            : [];
+    } catch {
+        return [];
+    }
+}
+
+function saveRecentSearches() {
+    try {
+        localStorage.setItem(RECENT_SEARCHES_STORAGE_KEY, JSON.stringify(state.recentSearches));
+    } catch {
+        // Recents are a convenience; ignore blocked storage.
+    }
+}
+
+function recordRecentSearch(query = state.query) {
+    const value = String(query || "").trim();
+    if (!value || state.mode !== "search") {
+        return;
+    }
+
+    const key = normalize(value);
+    state.recentSearches = [
+        value,
+        ...state.recentSearches.filter((item) => normalize(item) !== key),
+    ].slice(0, RECENT_SEARCHES_LIMIT);
+    saveRecentSearches();
 }
 
 function saveFavorites() {
@@ -4020,7 +4128,9 @@ function getPrimaryArtistName(song) {
 }
 
 function getDisplayArtist(song) {
-    return cleanDisplayValue(song.displayArtist) || getPrimaryArtistName(song);
+    const name = cleanDisplayValue(song.displayArtist) || getPrimaryArtistName(song);
+    // Source-catalog codes like "Sc8608" masquerade as artist names.
+    return /^[A-Za-z]{1,3}\d{3,6}$/.test(name) ? "" : name;
 }
 
 function normalizeArtistKey(value) {
@@ -4030,8 +4140,10 @@ function normalizeArtistKey(value) {
 function getDisplaySongTitle(song) {
     const raw = String(song.song || "");
     const cleaned = raw
-        .replace(/[\[(][^\])]*\b(karaoke|instrumental|backing track)\b[^\])]*[\])]/gi, " ")
+        .replace(/[\[(][^\])]*\b(karaoke|instrumental|backing track|multiplex)\b[^\])]*[\])]/gi, " ")
         .replace(/[\[(][^\])]*$/, " ")
+        .replace(/[-\s]+\b(?:sf|sbi|mm|hmx|sc|sm)\d{3,6}\b/gi, " ")
+        .replace(/\bmultiplex\b/gi, " ")
         .replace(/\bwvocals?\b/gi, " ")
         .replace(/[\[({]\s*[\])}]/g, " ")
         .replace(/(^|\s)[\])}]+(?=\s|$)/g, " ")
