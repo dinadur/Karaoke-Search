@@ -239,6 +239,7 @@ const state = {
     availableDecades: [],
     availableHolidays: [],
     defaultRankedSongs: [],
+    queryScopedSongs: [],
     taggedCount: 0,
     cachedDiscoverShelves: null,
     promotedGenreTags: new Map(),
@@ -251,7 +252,6 @@ const state = {
         holidays: [],
         duet: false,
     },
-    filterValueCounts: {},
     mode: "search",
     browseBy: "song",
     browseLetter: "#",
@@ -885,6 +885,7 @@ function render() {
         }
     }
 
+    state.queryScopedSongs = ranked;
     const filtered = hasSongFilters() ? applySearchFilters(ranked) : ranked;
     const sorted = sortSongs(filtered);
     const isDiscover = isDiscoverView();
@@ -1171,10 +1172,10 @@ function rankSongs(songs, query, { fuzzy = state.fuzzySearch } = {}) {
         .map((item) => item.song);
 }
 
-function applySearchFilters(songs) {
+function applySearchFilters(songs, excludeKey = "") {
     const selections = [];
     for (const def of MULTI_FILTER_DEFS) {
-        if (state.filters[def.key].length) {
+        if (def.key !== excludeKey && state.filters[def.key].length) {
             selections.push({ key: def.key, keys: state.filters[def.key].map(normalize) });
         }
     }
@@ -3235,20 +3236,6 @@ function boundedEditDistance(a, b, maxDistance) {
 }
 
 function renderFilterOptions() {
-    const counts = {};
-    for (const def of MULTI_FILTER_DEFS) {
-        counts[def.key] = new Map();
-    }
-
-    for (const song of state.songs) {
-        for (const def of MULTI_FILTER_DEFS) {
-            for (const key of song.filterKeys[def.key]) {
-                counts[def.key].set(key, (counts[def.key].get(key) || 0) + 1);
-            }
-        }
-    }
-
-    state.filterValueCounts = counts;
     for (const control of multiFilterControls.values()) {
         control.options.innerHTML = "";
     }
@@ -3349,36 +3336,55 @@ function renderMultiFilters() {
         // Update options in place when possible: rebuilding mid-click detaches
         // the clicked button, which breaks the outside-click check and drops focus.
         const existing = [...options.children];
-        if (existing.length === values.length) {
-            values.forEach((value, index) => {
-                setToggleState(existing[index], includesValue(selected, value));
-            });
-            continue;
-        }
-
-        options.innerHTML = "";
-        const counts = state.filterValueCounts[def.key] || new Map();
-        for (const value of values) {
-            const option = document.createElement("button");
-            option.type = "button";
-            option.className = "multi-option";
-            const text = document.createElement("span");
-            text.textContent = value;
-            option.appendChild(text);
-
-            const count = counts.get(normalize(value));
-            if (count) {
+        if (existing.length !== values.length) {
+            options.innerHTML = "";
+            for (const value of values) {
+                const option = document.createElement("button");
+                option.type = "button";
+                option.className = "multi-option";
+                const text = document.createElement("span");
+                text.textContent = value;
                 const countLabel = document.createElement("span");
                 countLabel.className = "option-count";
-                countLabel.textContent = count.toLocaleString();
-                option.appendChild(countLabel);
+                option.append(text, countLabel);
+                option.addEventListener("click", () => toggleMultiFilterValue(def, value));
+                options.appendChild(option);
             }
+        }
 
-            setToggleState(option, includesValue(selected, value));
-            option.addEventListener("click", () => toggleMultiFilterValue(def, value));
-            options.appendChild(option);
+        [...options.children].forEach((option, index) => {
+            setToggleState(option, includesValue(selected, values[index]));
+        });
+
+        if (!control.popover.hidden) {
+            updateFacetedCounts(control);
         }
     }
+}
+
+function updateFacetedCounts(control) {
+    const { def, options } = control;
+    const values = def.options();
+
+    // Count against the current query plus every OTHER filter, so the numbers
+    // answer "what would picking this add to my current results?".
+    const base = applySearchFilters(
+        state.queryScopedSongs.length ? state.queryScopedSongs : state.songs,
+        def.key
+    );
+    const counts = new Map();
+    for (const song of base) {
+        for (const key of song.filterKeys[def.key]) {
+            counts.set(key, (counts.get(key) || 0) + 1);
+        }
+    }
+
+    [...options.children].forEach((option, index) => {
+        const count = counts.get(normalize(values[index])) || 0;
+        const countLabel = option.querySelector(".option-count");
+        countLabel.textContent = count.toLocaleString();
+        option.classList.toggle("is-empty", count === 0);
+    });
 }
 
 function toggleMultiFilterValue(def, value) {
@@ -3405,6 +3411,9 @@ function toggleMultiFilterPopover(param) {
     closeMultiFilterPopovers();
     control.popover.hidden = !open;
     control.button.setAttribute("aria-expanded", String(open));
+    if (open) {
+        updateFacetedCounts(control);
+    }
 }
 
 function closeMultiFilterPopovers() {

@@ -733,6 +733,10 @@ select:hover {
     opacity: 0.75;
 }
 
+.multi-option.is-empty {
+    opacity: 0.45;
+}
+
 .select-filter {
     flex: 0 0 auto;
 }
