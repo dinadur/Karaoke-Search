@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - "claude/**"
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Syntax checks
+        run: |
+          node --check karaoke_explorer.js
+          node --check sw.js
+          node --check qrcode.js
+          node --check scripts/bump-version.js
+          node --check scripts/check-versions.js
+          node --check scripts/smoke.js
+
+      - name: Version consistency
+        run: node scripts/check-versions.js
+
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+
+      - name: Smoke test
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 &
+          sleep 1
+          node scripts/smoke.js
