@@ -1860,16 +1860,56 @@ function createMiniAddButton(song) {
     return button;
 }
 
+function createCoverTile(song) {
+    const tile = document.createElement("div");
+    tile.className = "cover-tile";
+    tile.setAttribute("aria-hidden", "true");
+
+    const artist = getDisplayArtist(song) || getDisplaySongTitle(song);
+    const hue = hashHue(song.artistKey || artist);
+    tile.style.background =
+        `linear-gradient(135deg, hsl(${hue} 44% 46%), hsl(${(hue + 42) % 360} 50% 30%))`;
+    tile.textContent = getArtistInitials(artist);
+    return tile;
+}
+
+function hashHue(value) {
+    let hash = 7;
+    for (const char of String(value || "")) {
+        hash = ((hash * 31) + char.codePointAt(0)) >>> 0;
+    }
+
+    return hash % 360;
+}
+
+function getArtistInitials(name) {
+    const words = String(name || "")
+        .split(/\s+/)
+        .map((word) => word.replace(/[^\p{L}\p{N}]/gu, ""))
+        .filter(Boolean);
+
+    if (!words.length) {
+        return "♪";
+    }
+
+    return words.slice(0, 2).map((word) => word[0].toUpperCase()).join("");
+}
+
 function createSongCard(song) {
     const card = document.createElement("article");
     card.className = "song-card";
 
+    const head = document.createElement("div");
+    head.className = "card-head";
+
     const text = document.createElement("div");
+    text.className = "card-head-text";
     const title = document.createElement("div");
     title.className = "song-title";
     title.textContent = getDisplaySongTitle(song);
 
     text.append(title, createArtistSearchControl(song, "song-artist"));
+    head.append(createCoverTile(song), text);
 
     const meta = document.createElement("div");
     meta.className = "meta-row";
@@ -1899,7 +1939,7 @@ function createSongCard(song) {
     button.addEventListener("click", () => addToSetlist(song));
 
     actions.append(cardTools, button);
-    card.append(text, meta, actions);
+    card.append(head, meta, actions);
     return card;
 }
 
