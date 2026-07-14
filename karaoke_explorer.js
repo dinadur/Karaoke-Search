@@ -1,4 +1,4 @@
-const APP_VERSION = "20260714-6";
+const APP_VERSION = "20260714-7";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const TAG_CONSOLIDATION_URL = `tag_consolidation.json?v=${APP_VERSION}`;
 const MOOD_CONSOLIDATION_URL = `mood_consolidation.json?v=${APP_VERSION}`;
@@ -2218,7 +2218,7 @@ function createVersionGroupCard(songs) {
 }
 
 function getVersionMarkers(song) {
-    const markers = String(song.song || "").match(/\b(multiplex|(?:sf|sbi|mm|hmx)\d{3,6})\b/gi) || [];
+    const markers = String(song.song || "").match(/\b(multiplex|(?:sf|sbi|sb|mm|hmx)\d{3,6})\b/gi) || [];
     return [...new Set(markers.map((marker) => marker.toUpperCase()))];
 }
 
@@ -4142,7 +4142,7 @@ function getDisplaySongTitle(song) {
     let cleaned = raw
         .replace(/[\[(][^\])]*\b(karaoke|instrumental|backing track|multiplex)\b[^\])]*[\])]/gi, " ")
         .replace(/[\[(][^\])]*$/, " ")
-        .replace(/[-\s]+\b(?:sf|sbi|mm|hmx|sc|sm)\d{3,6}\b/gi, " ")
+        .replace(/[-\s]+\b(?:sf|sbi|sb|mm|hmx|sc|sm)\d{3,6}\b/gi, " ")
         .replace(/\bmultiplex\b/gi, " ")
         .replace(/\bwvocals?\b/gi, " ")
         .replace(/[\[({]\s*[\])}]/g, " ")
@@ -4264,8 +4264,9 @@ function getHolidayValues(song) {
 
 function computeHolidayValues(song) {
     const values = new Set();
+    // Artist names are deliberately excluded: "Bullet For My Valentine" and
+    // "Noel Gourdin" are not holiday music.
     const text = normalize([
-        song.artist,
         song.song,
         ...(song.genres || []),
         ...(song.tags || []),
