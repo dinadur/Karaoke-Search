@@ -1602,6 +1602,57 @@ button.browse-artist:focus-visible {
     font-size: 13px;
 }
 
+.setlist-singer {
+    grid-column: 1;
+    margin-top: 5px;
+}
+
+.singer-chip,
+.singer-add {
+    display: inline-flex;
+    align-items: center;
+    max-width: 100%;
+    min-height: 26px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 0 9px;
+    font-size: 12px;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.singer-chip {
+    color: var(--active-ink);
+    background: var(--active-bg);
+    border-color: transparent;
+}
+
+.singer-add {
+    color: var(--muted);
+    background: var(--panel-strong);
+    border-style: dashed;
+}
+
+.singer-add:hover,
+.singer-chip:hover {
+    border-color: var(--teal);
+    color: var(--active-ink);
+    background: var(--hover-bg);
+}
+
+.singer-input {
+    width: min(200px, 100%);
+    min-height: 28px;
+    border: 1px solid var(--teal);
+    border-radius: 7px;
+    padding: 0 8px;
+    color: var(--ink);
+    background: var(--panel);
+    font-size: 13px;
+}
+
 .setlist-controls {
     display: inline-flex;
     grid-column: 2;

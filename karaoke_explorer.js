@@ -2686,7 +2686,8 @@ function syncUrlState() {
 function addToSetlist(song) {
     const exists = state.setlist.some((item) => isSameSong(item, song));
     if (!exists) {
-        state.setlist.push(song);
+        // Copy so setlist-only fields (e.g. singer) never mutate catalog entries.
+        state.setlist.push({ ...song });
         saveSetlist();
         renderSetlist();
     }
@@ -2899,7 +2900,7 @@ function renderSetlist() {
         });
 
         controls.append(handle, up, down, remove);
-        item.append(title, artist, controls);
+        item.append(title, artist, createSingerControl(song, item), controls);
         fragment.appendChild(item);
     });
 
@@ -2907,9 +2908,79 @@ function renderSetlist() {
     hydrateIcons();
 }
 
+function createSingerControl(song, item) {
+    const wrap = document.createElement("div");
+    wrap.className = "setlist-singer";
+
+    const startEdit = () => {
+        wrap.innerHTML = "";
+        item.draggable = false;
+
+        const input = document.createElement("input");
+        input.type = "text";
+        input.className = "singer-input";
+        input.maxLength = 40;
+        input.placeholder = "Who's singing this?";
+        input.value = song.singer || "";
+        input.setAttribute("aria-label", "Singer name");
+
+        let settled = false;
+        const finish = (save) => {
+            if (settled) {
+                return;
+            }
+
+            settled = true;
+            if (save) {
+                const value = input.value.trim();
+                if (value) {
+                    song.singer = value;
+                } else {
+                    delete song.singer;
+                }
+                saveSetlist();
+            }
+            renderSetlist();
+        };
+
+        input.addEventListener("keydown", (event) => {
+            if (event.key === "Enter") {
+                finish(true);
+            } else if (event.key === "Escape") {
+                event.stopPropagation();
+                finish(false);
+            }
+        });
+        input.addEventListener("blur", () => finish(true));
+
+        wrap.appendChild(input);
+        input.focus();
+        input.select();
+    };
+
+    const button = document.createElement("button");
+    button.type = "button";
+    if (song.singer) {
+        button.className = "singer-chip";
+        button.textContent = `🎤 ${song.singer}`;
+        button.title = "Edit singer";
+        button.setAttribute("aria-label", `Singer: ${song.singer}. Edit`);
+    } else {
+        button.className = "singer-add";
+        button.textContent = "+ Singer";
+        button.title = "Assign a singer";
+    }
+    button.addEventListener("click", startEdit);
+    wrap.appendChild(button);
+    return wrap;
+}
+
 function buildSetlistText() {
     return state.setlist
-        .map((song, index) => `${index + 1}. ${getDisplaySongTitle(song)} - ${getDisplayArtist(song) || "Unknown artist"}`)
+        .map((song, index) => {
+            const singer = song.singer ? ` (${song.singer})` : "";
+            return `${index + 1}. ${getDisplaySongTitle(song)} - ${getDisplayArtist(song) || "Unknown artist"}${singer}`;
+        })
         .join("\n");
 }
 
