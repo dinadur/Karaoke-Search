@@ -39,7 +39,7 @@
             <p class="eyebrow">Karaoke songbook</p>
             <h1>Find tonight's song</h1>
         </div>
-        <div class="status" id="status">Loading songbook</div>
+        <div class="status" id="status" aria-live="polite">Loading songbook</div>
     </header>
 
     <main class="shell">
@@ -171,7 +171,7 @@
                 <div class="panel-heading">
                     <div>
                         <h2 id="resultsTitle">Songs</h2>
-                        <p id="resultCount"></p>
+                        <p id="resultCount" aria-live="polite"></p>
                     </div>
                     <div class="group-actions" id="groupActions" hidden>
                         <button id="expandGroupsButton" class="icon-button" type="button" title="Expand all" aria-label="Expand all groups">

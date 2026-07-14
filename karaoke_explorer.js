@@ -489,6 +489,18 @@ function bindEvents() {
             closeSongTagMenus();
             closeFiltersSheet();
             closeSetlistDrawer();
+            return;
+        }
+
+        if (event.key === "/" && !event.ctrlKey && !event.metaKey && !event.altKey) {
+            const target = event.target;
+            const isTyping = target instanceof HTMLElement &&
+                (target.tagName === "INPUT" || target.tagName === "SELECT" || target.tagName === "TEXTAREA" || target.isContentEditable);
+            if (!isTyping) {
+                event.preventDefault();
+                els.searchInput.focus();
+                els.searchInput.select();
+            }
         }
     });
 
@@ -922,6 +934,8 @@ function bindResultsSentinel() {
 function openFiltersSheet() {
     document.body.classList.add("filters-open");
     els.filtersToggleButton.setAttribute("aria-expanded", "true");
+    els.searchFilters.setAttribute("role", "dialog");
+    els.searchFilters.setAttribute("aria-modal", "true");
     updateSheetBackdrop();
     els.closeFiltersButton.focus({ preventScroll: true });
 }
@@ -933,6 +947,8 @@ function closeFiltersSheet({ restoreFocus = true } = {}) {
 
     document.body.classList.remove("filters-open");
     els.filtersToggleButton.setAttribute("aria-expanded", "false");
+    els.searchFilters.removeAttribute("role");
+    els.searchFilters.removeAttribute("aria-modal");
     updateSheetBackdrop();
     if (restoreFocus && els.filtersToggleButton.offsetParent) {
         els.filtersToggleButton.focus({ preventScroll: true });
@@ -940,7 +956,11 @@ function closeFiltersSheet({ restoreFocus = true } = {}) {
 }
 
 function openSetlistDrawer() {
+    const panel = els.setlist.closest(".setlist-panel");
     document.body.classList.add("setlist-open");
+    panel.setAttribute("role", "dialog");
+    panel.setAttribute("aria-modal", "true");
+    panel.setAttribute("aria-label", "Setlist");
     updateSheetBackdrop();
     els.closeSetlistButton.focus({ preventScroll: true });
 }
@@ -950,7 +970,11 @@ function closeSetlistDrawer({ restoreFocus = true } = {}) {
         return;
     }
 
+    const panel = els.setlist.closest(".setlist-panel");
     document.body.classList.remove("setlist-open");
+    panel.removeAttribute("role");
+    panel.removeAttribute("aria-modal");
+    panel.removeAttribute("aria-label");
     updateSheetBackdrop();
     if (restoreFocus && els.mobileSetlistButton.offsetParent) {
         els.mobileSetlistButton.focus({ preventScroll: true });
@@ -977,8 +1001,8 @@ function countActiveFilters() {
 
 function renderMode() {
     const isBrowse = state.mode === "browse";
-    els.searchModeButton.classList.toggle("is-active", !isBrowse);
-    els.browseModeButton.classList.toggle("is-active", isBrowse);
+    setToggleState(els.searchModeButton, !isBrowse);
+    setToggleState(els.browseModeButton, isBrowse);
     els.browseTools.hidden = !isBrowse;
     els.searchScope.hidden = isBrowse;
     els.searchFilters.hidden = isBrowse;
@@ -1660,8 +1684,8 @@ function renderBrowse() {
 }
 
 function renderBrowseControls() {
-    els.browseSongButton.classList.toggle("is-active", state.browseBy === "song");
-    els.browseArtistButton.classList.toggle("is-active", state.browseBy === "artist");
+    setToggleState(els.browseSongButton, state.browseBy === "song");
+    setToggleState(els.browseArtistButton, state.browseBy === "artist");
 
     const counts = getLetterCounts();
     const letters = ["#", ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"];
@@ -1673,7 +1697,7 @@ function renderBrowseControls() {
         button.className = "letter-button";
         button.type = "button";
         button.dataset.letter = letter;
-        button.classList.toggle("is-active", state.browseLetter === letter);
+        setToggleState(button, state.browseLetter === letter);
         button.disabled = count === 0;
         button.textContent = letter;
         button.addEventListener("click", () => {
@@ -2151,7 +2175,11 @@ function syncSearchScopeInput() {
 
 function scrollResultsIntoView() {
     window.requestAnimationFrame(() => {
-        els.resultsList.closest(".results-panel")?.scrollIntoView({ block: "start", behavior: "smooth" });
+        const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        els.resultsList.closest(".results-panel")?.scrollIntoView({
+            block: "start",
+            behavior: reduceMotion ? "auto" : "smooth",
+        });
     });
 }
 
@@ -2731,10 +2759,18 @@ function getStoredTheme() {
             return stored;
         }
     } catch {
-        return "light";
+        return getSystemTheme();
     }
 
-    return "light";
+    return getSystemTheme();
+}
+
+function getSystemTheme() {
+    try {
+        return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    } catch {
+        return "light";
+    }
 }
 
 function getTheme() {
@@ -2901,9 +2937,14 @@ function renderSearchFilters() {
     els.filterCountBadge.hidden = !activeCount;
     els.filterCountBadge.textContent = activeCount ? String(activeCount) : "";
 
-    els.orderRelevanceButton.classList.toggle("is-active", state.sortMode === "relevance");
-    els.orderSongButton.classList.toggle("is-active", state.sortMode === "song");
-    els.orderArtistButton.classList.toggle("is-active", state.sortMode === "artist");
+    setToggleState(els.orderRelevanceButton, state.sortMode === "relevance");
+    setToggleState(els.orderSongButton, state.sortMode === "song");
+    setToggleState(els.orderArtistButton, state.sortMode === "artist");
+}
+
+function setToggleState(button, isActive) {
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-pressed", String(isActive));
 }
 
 function renderActiveFilters() {
