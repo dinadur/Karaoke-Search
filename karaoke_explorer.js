@@ -1,4 +1,4 @@
-const APP_VERSION = "20260510-10";
+const APP_VERSION = "20260714-1";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const TAG_CONSOLIDATION_URL = `tag_consolidation.json?v=${APP_VERSION}`;
 const MOOD_CONSOLIDATION_URL = `mood_consolidation.json?v=${APP_VERSION}`;
@@ -7,6 +7,8 @@ const SEARCH_RENDER_DELAY = 90;
 const SEARCH_SCOPES = ["song", "artist"];
 const TAG_GENRE_MIN_COUNT = 50;
 const THEME_STORAGE_KEY = "karaokeTheme";
+const SVG_NS = "http://www.w3.org/2000/svg";
+const XLINK_NS = "http://www.w3.org/1999/xlink";
 const UI_STATE_STORAGE_KEY = "karaokeUiState";
 const FAVORITES_STORAGE_KEY = "karaokeFavorites";
 const LINK_MENU_STORAGE = new WeakMap();
@@ -286,7 +288,7 @@ async function init() {
     try {
         const tagConsolidationPromise = loadTagConsolidation();
         const moodConsolidationPromise = loadMoodConsolidation();
-        const response = await fetch(DATA_URL, { cache: "no-store" });
+        const response = await fetch(DATA_URL);
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}`);
         }
@@ -568,15 +570,11 @@ function useSongs(songs) {
         };
         const sourceMoods = getConsolidatedMoodsForSong(enrichedSong);
         const allMoods = dedupeValues([...(song.moods || []), ...sourceMoods]);
-        const preparedSong = {
+
+        return {
             ...enrichedSong,
             sourceMoods,
             allMoods,
-        };
-
-        return {
-            ...preparedSong,
-            searchText: normalize(buildSearchText(preparedSong)),
         };
     });
     state.defaultRankedSongs = [...state.songs].sort((a, b) =>
@@ -623,9 +621,31 @@ function nextFrame() {
     return new Promise((resolve) => requestAnimationFrame(resolve));
 }
 
+function hydrateIcons(root = document) {
+    for (const placeholder of root.querySelectorAll("i[data-lucide]")) {
+        placeholder.replaceWith(createIcon(placeholder.dataset.lucide));
+    }
+}
+
+function createIcon(name) {
+    const svg = document.createElementNS(SVG_NS, "svg");
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", "2");
+    svg.setAttribute("stroke-linecap", "round");
+    svg.setAttribute("stroke-linejoin", "round");
+    svg.setAttribute("aria-hidden", "true");
+
+    const use = document.createElementNS(SVG_NS, "use");
+    use.setAttribute("href", `#icon-${name}`);
+    use.setAttributeNS(XLINK_NS, "xlink:href", `#icon-${name}`);
+    svg.appendChild(use);
+    return svg;
+}
+
 async function loadTagConsolidation() {
     try {
-        const response = await fetch(TAG_CONSOLIDATION_URL, { cache: "no-store" });
+        const response = await fetch(TAG_CONSOLIDATION_URL);
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}`);
         }
@@ -681,7 +701,7 @@ function normalizeTagConsolidation(raw = {}) {
 
 async function loadMoodConsolidation() {
     try {
-        const response = await fetch(MOOD_CONSOLIDATION_URL, { cache: "no-store" });
+        const response = await fetch(MOOD_CONSOLIDATION_URL);
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}`);
         }
@@ -729,9 +749,7 @@ function render() {
         renderStatus(getBrowseSongs().length);
         renderResultContext();
         saveUiState();
-        if (window.lucide) {
-            window.lucide.createIcons();
-        }
+        hydrateIcons();
         return;
     }
 
@@ -748,9 +766,7 @@ function render() {
     renderResultActions(filtered.length);
     saveUiState();
 
-    if (window.lucide) {
-        window.lucide.createIcons();
-    }
+    hydrateIcons();
 }
 
 function renderMode() {
@@ -2114,9 +2130,7 @@ function renderSetlist() {
     });
 
     els.setlist.appendChild(fragment);
-    if (window.lucide) {
-        window.lucide.createIcons();
-    }
+    hydrateIcons();
 }
 
 function moveSetlistItem(index, direction) {
@@ -2208,9 +2222,7 @@ function renderThemeButton() {
     els.themeButton.setAttribute("aria-label", isDark ? "Switch to light mode" : "Switch to dark mode");
     els.themeButton.innerHTML = `<i data-lucide="${isDark ? "sun" : "moon"}" aria-hidden="true"></i>`;
 
-    if (window.lucide) {
-        window.lucide.createIcons();
-    }
+    hydrateIcons();
 }
 
 function updateSearchPlaceholder() {
@@ -2767,17 +2779,6 @@ function includesValue(values, target) {
     return (values || []).some((value) => normalize(value) === normalizedTarget);
 }
 
-function getTagValues(song) {
-    return [
-        ...getSongMoods(song),
-        ...getSongGenres(song),
-        ...(song.eras || []),
-        ...(song.flags || []),
-        ...getHolidayValues(song),
-        ...(song.tags || []),
-    ];
-}
-
 function getHolidayValues(song) {
     const values = new Set();
     const text = normalize([
@@ -2817,19 +2818,6 @@ function getDisplayFlags(song) {
 
         return true;
     });
-}
-
-function buildSearchText(song) {
-    return [
-        getDisplayArtist(song),
-        song.artist,
-        song.song,
-        ...getSongGenres(song),
-        ...getSongMoods(song),
-        ...(song.eras || []),
-        ...(song.flags || []),
-        ...(song.tags || []),
-    ].join(" ").toLowerCase();
 }
 
 function normalize(value) {
