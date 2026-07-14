@@ -53,6 +53,12 @@ When editing JS, CSS, or data files, update all four version references together
 
 This is used as a cache buster for Vercel, browsers, and the service worker cache.
 
+Use `node scripts/bump-version.js [version]` to update all four references at once (no argument = today's date with an incremented suffix). `node scripts/check-versions.js` verifies they agree and runs in CI.
+
+## CI
+
+`.github/workflows/ci.yml` runs on pushes to `main`/`claude/**` and PRs: syntax checks, the version-consistency check, and `scripts/smoke.js` (a Playwright smoke test against a local static server). Run the smoke test locally with a server on :8765 and `node scripts/smoke.js` (falls back to `playwright-core` + `CHROMIUM_PATH`).
+
 ## Current App Behavior
 
 - Search scopes are `all` (songs & artists, default), `song`, and `artist`.

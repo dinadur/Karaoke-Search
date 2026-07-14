@@ -1,4 +1,4 @@
-const APP_VERSION = "20260714-5";
+const APP_VERSION = "20260714-6";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const TAG_CONSOLIDATION_URL = `tag_consolidation.json?v=${APP_VERSION}`;
 const MOOD_CONSOLIDATION_URL = `mood_consolidation.json?v=${APP_VERSION}`;
@@ -4139,7 +4139,7 @@ function normalizeArtistKey(value) {
 
 function getDisplaySongTitle(song) {
     const raw = String(song.song || "");
-    const cleaned = raw
+    let cleaned = raw
         .replace(/[\[(][^\])]*\b(karaoke|instrumental|backing track|multiplex)\b[^\])]*[\])]/gi, " ")
         .replace(/[\[(][^\])]*$/, " ")
         .replace(/[-\s]+\b(?:sf|sbi|mm|hmx|sc|sm)\d{3,6}\b/gi, " ")
@@ -4150,8 +4150,39 @@ function getDisplaySongTitle(song) {
         .replace(/(^|\s)[\[({]+(?=\s|$)/g, " ")
         .replace(/\s+/g, " ")
         .trim();
+    cleaned = stripTrailingArtist(cleaned, song);
 
     return cleaned || raw || "Untitled";
+}
+
+function stripTrailingArtist(title, song) {
+    // Some source titles embed the artist ("Heroes-David Bowie"); drop a
+    // trailing dash segment when it just repeats the song's own artist.
+    const artistKeys = new Set(
+        [song.displayArtist, song.artist, song.lookupArtist]
+            .map(normalize)
+            .filter(Boolean)
+    );
+    if (!artistKeys.size) {
+        return title;
+    }
+
+    let result = title;
+    for (let guard = 0; guard < 3; guard++) {
+        const index = result.lastIndexOf("-");
+        if (index <= 0) {
+            break;
+        }
+
+        const tail = normalize(result.slice(index + 1));
+        if (!tail || !artistKeys.has(tail)) {
+            break;
+        }
+
+        result = result.slice(0, index).trim();
+    }
+
+    return result || title;
 }
 
 const CLEAN_DISPLAY_CACHE = new Map();
