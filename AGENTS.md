@@ -77,6 +77,11 @@ This is used as a cache buster for Vercel, browsers, and the service worker cach
 - Song cards show deterministic gradient cover tiles (hue hashed from artist key) with artist initials; matched query text is highlighted via a per-character `normalize()` index map.
 - Discover shelves hide scrollbars (edge fades + hover arrows + dice reshuffle button); skeleton shelves show while the catalog loads.
 - Setlist entries support an optional `singer` field (inline edit, shown as a chip, included in copy/share text); entries are stored as copies of catalog songs.
+- The setlist header has Draft (fills to 10 artist-diverse songs from current results) and QR buttons; each entry has a reroll/swap control. QR links append a deflate-compressed `#sl=` fragment of song ids; opening such a link offers Add/Replace/Ignore import. `qrcode.js` is a vendored MIT copy of qrcode-generator.
+- Popover filter counts are faceted: computed lazily for the open popover against the current query plus all other filters; zero-count options are dimmed.
+- Songs carry precomputed `filterKeys` (normalized Sets per filter), `holidayValues`, and `isDuet`; `normalize()`/`cleanDisplayValue()` are memoized. Keep these in sync if adding filterable attributes.
+- Discover shows recent-search chips (localStorage `karaokeRecentSearches`, recorded on add/favorite/Enter).
+- Display cleanup also strips source-catalog codes (SF/SBI/MM/HMX/SC/SM + digits, MULTIPLEX) from titles — version rows show them as badges — and renders catalog-code artist names as "Unknown artist".
 - Deploys from `main` may need a manual "Promote to Production" in the Vercel dashboard: `main` is updated server-side by the git proxy and Vercel sometimes only builds it as a preview.
 
 ## Data Notes
