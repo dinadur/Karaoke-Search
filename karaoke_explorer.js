@@ -258,6 +258,7 @@ const els = {
     randomPick: document.getElementById("randomPick"),
     resultActions: document.getElementById("resultActions"),
     groupActions: document.getElementById("groupActions"),
+    shuffleShelvesButton: document.getElementById("shuffleShelvesButton"),
     expandGroupsButton: document.getElementById("expandGroupsButton"),
     collapseGroupsButton: document.getElementById("collapseGroupsButton"),
     showMoreResultsButton: document.getElementById("showMoreResultsButton"),
@@ -446,6 +447,11 @@ function bindEvents() {
     });
 
     els.randomButton.addEventListener("click", pickRandomSong);
+
+    els.shuffleShelvesButton.addEventListener("click", () => {
+        state.cachedDiscoverShelves = null;
+        render();
+    });
 
     els.showMoreResultsButton.addEventListener("click", () => {
         state.resultLimit = Math.min(state.resultLimit + RESULT_BATCH_SIZE, state.matchCount);
@@ -801,6 +807,7 @@ function render() {
         els.searchNotice.hidden = true;
         els.randomPick.hidden = true;
         els.randomPick.innerHTML = "";
+        els.shuffleShelvesButton.hidden = true;
         renderBrowse();
         renderStatus(getBrowseSongs().length);
         renderResultContext();
@@ -828,6 +835,7 @@ function render() {
 
     renderRandomPick();
     renderSearchNotice();
+    els.shuffleShelvesButton.hidden = !isDiscover;
     if (isDiscover) {
         renderDiscover();
     } else {
@@ -1402,6 +1410,36 @@ function createShelf(shelf) {
     title.textContent = shelf.title;
     head.appendChild(title);
 
+    const controls = document.createElement("div");
+    controls.className = "shelf-controls";
+
+    const row = document.createElement("div");
+    row.className = "shelf-row";
+    row.setAttribute("tabindex", "0");
+    row.setAttribute("role", "group");
+    row.setAttribute("aria-label", shelf.title);
+    for (const song of shelf.songs) {
+        row.appendChild(createSongCard(song));
+    }
+
+    const back = document.createElement("button");
+    back.className = "shelf-arrow";
+    back.type = "button";
+    back.title = "Scroll back";
+    back.setAttribute("aria-label", `Scroll ${shelf.title} back`);
+    back.innerHTML = '<i data-lucide="chevron-left" aria-hidden="true"></i>';
+    back.addEventListener("click", () => nudgeShelf(row, -1));
+
+    const forward = document.createElement("button");
+    forward.className = "shelf-arrow";
+    forward.type = "button";
+    forward.title = "Scroll forward";
+    forward.setAttribute("aria-label", `Scroll ${shelf.title} forward`);
+    forward.innerHTML = '<i data-lucide="chevron-right" aria-hidden="true"></i>';
+    forward.addEventListener("click", () => nudgeShelf(row, 1));
+
+    controls.append(back, forward);
+
     if (shelf.seeAll) {
         const seeAll = document.createElement("button");
         seeAll.className = "see-all";
@@ -1409,17 +1447,34 @@ function createShelf(shelf) {
         seeAll.textContent = "See all";
         seeAll.title = `See all: ${shelf.title}`;
         seeAll.addEventListener("click", shelf.seeAll);
-        head.appendChild(seeAll);
+        controls.appendChild(seeAll);
     }
 
-    const row = document.createElement("div");
-    row.className = "shelf-row";
-    for (const song of shelf.songs) {
-        row.appendChild(createSongCard(song));
-    }
+    head.appendChild(controls);
 
-    section.append(head, row);
+    const wrap = document.createElement("div");
+    wrap.className = "shelf-row-wrap";
+    wrap.appendChild(row);
+
+    const syncShelfEdges = () => {
+        const overflow = row.scrollWidth - row.clientWidth;
+        wrap.classList.toggle("at-start", row.scrollLeft <= 4);
+        wrap.classList.toggle("at-end", row.scrollLeft >= overflow - 4);
+        section.classList.toggle("no-overflow", overflow <= 4);
+    };
+    row.addEventListener("scroll", syncShelfEdges, { passive: true });
+    requestAnimationFrame(syncShelfEdges);
+
+    section.append(head, wrap);
     return section;
+}
+
+function nudgeShelf(row, direction) {
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    row.scrollBy({
+        left: direction * Math.max(row.clientWidth - 80, 200),
+        behavior: reduceMotion ? "auto" : "smooth",
+    });
 }
 
 function renderResults() {

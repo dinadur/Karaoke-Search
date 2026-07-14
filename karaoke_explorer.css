@@ -911,6 +911,74 @@ select:hover {
     background: var(--hover-bg);
 }
 
+.shelf-controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.shelf-arrow {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    min-height: 30px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--muted);
+    background: var(--panel);
+}
+
+.shelf-arrow svg {
+    width: 16px;
+    height: 16px;
+}
+
+.shelf-arrow:hover {
+    border-color: var(--teal);
+    color: var(--active-ink);
+    background: var(--hover-bg);
+}
+
+.shelf.no-overflow .shelf-arrow {
+    display: none;
+}
+
+.shelf-row-wrap {
+    position: relative;
+    min-width: 0;
+}
+
+.shelf-row-wrap::before,
+.shelf-row-wrap::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 6px;
+    z-index: 2;
+    width: 28px;
+    pointer-events: none;
+    opacity: 1;
+    transition: opacity 0.2s ease;
+}
+
+.shelf-row-wrap::before {
+    left: 0;
+    background: linear-gradient(to right, var(--panel), transparent);
+}
+
+.shelf-row-wrap::after {
+    right: 0;
+    background: linear-gradient(to left, var(--panel), transparent);
+}
+
+.shelf-row-wrap.at-start::before,
+.shelf-row-wrap.at-end::after,
+.shelf.no-overflow .shelf-row-wrap::before,
+.shelf.no-overflow .shelf-row-wrap::after {
+    opacity: 0;
+}
+
 .shelf-row {
     display: grid;
     grid-auto-flow: column;
@@ -919,10 +987,28 @@ select:hover {
     overflow-x: auto;
     padding-bottom: 6px;
     scroll-snap-type: x proximity;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.shelf-row::-webkit-scrollbar {
+    display: none;
+}
+
+.shelf-row:focus-visible {
+    outline: 3px solid var(--focus-ring);
+    outline-offset: 2px;
+    border-radius: 8px;
 }
 
 .shelf-row .song-card {
     scroll-snap-align: start;
+}
+
+@media (hover: none) {
+    .shelf-arrow {
+        display: none;
+    }
 }
 
 .discover-foot {
