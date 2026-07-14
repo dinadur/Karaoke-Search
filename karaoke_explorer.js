@@ -13,7 +13,7 @@ const MULTI_FILTER_DEFS = [
         anyLabel: "Any mood",
         pickHint: "Pick any number of moods",
         options: () => state.availableMoods,
-        matches: (song, value) => includesValue(getSongMoods(song), value),
+        matches: (song, value) => matchesFilterKey(song, "moods", value),
     },
     {
         key: "genres",
@@ -22,7 +22,7 @@ const MULTI_FILTER_DEFS = [
         anyLabel: "Any genre",
         pickHint: "Pick any number of genres",
         options: () => state.availableGenres,
-        matches: (song, value) => includesValue(getSongGenres(song), value),
+        matches: (song, value) => matchesFilterKey(song, "genres", value),
     },
     {
         key: "decades",
@@ -31,7 +31,7 @@ const MULTI_FILTER_DEFS = [
         anyLabel: "Any decade",
         pickHint: "Pick any number of decades",
         options: () => state.availableDecades,
-        matches: (song, value) => (song.eras || []).includes(value),
+        matches: (song, value) => matchesFilterKey(song, "decades", value),
     },
     {
         key: "holidays",
@@ -40,7 +40,7 @@ const MULTI_FILTER_DEFS = [
         anyLabel: "Any holiday",
         pickHint: "Pick any number of holidays",
         options: () => state.availableHolidays,
-        matches: (song, value) => getHolidayValues(song).includes(value),
+        matches: (song, value) => matchesFilterKey(song, "holidays", value),
     },
 ];
 const multiFilterControls = new Map();
@@ -239,6 +239,7 @@ const state = {
     availableDecades: [],
     availableHolidays: [],
     defaultRankedSongs: [],
+    taggedCount: 0,
     cachedDiscoverShelves: null,
     promotedGenreTags: new Map(),
     tagConsolidation: createEmptyTagConsolidation(),
@@ -648,13 +649,26 @@ function useSongs(songs) {
         };
         const sourceMoods = getConsolidatedMoodsForSong(enrichedSong);
         const allMoods = dedupeValues([...(song.moods || []), ...sourceMoods]);
+        const preparedSong = enrichedSong;
+        preparedSong.sourceMoods = sourceMoods;
+        preparedSong.allMoods = allMoods;
 
-        return {
-            ...enrichedSong,
-            sourceMoods,
-            allMoods,
+        // Precomputed lookup structures keep per-keystroke filtering and
+        // faceted counting off the regex/normalize hot path.
+        preparedSong.holidayValues = computeHolidayValues(preparedSong);
+        preparedSong.isDuet = hasFlag(preparedSong, "Duet");
+        preparedSong.filterKeys = {
+            moods: new Set(allMoods.map(normalize)),
+            genres: new Set(preparedSong.allGenres.map(normalize)),
+            decades: new Set((song.eras || []).map(normalize)),
+            holidays: new Set(preparedSong.holidayValues.map(normalize)),
         };
+
+        return preparedSong;
     });
+    state.taggedCount = state.songs.reduce(
+        (count, song) => count + (song.status === "ok" ? 1 : 0), 0
+    );
     state.defaultRankedSongs = [...state.songs].sort((a, b) =>
         (b.confidence || 0) - (a.confidence || 0) ||
         compareArtistSort(a, b) ||
@@ -1158,15 +1172,22 @@ function rankSongs(songs, query, { fuzzy = state.fuzzySearch } = {}) {
 }
 
 function applySearchFilters(songs) {
+    const selections = [];
+    for (const def of MULTI_FILTER_DEFS) {
+        if (state.filters[def.key].length) {
+            selections.push({ key: def.key, keys: state.filters[def.key].map(normalize) });
+        }
+    }
+
     return songs.filter((song) => {
-        for (const def of MULTI_FILTER_DEFS) {
-            const selected = state.filters[def.key];
-            if (selected.length && !selected.some((value) => def.matches(song, value))) {
+        for (const selection of selections) {
+            const songKeys = song.filterKeys?.[selection.key];
+            if (!songKeys || !selection.keys.some((key) => songKeys.has(key))) {
                 return false;
             }
         }
 
-        if (state.filters.duet && !hasFlag(song, "Duet")) {
+        if (state.filters.duet && !song.isDuet) {
             return false;
         }
 
@@ -1176,6 +1197,10 @@ function applySearchFilters(songs) {
 
         return true;
     });
+}
+
+function matchesFilterKey(song, key, value) {
+    return Boolean(song.filterKeys?.[key]?.has(normalize(value)));
 }
 
 function sortSongs(songs) {
@@ -1348,7 +1373,7 @@ function buildSampledShelves() {
         });
     }
 
-    const duets = state.songs.filter((song) => hasFlag(song, "Duet"));
+    const duets = state.songs.filter((song) => song.isDuet);
     if (duets.length) {
         shelves.push({
             title: "Duets",
@@ -2421,9 +2446,8 @@ function scrollResultsIntoView() {
 }
 
 function renderStatus(totalMatches) {
-    const enriched = state.songs.filter((song) => song.status === "ok").length;
     const total = state.songs.length.toLocaleString();
-    const tagged = enriched.toLocaleString();
+    const tagged = (state.taggedCount || 0).toLocaleString();
 
     els.status.textContent = `${tagged} tagged / ${total} songs`;
 
@@ -3216,22 +3240,9 @@ function renderFilterOptions() {
         counts[def.key] = new Map();
     }
 
-    const valueGetters = {
-        moods: getSongMoods,
-        genres: getSongGenres,
-        decades: (song) => song.eras || [],
-        holidays: getHolidayValues,
-    };
     for (const song of state.songs) {
         for (const def of MULTI_FILTER_DEFS) {
-            const seen = new Set();
-            for (const value of valueGetters[def.key](song) || []) {
-                const key = normalize(value);
-                if (!key || seen.has(key)) {
-                    continue;
-                }
-
-                seen.add(key);
+            for (const key of song.filterKeys[def.key]) {
                 counts[def.key].set(key, (counts[def.key].get(key) || 0) + 1);
             }
         }
@@ -3777,14 +3788,28 @@ function getDisplaySongTitle(song) {
     return cleaned || raw || "Untitled";
 }
 
+const CLEAN_DISPLAY_CACHE = new Map();
+
 function cleanDisplayValue(value) {
-    return String(value || "")
+    const raw = String(value || "");
+    const cached = CLEAN_DISPLAY_CACHE.get(raw);
+    if (cached !== undefined) {
+        return cached;
+    }
+
+    const result = raw
         .replace(/\bwvocals?\b/gi, " ")
         .replace(/\bw\s*\/?\s*vocals?\b/gi, " ")
         .replace(/[\[(]\s*karaoke\s*[\])]/gi, " ")
         .replace(/\bkaraoke\b/gi, " ")
         .replace(/\s+/g, " ")
         .trim();
+
+    if (CLEAN_DISPLAY_CACHE.size < 150000) {
+        CLEAN_DISPLAY_CACHE.set(raw, result);
+    }
+
+    return result;
 }
 
 function getConsolidatedMoodsForSong(song) {
@@ -3798,14 +3823,14 @@ function getConsolidatedMoodsForSong(song) {
         ...(song.tags || []),
         ...getSongGenres(song),
     ].map(normalize).filter(Boolean));
-    const sourceText = normalize([
+    const sourceText = [
         song.artist,
         song.lookupArtist,
         song.song,
         song.lookupSong,
         ...(song.tags || []),
         ...getSongGenres(song),
-    ].join(" "));
+    ].map(normalize).join(" ");
 
     for (const rule of rules) {
         const hasExactMatch = [...rule.tags].some((tag) => sourceKeys.has(tag));
@@ -3833,6 +3858,14 @@ function includesValue(values, target) {
 }
 
 function getHolidayValues(song) {
+    if (song.holidayValues) {
+        return song.holidayValues;
+    }
+
+    return computeHolidayValues(song);
+}
+
+function computeHolidayValues(song) {
     const values = new Set();
     const text = normalize([
         song.artist,
@@ -3873,8 +3906,16 @@ function getDisplayFlags(song) {
     });
 }
 
+const NORMALIZE_CACHE = new Map();
+
 function normalize(value) {
-    return String(value || "")
+    const raw = String(value || "");
+    const cached = NORMALIZE_CACHE.get(raw);
+    if (cached !== undefined) {
+        return cached;
+    }
+
+    const result = raw
         .toLowerCase()
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "")
@@ -3882,6 +3923,12 @@ function normalize(value) {
         .replace(/[^a-z0-9]+/g, " ")
         .replace(/\s+/g, " ")
         .trim();
+
+    if (NORMALIZE_CACHE.size < 300000) {
+        NORMALIZE_CACHE.set(raw, result);
+    }
+
+    return result;
 }
 
 function getBrowseLetter(value) {
