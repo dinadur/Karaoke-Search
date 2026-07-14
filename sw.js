@@ -8,6 +8,7 @@ const PRECACHE_URLS = [
     "/karaoke_explorer.html",
     `/karaoke_explorer.css?v=${CACHE_VERSION}`,
     `/karaoke_explorer.js?v=${CACHE_VERSION}`,
+    `/qrcode.js?v=${CACHE_VERSION}`,
     `/karaoke_songs_enriched.json?v=${CACHE_VERSION}`,
     `/tag_consolidation.json?v=${CACHE_VERSION}`,
     `/mood_consolidation.json?v=${CACHE_VERSION}`,

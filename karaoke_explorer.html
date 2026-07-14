@@ -10,6 +10,7 @@
     <link rel="manifest" href="manifest.json">
     <link rel="preload" href="fonts/space-grotesk-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="karaoke_explorer.css?v=20260714-4">
+    <script defer src="qrcode.js?v=20260714-4"></script>
     <script defer src="karaoke_explorer.js?v=20260714-4"></script>
 </head>
 <body>
@@ -37,6 +38,7 @@
         <symbol id="icon-grip-vertical" viewBox="0 0 24 24"><circle cx="9" cy="12" r="1"/> <circle cx="9" cy="5" r="1"/> <circle cx="9" cy="19" r="1"/> <circle cx="15" cy="12" r="1"/> <circle cx="15" cy="5" r="1"/> <circle cx="15" cy="19" r="1"/></symbol>
         <symbol id="icon-sliders-horizontal" viewBox="0 0 24 24"><path d="M10 5H3"/> <path d="M12 19H3"/> <path d="M14 3v4"/> <path d="M16 17v4"/> <path d="M21 12h-9"/> <path d="M21 19h-5"/> <path d="M21 5h-7"/> <path d="M8 10v4"/> <path d="M8 12H3"/></symbol>
         <symbol id="icon-share-2" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/> <circle cx="6" cy="12" r="3"/> <circle cx="18" cy="19" r="3"/> <line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/> <line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/></symbol>
+        <symbol id="icon-qr-code" viewBox="0 0 24 24"><rect width="5" height="5" x="3" y="3" rx="1"/> <rect width="5" height="5" x="16" y="3" rx="1"/> <rect width="5" height="5" x="3" y="16" rx="1"/> <path d="M21 16h-3a2 2 0 0 0-2 2v3"/> <path d="M21 21v.01"/> <path d="M12 7v3a2 2 0 0 1-2 2H7"/> <path d="M3 12h.01"/> <path d="M12 3h.01"/> <path d="M12 16v.01"/> <path d="M16 12h1"/> <path d="M21 12v.01"/> <path d="M12 21v-1"/></symbol>
         <symbol id="icon-dices" viewBox="0 0 24 24"><rect width="12" height="12" x="2" y="10" rx="2" ry="2"/> <path d="m17.92 14 3.5-3.5a2.24 2.24 0 0 0 0-3l-5-4.92a2.24 2.24 0 0 0-3 0L10 6"/> <path d="M6 18h.01"/> <path d="M10 14h.01"/> <path d="M15 6h.01"/> <path d="M18 9h.01"/></symbol>
     </svg>
 
@@ -189,8 +191,14 @@
                         <h2 id="setlistTitle">Setlist</h2>
                         <p id="setlistCount">0 songs</p>
                     </div>
+                    <button id="draftSetlistButton" class="icon-button" type="button" title="Draft songs from current results" aria-label="Draft songs from current results">
+                        <i data-lucide="dices" aria-hidden="true"></i>
+                    </button>
                     <button id="shareSetlistButton" class="icon-button" type="button" title="Share setlist" aria-label="Share setlist" hidden>
                         <i data-lucide="share-2" aria-hidden="true"></i>
+                    </button>
+                    <button id="qrSetlistButton" class="icon-button" type="button" title="Show QR code" aria-label="Show QR code for sharing">
+                        <i data-lucide="qr-code" aria-hidden="true"></i>
                     </button>
                     <button id="copySetlistButton" class="icon-button" type="button" title="Copy setlist">
                         <i data-lucide="copy" aria-hidden="true"></i>
@@ -218,6 +226,27 @@
         <i data-lucide="list-music" aria-hidden="true"></i>
         <span>Setlist</span>
     </button>
+
+    <dialog id="qrDialog">
+        <form method="dialog" class="dialog-body qr-dialog-body">
+            <h2>Scan to open</h2>
+            <div class="qr-holder" id="qrHolder"></div>
+            <p id="qrCaption"></p>
+            <button class="command" type="submit">Close</button>
+        </form>
+    </dialog>
+
+    <dialog id="importDialog">
+        <form method="dialog" class="dialog-body">
+            <h2>Shared setlist</h2>
+            <p id="importCaption"></p>
+            <div class="import-actions">
+                <button id="importAddButton" class="command import-add" type="button">Add to my setlist</button>
+                <button id="importReplaceButton" class="command" type="button">Replace my setlist</button>
+                <button class="command subtle-command" type="submit">Ignore</button>
+            </div>
+        </form>
+    </dialog>
 
     <dialog id="dataDialog">
         <form method="dialog" class="dialog-body">

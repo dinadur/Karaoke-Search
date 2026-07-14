@@ -1996,6 +1996,36 @@ dialog::backdrop {
     color: var(--muted);
     line-height: 1.45;
 }
+
+.qr-dialog-body {
+    justify-items: center;
+    text-align: center;
+}
+
+.qr-holder {
+    width: min(260px, 70vw);
+    border-radius: 10px;
+    padding: 10px;
+    background: #ffffff;
+    overflow-wrap: anywhere;
+}
+
+.qr-holder svg {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+.import-actions {
+    display: grid;
+    gap: 8px;
+}
+
+.import-add {
+    border: 0;
+    color: var(--accent-ink);
+    background: var(--accent);
+}
 @media (prefers-reduced-motion: no-preference) {
     .command,
     .icon-button,

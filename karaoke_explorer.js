@@ -231,6 +231,7 @@ const state = {
     randomPick: null,
     snackbarTimer: 0,
     snackbarAction: null,
+    pendingSharedSetlist: "",
     fuzzySearch: false,
     favoriteOnly: false,
     sortMode: "relevance",
@@ -304,6 +305,7 @@ const els = {
     setlist: document.getElementById("setlist"),
     setlistCount: document.getElementById("setlistCount"),
     copySetlistButton: document.getElementById("copySetlistButton"),
+    draftSetlistButton: document.getElementById("draftSetlistButton"),
     shareSetlistButton: document.getElementById("shareSetlistButton"),
     snackbar: document.getElementById("snackbar"),
     snackbarText: document.getElementById("snackbarText"),
@@ -314,6 +316,14 @@ const els = {
     mobileSetlistButton: document.getElementById("mobileSetlistButton"),
     dataDialog: document.getElementById("dataDialog"),
     fileInput: document.getElementById("fileInput"),
+    qrSetlistButton: document.getElementById("qrSetlistButton"),
+    qrDialog: document.getElementById("qrDialog"),
+    qrHolder: document.getElementById("qrHolder"),
+    qrCaption: document.getElementById("qrCaption"),
+    importDialog: document.getElementById("importDialog"),
+    importCaption: document.getElementById("importCaption"),
+    importAddButton: document.getElementById("importAddButton"),
+    importReplaceButton: document.getElementById("importReplaceButton"),
 };
 
 window.addEventListener("error", (event) => {
@@ -531,6 +541,9 @@ function bindEvents() {
         }
     });
 
+    els.draftSetlistButton.addEventListener("click", draftSetlist);
+    els.qrSetlistButton.addEventListener("click", openQrDialog);
+
     els.shareSetlistButton.hidden = typeof navigator.share !== "function";
     els.shareSetlistButton.addEventListener("click", async () => {
         const text = buildSetlistText();
@@ -686,6 +699,7 @@ function useSongs(songs) {
     renderSetlist();
     renderThemeButton();
     render();
+    offerSharedSetlistImport();
 }
 
 function renderLoadingSkeleton() {
@@ -2606,6 +2620,13 @@ function applyStoredUiState() {
 }
 
 function applyInitialRoute() {
+    // Capture a shared-setlist fragment before URL sync strips the hash;
+    // it is resolved against the catalog once songs finish loading.
+    const hashMatch = window.location.hash.match(/^#sl=(.+)$/);
+    if (hashMatch) {
+        state.pendingSharedSetlist = hashMatch[1];
+    }
+
     const params = new URLSearchParams(window.location.search);
     const mode = params.get("mode");
     const browseBy = params.get("by");
@@ -2915,6 +2936,14 @@ function renderSetlist() {
         down.innerHTML = '<i data-lucide="chevron-down" aria-hidden="true"></i>';
         down.addEventListener("click", () => moveSetlistItem(index, 1));
 
+        const reroll = document.createElement("button");
+        reroll.className = "setlist-icon-button";
+        reroll.type = "button";
+        reroll.title = "Swap for another match";
+        reroll.setAttribute("aria-label", "Swap for another matching song");
+        reroll.innerHTML = '<i data-lucide="shuffle" aria-hidden="true"></i>';
+        reroll.addEventListener("click", () => rerollSetlistSong(index));
+
         const remove = document.createElement("button");
         remove.className = "setlist-icon-button remove-button";
         remove.type = "button";
@@ -2931,7 +2960,7 @@ function renderSetlist() {
             });
         });
 
-        controls.append(handle, up, down, remove);
+        controls.append(handle, up, down, reroll, remove);
         item.append(title, artist, createSingerControl(song, item), controls);
         fragment.appendChild(item);
     });
@@ -3005,6 +3034,222 @@ function createSingerControl(song, item) {
     button.addEventListener("click", startEdit);
     wrap.appendChild(button);
     return wrap;
+}
+
+async function openQrDialog() {
+    const url = await buildShareUrl();
+    els.qrHolder.innerHTML = "";
+
+    if (typeof qrcode === "function") {
+        try {
+            const qr = qrcode(0, "M");
+            qr.addData(url);
+            qr.make();
+            els.qrHolder.innerHTML = qr.createSvgTag({ scalable: true, margin: 2 });
+        } catch {
+            els.qrHolder.textContent = url;
+        }
+    } else {
+        els.qrHolder.textContent = url;
+    }
+
+    els.qrCaption.textContent = state.setlist.length
+        ? `Opens this view with your ${state.setlist.length}-song setlist ready to import.`
+        : "Opens this songbook view, filters and all.";
+    els.qrDialog.showModal();
+}
+
+async function buildShareUrl() {
+    const base = `${window.location.origin}${window.location.pathname}${window.location.search}`;
+    if (!state.setlist.length) {
+        return base;
+    }
+
+    const payload = await encodeSetlistPayload();
+    return payload ? `${base}#sl=${payload}` : base;
+}
+
+async function encodeSetlistPayload() {
+    try {
+        const raw = state.setlist
+            .map((song) => song.id || getSongIdentity(song))
+            .join("\n");
+        const bytes = new TextEncoder().encode(raw);
+
+        if (typeof CompressionStream === "function") {
+            const stream = new Blob([bytes]).stream()
+                .pipeThrough(new CompressionStream("deflate-raw"));
+            const compressed = new Uint8Array(await new Response(stream).arrayBuffer());
+            return `z.${base64UrlEncode(compressed)}`;
+        }
+
+        return `r.${base64UrlEncode(bytes)}`;
+    } catch {
+        return "";
+    }
+}
+
+async function decodeSetlistPayload(payload) {
+    try {
+        const [kind, data] = payload.split(".", 2);
+        const bytes = base64UrlDecode(data);
+        let raw;
+        if (kind === "z") {
+            const stream = new Blob([bytes]).stream()
+                .pipeThrough(new DecompressionStream("deflate-raw"));
+            raw = await new Response(stream).text();
+        } else {
+            raw = new TextDecoder().decode(bytes);
+        }
+
+        return raw.split("\n").filter(Boolean);
+    } catch {
+        return [];
+    }
+}
+
+function base64UrlEncode(bytes) {
+    let binary = "";
+    for (const byte of bytes) {
+        binary += String.fromCharCode(byte);
+    }
+
+    return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function base64UrlDecode(data) {
+    const padded = data.replace(/-/g, "+").replace(/_/g, "/");
+    const binary = atob(padded);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+    }
+
+    return bytes;
+}
+
+async function offerSharedSetlistImport() {
+    const payload = state.pendingSharedSetlist;
+    state.pendingSharedSetlist = "";
+    if (!payload) {
+        return;
+    }
+
+    const ids = await decodeSetlistPayload(payload);
+    if (!ids.length) {
+        return;
+    }
+
+    const songsById = new Map();
+    for (const song of state.songs) {
+        songsById.set(song.id, song);
+    }
+
+    const shared = ids.map((id) => songsById.get(id)).filter(Boolean);
+    if (!shared.length) {
+        return;
+    }
+
+    els.importCaption.textContent =
+        `Someone shared a setlist with ${shared.length} ${shared.length === 1 ? "song" : "songs"}` +
+        (shared.length < ids.length ? ` (${ids.length - shared.length} not in this songbook)` : "") + ".";
+
+    const applyImport = (replace) => {
+        const previous = [...state.setlist];
+        if (replace) {
+            state.setlist = shared.map((song) => ({ ...song }));
+        } else {
+            for (const song of shared) {
+                if (!state.setlist.some((item) => isSameSong(item, song))) {
+                    state.setlist.push({ ...song });
+                }
+            }
+        }
+        saveSetlist();
+        renderSetlist();
+        els.importDialog.close();
+        showSnackbar(`Setlist ${replace ? "replaced" : "updated"} (${state.setlist.length} songs)`, () => {
+            state.setlist = previous;
+            saveSetlist();
+            renderSetlist();
+        });
+    };
+
+    els.importAddButton.onclick = () => applyImport(false);
+    els.importReplaceButton.onclick = () => applyImport(true);
+    if (typeof els.importDialog.showModal === "function") {
+        els.importDialog.showModal();
+    }
+}
+
+const DRAFT_SETLIST_TARGET = 10;
+
+function getDraftPool() {
+    const hasScope = state.mode === "search" &&
+        state.currentSongs.length &&
+        (Boolean(normalize(state.query)) || hasSongFilters());
+    if (hasScope) {
+        return state.currentSongs;
+    }
+
+    const tagged = state.songs.filter((song) => song.status === "ok");
+    return tagged.length ? tagged : state.songs;
+}
+
+function draftSetlist() {
+    const missing = DRAFT_SETLIST_TARGET - state.setlist.length;
+    if (missing <= 0) {
+        showSnackbar(`Setlist already has ${state.setlist.length} songs`);
+        return;
+    }
+
+    const pool = getDraftPool().filter(
+        (song) => !state.setlist.some((item) => isSameSong(item, song))
+    );
+    const additions = sampleSongs(pool, missing);
+    if (!additions.length) {
+        showSnackbar("No matching songs left to draft");
+        return;
+    }
+
+    const previous = [...state.setlist];
+    for (const song of additions) {
+        state.setlist.push({ ...song });
+    }
+    saveSetlist();
+    renderSetlist();
+    showSnackbar(
+        `Drafted ${additions.length} ${additions.length === 1 ? "song" : "songs"}`,
+        () => {
+            state.setlist = previous;
+            saveSetlist();
+            renderSetlist();
+        }
+    );
+}
+
+function rerollSetlistSong(index) {
+    const current = state.setlist[index];
+    if (!current) {
+        return;
+    }
+
+    const pool = getDraftPool().filter(
+        (song) => !state.setlist.some((item) => isSameSong(item, song))
+    );
+    const [replacement] = sampleSongs(pool, 1);
+    if (!replacement) {
+        showSnackbar("No matching songs left to swap in");
+        return;
+    }
+
+    const next = { ...replacement };
+    if (current.singer) {
+        next.singer = current.singer;
+    }
+    state.setlist.splice(index, 1, next);
+    saveSetlist();
+    renderSetlist();
 }
 
 function buildSetlistText() {
