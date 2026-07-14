@@ -1,4 +1,4 @@
-const APP_VERSION = "20260714-1";
+const APP_VERSION = "20260714-2";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const TAG_CONSOLIDATION_URL = `tag_consolidation.json?v=${APP_VERSION}`;
 const MOOD_CONSOLIDATION_URL = `mood_consolidation.json?v=${APP_VERSION}`;
@@ -300,6 +300,7 @@ init();
 async function init() {
     bindEvents();
     bindResultsSentinel();
+    registerServiceWorker();
     renderThemeButton();
     applyInitialState();
     startLoadStatus();
@@ -937,6 +938,18 @@ function renderSearchNotice() {
     els.searchNotice.textContent = show
         ? `No exact matches for “${state.query}” — showing close matches.`
         : "";
+}
+
+function registerServiceWorker() {
+    if (!("serviceWorker" in navigator)) {
+        return;
+    }
+
+    // The versioned URL guarantees each deploy registers a fresh worker even
+    // if an intermediary cached the old sw.js aggressively.
+    navigator.serviceWorker.register(`sw.js?v=${APP_VERSION}`).catch(() => {
+        // Offline support is progressive enhancement; the app works without it.
+    });
 }
 
 function bindResultsSentinel() {
