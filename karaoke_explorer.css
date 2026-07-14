@@ -590,6 +590,113 @@ select:hover {
     gap: 6px;
 }
 
+.genre-filter {
+    position: relative;
+}
+
+.genre-filter-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 36px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 0 12px;
+    color: var(--ink);
+    background: var(--panel);
+    font-weight: 600;
+}
+
+.genre-filter-button svg {
+    width: 15px;
+    height: 15px;
+    color: var(--muted);
+}
+
+.genre-filter-button:hover {
+    border-color: var(--teal);
+}
+
+.genre-filter-button.has-selection {
+    border-color: var(--teal);
+    color: var(--active-ink);
+    background: var(--active-bg);
+}
+
+.genre-popover {
+    position: absolute;
+    top: calc(100% + 7px);
+    left: 0;
+    z-index: 28;
+    display: grid;
+    gap: 10px;
+    width: min(420px, calc(100vw - 40px));
+    max-height: 320px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 12px;
+    overflow: auto;
+    background: var(--panel);
+    box-shadow: var(--shadow);
+}
+
+.genre-popover[hidden] {
+    display: none;
+}
+
+.genre-popover-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.genre-clear {
+    border: 0;
+    padding: 2px 4px;
+    color: var(--teal);
+    background: transparent;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.genre-clear[hidden] {
+    display: none;
+}
+
+.genre-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.genre-option {
+    min-height: 32px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 0 11px;
+    color: var(--chip-ink);
+    background: var(--panel-strong);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.genre-option:hover {
+    border-color: var(--teal);
+    background: var(--hover-bg);
+}
+
+.genre-option.is-active {
+    border-color: var(--teal);
+    color: var(--active-ink);
+    background: var(--active-bg);
+}
+
 .select-filter {
     flex: 0 0 auto;
 }
@@ -2059,6 +2166,24 @@ dialog::backdrop {
         flex: 1 1 auto;
         width: auto;
         min-height: 42px;
+    }
+
+    .genre-filter {
+        flex-wrap: wrap;
+    }
+
+    .genre-filter-button {
+        flex: 1 1 auto;
+        justify-content: space-between;
+        min-height: 42px;
+    }
+
+    .genre-popover {
+        position: static;
+        width: 100%;
+        max-height: 40vh;
+        box-shadow: none;
+        background: var(--panel-strong);
     }
 
     .search-order {

@@ -119,12 +119,20 @@
                     <option value="">Any mood</option>
                 </select>
             </label>
-            <label class="select-filter" for="genreFilter">
+            <div class="select-filter genre-filter">
                 <span class="filter-label">Genre</span>
-                <select id="genreFilter" aria-label="Filter by genre">
-                    <option value="">Any genre</option>
-                </select>
-            </label>
+                <button id="genreFilterButton" class="genre-filter-button" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Filter by genre">
+                    <span id="genreFilterLabel">Any genre</span>
+                    <i data-lucide="chevron-down" aria-hidden="true"></i>
+                </button>
+                <div class="genre-popover" id="genrePopover" hidden>
+                    <div class="genre-popover-head">
+                        <span>Pick any number of genres</span>
+                        <button id="clearGenresButton" class="genre-clear" type="button" hidden>Clear</button>
+                    </div>
+                    <div class="genre-options" id="genreOptions" role="group" aria-label="Genres"></div>
+                </div>
+            </div>
             <label class="select-filter" for="decadeFilter">
                 <span class="filter-label">Decade</span>
                 <select id="decadeFilter" aria-label="Filter by decade">
