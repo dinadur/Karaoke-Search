@@ -4,7 +4,7 @@ const TAG_CONSOLIDATION_URL = `tag_consolidation.json?v=${APP_VERSION}`;
 const MOOD_CONSOLIDATION_URL = `mood_consolidation.json?v=${APP_VERSION}`;
 const RESULT_BATCH_SIZE = 160;
 const SEARCH_RENDER_DELAY = 90;
-const SEARCH_SCOPES = ["song", "artist"];
+const SEARCH_SCOPES = ["all", "song", "artist"];
 const TAG_GENRE_MIN_COUNT = 50;
 const THEME_STORAGE_KEY = "karaokeTheme";
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -187,7 +187,9 @@ const state = {
     matchCount: 0,
     resultLimit: RESULT_BATCH_SIZE,
     query: "",
-    searchScope: "song",
+    searchScope: "all",
+    autoFuzzy: false,
+    randomPick: null,
     fuzzySearch: false,
     favoriteOnly: false,
     sortMode: "relevance",
@@ -196,6 +198,7 @@ const state = {
     availableDecades: [],
     availableHolidays: [],
     defaultRankedSongs: [],
+    cachedDiscoverShelves: null,
     promotedGenreTags: new Map(),
     tagConsolidation: createEmptyTagConsolidation(),
     moodConsolidation: createEmptyMoodConsolidation(),
@@ -249,6 +252,8 @@ const els = {
     browseArtistButton: document.getElementById("browseArtistButton"),
     letterStrip: document.getElementById("letterStrip"),
     resultsList: document.getElementById("resultsList"),
+    searchNotice: document.getElementById("searchNotice"),
+    randomPick: document.getElementById("randomPick"),
     resultActions: document.getElementById("resultActions"),
     groupActions: document.getElementById("groupActions"),
     expandGroupsButton: document.getElementById("expandGroupsButton"),
@@ -432,30 +437,7 @@ function bindEvents() {
         render();
     });
 
-    els.randomButton.addEventListener("click", () => {
-        const isBrowseRandom = state.mode === "browse";
-        const pool = state.currentSongs.length ? state.currentSongs : state.songs;
-        if (!pool.length) {
-            return;
-        }
-
-        const song = pool[Math.floor(Math.random() * pool.length)];
-        addToSetlist(song);
-        if (isBrowseRandom) {
-            clearSearchFilters();
-        }
-
-        state.mode = "search";
-        state.searchScope = "song";
-        state.sortMode = "relevance";
-        state.groupOpenMode = "auto";
-        state.query = song.song || song.lookupSong || "";
-        els.searchInput.value = state.query;
-        syncSearchScopeInput();
-        updateSearchPlaceholder();
-        resetResultLimit();
-        render();
-    });
+    els.randomButton.addEventListener("click", pickRandomSong);
 
     els.showMoreResultsButton.addEventListener("click", () => {
         state.resultLimit = Math.min(state.resultLimit + RESULT_BATCH_SIZE, state.matchCount);
@@ -570,6 +552,7 @@ function useSongs(songs) {
             artistLetter: getBrowseLetter(displayArtist),
             songSearchText,
             artistSearchText,
+            allSearchText: `${songSearchText} ${artistSearchText}`,
             songSortText: songSearchText,
             artistSortText: normalize(displayArtist),
             songWords: getSearchWords(song.song),
@@ -605,6 +588,7 @@ function useSongs(songs) {
     state.availableGenres = getAvailableValues(getSongGenres);
     state.availableDecades = getAvailableDecades();
     state.availableHolidays = getAvailableValues(getHolidayValues);
+    state.cachedDiscoverShelves = null;
     renderFilterOptions();
     updateSearchPlaceholder();
     ensureBrowseLetter();
@@ -763,6 +747,9 @@ function render() {
     renderActiveFilters();
 
     if (state.mode === "browse") {
+        els.searchNotice.hidden = true;
+        els.randomPick.hidden = true;
+        els.randomPick.innerHTML = "";
         renderBrowse();
         renderStatus(getBrowseSongs().length);
         renderResultContext();
@@ -771,20 +758,101 @@ function render() {
         return;
     }
 
-    const ranked = rankSongs(state.songs, state.query);
+    let ranked = rankSongs(state.songs, state.query);
+    state.autoFuzzy = false;
+    if (state.query && !state.fuzzySearch && !ranked.length) {
+        const closeMatches = rankSongs(state.songs, state.query, { fuzzy: true });
+        if (closeMatches.length) {
+            ranked = closeMatches;
+            state.autoFuzzy = true;
+        }
+    }
+
     const filtered = hasSongFilters() ? applySearchFilters(ranked) : ranked;
     const sorted = sortSongs(filtered);
+    const isDiscover = isDiscoverView();
     state.currentSongs = sorted;
     state.matchCount = sorted.length;
-    state.visibleSongs = sorted.slice(0, state.resultLimit);
+    state.visibleSongs = isDiscover ? [] : sorted.slice(0, state.resultLimit);
 
-    renderResults();
+    renderRandomPick();
+    renderSearchNotice();
+    if (isDiscover) {
+        renderDiscover();
+    } else {
+        renderResults();
+    }
     renderStatus(filtered.length);
     renderResultContext();
-    renderResultActions(filtered.length);
+    renderResultActions(isDiscover ? 0 : filtered.length);
     saveUiState();
 
     hydrateIcons();
+}
+
+function isDiscoverView() {
+    return state.mode === "search" &&
+        !normalize(state.query) &&
+        !hasSongFilters() &&
+        state.sortMode === "relevance";
+}
+
+function pickRandomSong() {
+    const pool = state.mode === "search" && state.currentSongs.length
+        ? state.currentSongs
+        : state.songs;
+    if (!pool.length) {
+        return;
+    }
+
+    state.randomPick = pool[Math.floor(Math.random() * pool.length)];
+    state.mode = "search";
+    render();
+    scrollResultsIntoView();
+}
+
+function renderRandomPick() {
+    els.randomPick.innerHTML = "";
+    const song = state.randomPick;
+    els.randomPick.hidden = !song;
+    if (!song) {
+        return;
+    }
+
+    const head = document.createElement("div");
+    head.className = "random-pick-head";
+
+    const label = document.createElement("span");
+    label.className = "random-pick-label";
+    label.innerHTML = '<i data-lucide="dices" aria-hidden="true"></i><span>Random pick</span>';
+
+    const spin = document.createElement("button");
+    spin.className = "choice-button spin-again";
+    spin.type = "button";
+    spin.textContent = "Spin again";
+    spin.addEventListener("click", pickRandomSong);
+
+    const dismiss = document.createElement("button");
+    dismiss.className = "icon-button dismiss-pick";
+    dismiss.type = "button";
+    dismiss.title = "Dismiss random pick";
+    dismiss.setAttribute("aria-label", "Dismiss random pick");
+    dismiss.innerHTML = '<i data-lucide="x" aria-hidden="true"></i>';
+    dismiss.addEventListener("click", () => {
+        state.randomPick = null;
+        render();
+    });
+
+    head.append(label, spin, dismiss);
+    els.randomPick.append(head, createSongCard(song));
+}
+
+function renderSearchNotice() {
+    const show = state.mode === "search" && state.autoFuzzy && state.matchCount > 0;
+    els.searchNotice.hidden = !show;
+    els.searchNotice.textContent = show
+        ? `No exact matches for “${state.query}” — showing close matches.`
+        : "";
 }
 
 function openFiltersSheet() {
@@ -876,19 +944,20 @@ function cancelScheduledSearchRender() {
     }
 }
 
-function rankSongs(songs, query) {
+function rankSongs(songs, query, { fuzzy = state.fuzzySearch } = {}) {
     const tokens = normalize(query).split(" ").filter(Boolean);
     if (!tokens.length) {
         return state.defaultRankedSongs.length ? state.defaultRankedSongs : songs;
     }
 
     const phrase = tokens.join(" ");
-    const isArtistSearch = state.searchScope === "artist";
-    const fuzzySearch = state.fuzzySearch;
+    const scope = state.searchScope;
+    const matchesSongs = scope !== "artist";
+    const matchesArtists = scope !== "song";
     return songs
         .map((song) => {
-            const haystack = getScopedSearchText(song, isArtistSearch);
-            const fuzzyWords = getScopedSearchWords(song);
+            const haystack = getScopedSearchText(song, scope);
+            const fuzzyWords = getScopedSearchWords(song, scope);
             let score = 0;
 
             for (const token of tokens) {
@@ -897,7 +966,7 @@ function rankSongs(songs, query) {
                     continue;
                 }
 
-                if (!fuzzySearch) {
+                if (!fuzzy) {
                     return { song, score: 0 };
                 }
 
@@ -913,14 +982,27 @@ function rankSongs(songs, query) {
                 score += 12;
             }
 
-            if (!isArtistSearch && (song.songSearchText || normalize(song.song)).startsWith(phrase)) {
-                score += 10;
+            let songBonus = 0;
+            if (matchesSongs) {
+                const songText = song.songSearchText || normalize(song.song);
+                if (songText === phrase) {
+                    songBonus = 18;
+                } else if (songText.startsWith(phrase)) {
+                    songBonus = 10;
+                }
             }
 
-            if (isArtistSearch && (song.artistSearchText || normalize(getDisplayArtist(song))).startsWith(phrase)) {
-                score += 10;
+            let artistBonus = 0;
+            if (matchesArtists) {
+                const artistText = song.artistSortText || normalize(getDisplayArtist(song));
+                if (artistText === phrase) {
+                    artistBonus = 16;
+                } else if (artistText.startsWith(phrase)) {
+                    artistBonus = scope === "all" ? 9 : 10;
+                }
             }
 
+            score += Math.max(songBonus, artistBonus);
             return { song, score };
         })
         .filter((item) => item.score > 0)
@@ -1044,14 +1126,217 @@ function clearSearchQuery({ resetScope = true } = {}) {
     els.searchInput.value = "";
 
     if (resetScope) {
-        state.searchScope = "song";
+        state.searchScope = "all";
         syncSearchScopeInput();
         updateSearchPlaceholder();
     }
 }
 
+function renderDiscover() {
+    els.resultsList.innerHTML = "";
+    els.resultsList.classList.remove("is-grouped");
+    els.resultsList.classList.add("is-discover");
+    renderGroupActions();
+
+    const fragment = document.createDocumentFragment();
+    for (const shelf of buildDiscoverShelves()) {
+        fragment.appendChild(createShelf(shelf));
+    }
+
+    const foot = document.createElement("div");
+    foot.className = "discover-foot";
+    foot.appendChild(createEmptyAction("Browse titles A–Z", () => {
+        state.mode = "browse";
+        state.browseBy = "song";
+        ensureBrowseLetter();
+        render();
+    }));
+    foot.appendChild(createEmptyAction("Browse artists A–Z", () => {
+        state.mode = "browse";
+        state.browseBy = "artist";
+        ensureBrowseLetter();
+        render();
+    }));
+    fragment.appendChild(foot);
+
+    els.resultsList.appendChild(fragment);
+}
+
+function buildDiscoverShelves() {
+    const shelves = [];
+
+    const favorites = state.songs
+        .filter((song) => isFavorite(song))
+        .sort((a, b) => compareArtistSort(a, b) || compareSongSort(a, b));
+    if (favorites.length) {
+        shelves.push({
+            title: "Your favorites",
+            songs: favorites.slice(0, 8),
+            seeAll: () => applyShelfFilter(() => {
+                state.favoriteOnly = true;
+            }),
+        });
+    }
+
+    if (!state.cachedDiscoverShelves) {
+        state.cachedDiscoverShelves = buildSampledShelves();
+    }
+
+    return [...shelves, ...state.cachedDiscoverShelves];
+}
+
+function buildSampledShelves() {
+    const shelves = [];
+    const tagged = state.songs.filter((song) => song.status === "ok");
+
+    shelves.push({
+        title: "Lucky dip",
+        songs: sampleSongs(tagged.length ? tagged : state.songs, 8),
+    });
+
+    const seasonalHoliday = getSeasonalHoliday();
+    if (seasonalHoliday) {
+        shelves.push({
+            title: `${seasonalHoliday} songs`,
+            songs: sampleSongs(state.songs.filter((song) => getHolidayValues(song).includes(seasonalHoliday)), 8),
+            seeAll: () => applyPillFilter("holiday", seasonalHoliday),
+        });
+    }
+
+    for (const mood of ["Singalong", "Party"]) {
+        const label = findAvailableValue(state.availableMoods, mood);
+        if (!label) {
+            continue;
+        }
+
+        shelves.push({
+            title: label,
+            songs: sampleSongs(state.songs.filter((song) => includesValue(getSongMoods(song), label)), 8),
+            seeAll: () => applyPillFilter("mood", label),
+        });
+    }
+
+    const duets = state.songs.filter((song) => hasFlag(song, "Duet"));
+    if (duets.length) {
+        shelves.push({
+            title: "Duets",
+            songs: sampleSongs(duets, 8),
+            seeAll: () => applyShelfFilter(() => {
+                state.filters.duet = true;
+            }),
+        });
+    }
+
+    for (const decade of ["70s", "80s", "90s"]) {
+        const label = findAvailableValue(state.availableDecades, decade);
+        if (!label) {
+            continue;
+        }
+
+        shelves.push({
+            title: `Big in the ${label}`,
+            songs: sampleSongs(state.songs.filter((song) => (song.eras || []).includes(label)), 8),
+            seeAll: () => applyPillFilter("decade", label),
+        });
+    }
+
+    return shelves.filter((shelf) => shelf.songs.length >= 4);
+}
+
+function getSeasonalHoliday() {
+    const month = new Date().getMonth();
+    let target = "";
+    if (month === 9) {
+        target = "Halloween";
+    } else if (month === 10 || month === 11) {
+        target = "Christmas";
+    }
+
+    return target ? findAvailableValue(state.availableHolidays, target) : "";
+}
+
+function findAvailableValue(values, target) {
+    const key = normalize(target);
+    return (values || []).find((value) => normalize(value) === key) || "";
+}
+
+function sampleSongs(pool, count) {
+    const shuffled = [...pool];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+
+    const picked = [];
+    const usedArtists = new Set();
+    for (const song of shuffled) {
+        const artistKey = song.artistKey || normalize(getDisplayArtist(song));
+        if (usedArtists.has(artistKey)) {
+            continue;
+        }
+
+        usedArtists.add(artistKey);
+        picked.push(song);
+        if (picked.length === count) {
+            return picked;
+        }
+    }
+
+    for (const song of shuffled) {
+        if (picked.length === count) {
+            break;
+        }
+
+        if (!picked.includes(song)) {
+            picked.push(song);
+        }
+    }
+
+    return picked;
+}
+
+function applyShelfFilter(mutate) {
+    mutate();
+    state.mode = "search";
+    resetResultLimit();
+    render();
+    scrollResultsIntoView();
+}
+
+function createShelf(shelf) {
+    const section = document.createElement("section");
+    section.className = "shelf";
+
+    const head = document.createElement("div");
+    head.className = "shelf-head";
+
+    const title = document.createElement("h3");
+    title.textContent = shelf.title;
+    head.appendChild(title);
+
+    if (shelf.seeAll) {
+        const seeAll = document.createElement("button");
+        seeAll.className = "see-all";
+        seeAll.type = "button";
+        seeAll.textContent = "See all";
+        seeAll.title = `See all: ${shelf.title}`;
+        seeAll.addEventListener("click", shelf.seeAll);
+        head.appendChild(seeAll);
+    }
+
+    const row = document.createElement("div");
+    row.className = "shelf-row";
+    for (const song of shelf.songs) {
+        row.appendChild(createSongCard(song));
+    }
+
+    section.append(head, row);
+    return section;
+}
+
 function renderResults() {
     els.resultsList.innerHTML = "";
+    els.resultsList.classList.remove("is-discover");
     els.resultsList.classList.toggle("is-grouped", shouldGroupSearchResults());
     renderGroupActions();
 
@@ -1170,7 +1455,7 @@ function getEmptySearchSuggestions(limit = 5) {
     const suggestions = [];
 
     for (const song of sourceSongs) {
-        const haystack = getScopedSearchText(song, isArtistSearch);
+        const haystack = getScopedSearchText(song);
         const words = getScopedSearchWords(song);
         let score = 0;
 
@@ -1733,7 +2018,7 @@ function applyPillFilter(filterName, value) {
     state.filters[filterName] = value;
     state.mode = "search";
     state.query = "";
-    state.searchScope = "song";
+    state.searchScope = "all";
     state.fuzzySearch = false;
     state.sortMode = "relevance";
     state.groupOpenMode = "auto";
@@ -1787,6 +2072,10 @@ function renderStatus(totalMatches) {
 
     if (state.mode === "browse") {
         els.resultCount.textContent = state.browseLetter;
+    } else if (isDiscoverView()) {
+        els.resultCount.textContent = `Fresh picks from ${total} songs`;
+        els.applyFiltersButton.textContent =
+            `Show ${totalMatches.toLocaleString()} ${totalMatches === 1 ? "song" : "songs"}`;
     } else {
         const shown = state.visibleSongs.length.toLocaleString();
         els.resultCount.textContent = `${shown} shown from ${totalMatches.toLocaleString()} matches`;
@@ -1898,6 +2187,10 @@ function applyStoredUiState() {
         state.searchScope = stored.searchScope;
     }
 
+    if (stored.searchScope === "song" && !stored.query) {
+        state.searchScope = "all";
+    }
+
     if (typeof stored.query === "string") {
         state.query = stored.query;
     }
@@ -1991,6 +2284,49 @@ function saveUiState() {
         }));
     } catch {
         // State persistence is a convenience; search should keep working if storage is blocked.
+    }
+
+    syncUrlState();
+}
+
+function syncUrlState() {
+    const params = new URLSearchParams();
+
+    if (state.mode === "browse") {
+        params.set("mode", "browse");
+        if (state.browseBy !== "song") {
+            params.set("by", state.browseBy);
+        }
+        if (state.browseLetter) {
+            params.set("letter", state.browseLetter);
+        }
+    } else {
+        if (state.query) {
+            params.set("q", state.query);
+        }
+        if (state.searchScope !== "all") {
+            params.set("scope", state.searchScope);
+        }
+        if (state.sortMode !== "relevance") {
+            params.set("sort", state.sortMode);
+        }
+        if (state.filters.mood) params.set("mood", state.filters.mood);
+        if (state.filters.genre) params.set("genre", state.filters.genre);
+        if (state.filters.decade) params.set("decade", state.filters.decade);
+        if (state.filters.holiday) params.set("holiday", state.filters.holiday);
+        if (state.filters.duet) params.set("duet", "1");
+        if (state.filters.explicit) params.set("explicit", "1");
+        if (state.favoriteOnly) params.set("favorites", "1");
+        if (state.fuzzySearch) params.set("fuzzy", "1");
+    }
+
+    const search = params.toString() ? `?${params.toString()}` : "";
+    if (window.location.search !== search) {
+        try {
+            history.replaceState(null, "", `${window.location.pathname}${search}`);
+        } catch {
+            // URL sync is a convenience (e.g. blocked in sandboxed iframes); ignore.
+        }
     }
 }
 
@@ -2307,16 +2643,17 @@ function renderThemeButton() {
 
 function updateSearchPlaceholder() {
     const placeholders = {
+        all: "Search songs and artists",
         song: "Search song titles",
         artist: "Search artists",
     };
 
-    els.searchInput.placeholder = placeholders[state.searchScope] || placeholders.song;
+    els.searchInput.placeholder = placeholders[state.searchScope] || placeholders.all;
     els.searchInput.setAttribute("aria-label", els.searchInput.placeholder);
 }
 
-function getScopedSearchText(song, isArtistSearch = state.searchScope === "artist") {
-    if (isArtistSearch) {
+function getScopedSearchText(song, scope = state.searchScope) {
+    if (scope === "artist") {
         return song.artistSearchText || normalize([
             getDisplayArtist(song),
             song.artist,
@@ -2324,15 +2661,27 @@ function getScopedSearchText(song, isArtistSearch = state.searchScope === "artis
         ].join(" "));
     }
 
-    return song.songSearchText || normalize(song.song);
+    if (scope === "song") {
+        return song.songSearchText || normalize(song.song);
+    }
+
+    return song.allSearchText || `${song.songSearchText || normalize(song.song)} ${song.artistSearchText || normalize(getDisplayArtist(song))}`;
 }
 
-function getScopedSearchWords(song) {
-    if (state.searchScope === "artist") {
+function getScopedSearchWords(song, scope = state.searchScope) {
+    if (scope === "artist") {
         return song.artistWords;
     }
 
-    return song.songWords;
+    if (scope === "song") {
+        return song.songWords;
+    }
+
+    if (!song.allWords) {
+        song.allWords = [...new Set([...(song.songWords || []), ...(song.artistWords || [])])];
+    }
+
+    return song.allWords;
 }
 
 function getSearchWords(value) {
@@ -2445,10 +2794,15 @@ function renderActiveFilters() {
         return;
     }
 
+    const scopeChipLabels = {
+        all: "Search",
+        song: "Song",
+        artist: "Artist",
+    };
     const chips = [];
     if (state.query) {
         chips.push({
-            label: `${state.searchScope === "artist" ? "Artist" : "Song"}: ${state.query}`,
+            label: `${scopeChipLabels[state.searchScope] || "Search"}: ${state.query}`,
             onClear: () => clearSearchQuery({ resetScope: false }),
         });
     }

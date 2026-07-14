@@ -92,7 +92,11 @@
             <div class="search-scope" id="searchScope" role="radiogroup" aria-label="Search in">
                 <span class="filter-label">Search in</span>
                 <label>
-                    <input type="radio" name="searchScope" value="song" checked>
+                    <input type="radio" name="searchScope" value="all" checked>
+                    <span>Songs &amp; artists</span>
+                </label>
+                <label>
+                    <input type="radio" name="searchScope" value="song">
                     <span>Song title</span>
                 </label>
                 <label>
@@ -179,6 +183,8 @@
                     </div>
                 </div>
                 <div class="result-context" id="resultContext" hidden></div>
+                <div class="search-notice" id="searchNotice" hidden></div>
+                <div class="random-pick" id="randomPick" hidden></div>
                 <div class="results-list" id="resultsList"></div>
                 <div class="result-actions" id="resultActions" hidden>
                     <button id="showMoreResultsButton" class="command subtle-command" type="button">Show more</button>
