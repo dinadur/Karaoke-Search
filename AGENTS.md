@@ -54,16 +54,21 @@ This is used as a simple cache buster for Vercel and browsers.
 
 ## Current App Behavior
 
-- Search scopes are `song` and `artist`.
-- Fuzzy search is off by default and controlled by the search-box toggle.
-- Filters include mood, genre, decade, holiday, duet, explicit, and favorites.
-- Results can sort by relevance, song title, or artist.
-- Sorting by song or artist groups results into expandable sections.
+- Search scopes are `all` (songs & artists, default), `song`, and `artist`.
+- Fuzzy search is off by default; if an exact query has zero matches, a fuzzy pass runs automatically and a notice labels the results.
+- With no query, no filters, and relevance order, the app shows a "discover" landing view of sampled shelves (cached per session) instead of the full ranked list.
+- Filters include mood, genre, decade, holiday, duet, explicit, and favorites. On mobile they live in a bottom sheet behind a "Filters (n)" toggle.
+- Results can sort by relevance, song title, or artist; song/artist sorts group into expandable sections. Further batches load automatically via an IntersectionObserver sentinel.
+- Random shows a preview card (Add / Spin again / dismiss) above results; it does not modify the setlist or the query.
 - Browse mode reads the full catalog by song title or artist letter.
-- Artist names and visible tag pills are clickable filters/searches.
+- Artist names and visible tag pills are clickable filters/searches; cards cap pills at 5 with a "+N" expander.
+- Query, scope, sort, and filters sync to the URL via `history.replaceState`; URL params win over stored state on load.
 - Favorites and setlist are stored in `localStorage`.
 - UI state is stored in `localStorage` and restored on refresh.
-- Setlist supports add, remove, copy, clear, drag reorder, and up/down reorder.
+- Setlist supports add, remove (undo via snackbar), copy, share (Web Share API when available), clear (undo), drag reorder, and up/down reorder.
+- Song titles are cleaned for display only (`getDisplaySongTitle`): karaoke bracket noise, empty/dangling brackets, and unclosed trailing brackets are stripped. Identity keys still use raw values.
+- Icons render from an inline SVG sprite in `karaoke_explorer.html` (no CDN). New icons must be added to the sprite as `<symbol id="icon-NAME">` and referenced via `<i data-lucide="NAME">` + `hydrateIcons()`.
+- Assets are cached immutably via `vercel.json` headers; the HTML revalidates. Bumping `APP_VERSION` + the HTML query strings remains the cache-busting mechanism, including for the catalog JSON.
 
 ## Data Notes
 

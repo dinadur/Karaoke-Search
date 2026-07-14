@@ -3327,6 +3327,7 @@ function getDisplaySongTitle(song) {
     const raw = String(song.song || "");
     const cleaned = raw
         .replace(/[\[(][^\])]*\b(karaoke|instrumental|backing track)\b[^\])]*[\])]/gi, " ")
+        .replace(/[\[(][^\])]*$/, " ")
         .replace(/\bwvocals?\b/gi, " ")
         .replace(/[\[({]\s*[\])}]/g, " ")
         .replace(/(^|\s)[\])}]+(?=\s|$)/g, " ")

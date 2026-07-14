@@ -6,15 +6,19 @@ Live site: https://karaokesearch.uk
 
 ## Features
 
-- Fast scoped search by song title or artist, with fuzzy search available when needed.
+- Search across songs and artists at once (scopable to title-only or artist-only), with automatic fuzzy fallback when a query has no exact matches.
+- Discover landing view with shelves (Lucky dip, Singalong, Party, Duets, decades, seasonal holidays, and your favorites) instead of an alphabetical dump.
 - Browse mode for reading the full catalog alphabetically by song title or artist.
-- Filters for mood, genre, decade, holiday, duet, explicit, and favorites.
+- Filters for mood, genre, decade, holiday, duet, explicit, and favorites — inline on desktop, a bottom sheet behind a "Filters (n)" toggle on mobile.
+- Random song preview with Add / Spin again, drawing from the current filtered results.
 - Clickable artist names and tags to jump into focused searches.
-- Grouped results when sorting by song title or artist, with expand/collapse controls.
-- Local setlist with add, remove, copy, clear, drag reorder, and up/down reorder controls.
+- Grouped results when sorting by song title or artist, with expand/collapse controls; long result sets load progressively as you scroll.
+- Local setlist with add, remove (with undo), copy, share, clear (with undo), drag reorder, and up/down reorder controls.
 - Local favorites saved in the browser.
-- Dark mode and saved UI state across refreshes.
+- Shareable URLs — query, scope, sort, and filters sync to the address bar.
+- Dark mode (follows system preference on first visit) and saved UI state across refreshes.
 - Links out to Spotify and YouTube Music searches for each song.
+- No external runtime dependencies: icons ship as an inline SVG sprite.
 
 ## Data
 
