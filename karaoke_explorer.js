@@ -190,6 +190,8 @@ const state = {
     searchScope: "all",
     autoFuzzy: false,
     randomPick: null,
+    snackbarTimer: 0,
+    snackbarAction: null,
     fuzzySearch: false,
     favoriteOnly: false,
     sortMode: "relevance",
@@ -266,6 +268,11 @@ const els = {
     setlist: document.getElementById("setlist"),
     setlistCount: document.getElementById("setlistCount"),
     copySetlistButton: document.getElementById("copySetlistButton"),
+    shareSetlistButton: document.getElementById("shareSetlistButton"),
+    snackbar: document.getElementById("snackbar"),
+    snackbarText: document.getElementById("snackbarText"),
+    snackbarAction: document.getElementById("snackbarAction"),
+    resultsSentinel: document.getElementById("resultsSentinel"),
     clearSetlistButton: document.getElementById("clearSetlistButton"),
     closeSetlistButton: document.getElementById("closeSetlistButton"),
     mobileSetlistButton: document.getElementById("mobileSetlistButton"),
@@ -291,6 +298,7 @@ init();
 
 async function init() {
     bindEvents();
+    bindResultsSentinel();
     renderThemeButton();
     applyInitialState();
     startLoadStatus();
@@ -484,8 +492,30 @@ function bindEvents() {
         }
     });
 
+    els.shareSetlistButton.hidden = typeof navigator.share !== "function";
+    els.shareSetlistButton.addEventListener("click", async () => {
+        const text = buildSetlistText();
+        if (!text) {
+            return;
+        }
+
+        try {
+            await navigator.share({ title: "Karaoke setlist", text });
+        } catch {
+            // Share sheet dismissed or unavailable; nothing to clean up.
+        }
+    });
+
+    els.snackbarAction.addEventListener("click", () => {
+        const action = state.snackbarAction;
+        hideSnackbar();
+        if (action) {
+            action();
+        }
+    });
+
     els.copySetlistButton.addEventListener("click", async () => {
-        const text = state.setlist.map((song, index) => `${index + 1}. ${song.song} - ${getDisplayArtist(song) || "Unknown artist"}`).join("\n");
+        const text = buildSetlistText();
         if (!text) {
             return;
         }
@@ -513,9 +543,18 @@ function bindEvents() {
             return;
         }
 
+        const cleared = state.setlist;
         state.setlist = [];
         saveSetlist();
         renderSetlist();
+        showSnackbar(
+            `Setlist cleared (${cleared.length} ${cleared.length === 1 ? "song" : "songs"})`,
+            () => {
+                state.setlist = cleared;
+                saveSetlist();
+                renderSetlist();
+            }
+        );
     });
 
     els.fileInput.addEventListener("change", async () => {
@@ -853,6 +892,31 @@ function renderSearchNotice() {
     els.searchNotice.textContent = show
         ? `No exact matches for “${state.query}” — showing close matches.`
         : "";
+}
+
+function bindResultsSentinel() {
+    if (typeof IntersectionObserver !== "function") {
+        return;
+    }
+
+    const observer = new IntersectionObserver((entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) {
+            return;
+        }
+
+        if (state.mode !== "search" || isDiscoverView()) {
+            return;
+        }
+
+        if (state.visibleSongs.length >= state.matchCount) {
+            return;
+        }
+
+        state.resultLimit = Math.min(state.resultLimit + RESULT_BATCH_SIZE, state.matchCount);
+        render();
+    }, { rootMargin: "600px 0px" });
+
+    observer.observe(els.resultsSentinel);
 }
 
 function openFiltersSheet() {
@@ -1563,7 +1627,7 @@ function createGroupedSongRow(song, showArtist) {
 
     const title = document.createElement("div");
     title.className = "browse-title";
-    title.textContent = song.song || "Untitled";
+    title.textContent = getDisplaySongTitle(song);
 
     if (showArtist) {
         row.append(title, createArtistSearchControl(song, "browse-artist"), createRowTools(song));
@@ -1644,7 +1708,7 @@ function renderArtistBrowse(songs, fragment) {
 
             const title = document.createElement("div");
             title.className = "browse-title";
-            title.textContent = song.song || "Untitled";
+            title.textContent = getDisplaySongTitle(song);
 
             row.append(title, createRowTools(song));
             body.appendChild(row);
@@ -1681,7 +1745,7 @@ function createBrowseRow(song) {
 
     const title = document.createElement("div");
     title.className = "browse-title";
-    title.textContent = song.song || "Untitled";
+    title.textContent = getDisplaySongTitle(song);
 
     row.append(title, createArtistSearchControl(song, "browse-artist"), createRowTools(song));
     return row;
@@ -1724,7 +1788,7 @@ function createSongCard(song) {
     const text = document.createElement("div");
     const title = document.createElement("div");
     title.className = "song-title";
-    title.textContent = song.song || "Untitled";
+    title.textContent = getDisplaySongTitle(song);
 
     text.append(title, createArtistSearchControl(song, "song-artist"));
 
@@ -1739,6 +1803,8 @@ function createSongCard(song) {
     if (!meta.childElementCount && (song.tags || []).length) {
         appendPills(meta, song.tags.slice(0, 3), "");
     }
+
+    capPills(meta, 5);
 
     const actions = document.createElement("div");
     actions.className = "card-actions";
@@ -1779,7 +1845,7 @@ function createVersionGroupCard(songs) {
 
         const title = document.createElement("div");
         title.className = "version-title";
-        title.textContent = song.song || "Untitled";
+        title.textContent = getDisplaySongTitle(song);
 
         row.append(title, createRowTools(song));
         list.appendChild(row);
@@ -2012,6 +2078,32 @@ function appendPills(container, values = [], className, filterName = "", limit =
 
         container.appendChild(pill);
     }
+}
+
+function capPills(container, limit) {
+    const pills = [...container.children];
+    if (pills.length <= limit + 1) {
+        return;
+    }
+
+    const hiddenPills = pills.slice(limit);
+    for (const pill of hiddenPills) {
+        pill.hidden = true;
+    }
+
+    const more = document.createElement("button");
+    more.className = "pill pill-more";
+    more.type = "button";
+    more.textContent = `+${hiddenPills.length}`;
+    more.title = `Show ${hiddenPills.length} more tags`;
+    more.setAttribute("aria-label", `Show ${hiddenPills.length} more tags`);
+    more.addEventListener("click", () => {
+        for (const pill of hiddenPills) {
+            pill.hidden = false;
+        }
+        more.remove();
+    });
+    container.appendChild(more);
 }
 
 function applyPillFilter(filterName, value) {
@@ -2499,7 +2591,7 @@ function renderSetlist() {
 
         const title = document.createElement("span");
         title.className = "setlist-title";
-        title.textContent = song.song;
+        title.textContent = getDisplaySongTitle(song);
 
         const artist = document.createElement("span");
         artist.className = "setlist-artist";
@@ -2535,9 +2627,14 @@ function renderSetlist() {
         remove.title = "Remove";
         remove.innerHTML = '<i data-lucide="x" aria-hidden="true"></i>';
         remove.addEventListener("click", () => {
-            state.setlist.splice(index, 1);
+            const [removed] = state.setlist.splice(index, 1);
             saveSetlist();
             renderSetlist();
+            showSnackbar(`Removed “${getDisplaySongTitle(removed)}”`, () => {
+                state.setlist.splice(Math.min(index, state.setlist.length), 0, removed);
+                saveSetlist();
+                renderSetlist();
+            });
         });
 
         controls.append(handle, up, down, remove);
@@ -2547,6 +2644,28 @@ function renderSetlist() {
 
     els.setlist.appendChild(fragment);
     hydrateIcons();
+}
+
+function buildSetlistText() {
+    return state.setlist
+        .map((song, index) => `${index + 1}. ${getDisplaySongTitle(song)} - ${getDisplayArtist(song) || "Unknown artist"}`)
+        .join("\n");
+}
+
+function showSnackbar(message, onAction) {
+    window.clearTimeout(state.snackbarTimer);
+    state.snackbarAction = onAction || null;
+    els.snackbarText.textContent = message;
+    els.snackbarAction.hidden = !onAction;
+    els.snackbar.hidden = false;
+    state.snackbarTimer = window.setTimeout(hideSnackbar, 6000);
+}
+
+function hideSnackbar() {
+    window.clearTimeout(state.snackbarTimer);
+    state.snackbarTimer = 0;
+    state.snackbarAction = null;
+    els.snackbar.hidden = true;
 }
 
 function moveSetlistItem(index, direction) {
@@ -3161,6 +3280,20 @@ function getDisplayArtist(song) {
 
 function normalizeArtistKey(value) {
     return normalize(String(value || "").replace(/[’'!?.]/g, ""));
+}
+
+function getDisplaySongTitle(song) {
+    const raw = String(song.song || "");
+    const cleaned = raw
+        .replace(/[\[(][^\])]*\b(karaoke|instrumental|backing track)\b[^\])]*[\])]/gi, " ")
+        .replace(/\bwvocals?\b/gi, " ")
+        .replace(/[\[({]\s*[\])}]/g, " ")
+        .replace(/(^|\s)[\])}]+(?=\s|$)/g, " ")
+        .replace(/(^|\s)[\[({]+(?=\s|$)/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+    return cleaned || raw || "Untitled";
 }
 
 function cleanDisplayValue(value) {

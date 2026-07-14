@@ -211,7 +211,7 @@ h2 {
     color: var(--chip-ink);
     background: var(--panel-strong);
     font-size: 13px;
-    font-weight: 800;
+    font-weight: 700;
     white-space: nowrap;
 }
 
@@ -392,7 +392,7 @@ select:hover {
     border-radius: 6px;
     color: var(--ink);
     background: transparent;
-    font-weight: 800;
+    font-weight: 700;
 }
 
 .mode-tab {
@@ -508,7 +508,7 @@ select:hover {
     color: var(--active-ink);
     background: var(--active-bg);
     font-size: 13px;
-    font-weight: 800;
+    font-weight: 700;
 }
 
 .active-filter-chip span {
@@ -542,7 +542,7 @@ select:hover {
 .filter-label {
     color: var(--muted);
     font-size: 13px;
-    font-weight: 800;
+    font-weight: 700;
 }
 
 .filter-checks {
@@ -621,7 +621,7 @@ select:hover {
     padding: 0 11px;
     background: var(--panel);
     color: var(--ink);
-    font-weight: 800;
+    font-weight: 700;
 }
 
 .filter-clear[hidden] {
@@ -760,7 +760,7 @@ select:hover {
 .context-count {
     color: var(--muted);
     font-size: 13px;
-    font-weight: 800;
+    font-weight: 700;
 }
 
 .result-context strong {
@@ -789,7 +789,7 @@ select:hover {
     color: var(--chip-ink);
     background: var(--chip-bg);
     font-size: 12px;
-    font-weight: 800;
+    font-weight: 700;
 }
 
 .search-notice {
@@ -827,7 +827,7 @@ select:hover {
     gap: 7px;
     color: var(--teal);
     font-size: 14px;
-    font-weight: 800;
+    font-weight: 700;
 }
 
 .random-pick-label svg {
@@ -975,7 +975,7 @@ select:hover {
     align-items: center;
     color: var(--muted);
     font-size: 13px;
-    font-weight: 800;
+    font-weight: 700;
 }
 
 .empty-suggestion {
@@ -987,7 +987,7 @@ select:hover {
     color: var(--ink);
     background: var(--panel-strong);
     font-size: 13px;
-    font-weight: 800;
+    font-weight: 700;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1026,7 +1026,7 @@ select:hover {
     padding: 0 14px;
     background: var(--panel-strong);
     cursor: pointer;
-    font-weight: 900;
+    font-weight: 700;
     list-style: none;
 }
 
@@ -1067,7 +1067,7 @@ select:hover {
 
 .browse-title {
     min-width: 0;
-    font-weight: 800;
+    font-weight: 600;
     overflow-wrap: anywhere;
 }
 
@@ -1104,7 +1104,7 @@ button.browse-artist:focus-visible {
     border-radius: 8px;
     color: var(--accent-ink);
     background: var(--accent);
-    font-weight: 900;
+    font-weight: 700;
 }
 
 .song-card {
@@ -1126,7 +1126,7 @@ button.browse-artist:focus-visible {
 .song-title {
     overflow-wrap: anywhere;
     font-size: 17px;
-    font-weight: 800;
+    font-weight: 700;
     line-height: 1.25;
 }
 
@@ -1177,7 +1177,7 @@ button.browse-artist:focus-visible {
     background: var(--chip-bg);
     font: inherit;
     font-size: 12px;
-    font-weight: 700;
+    font-weight: 600;
     line-height: 1.2;
     text-align: left;
     overflow-wrap: anywhere;
@@ -1187,6 +1187,23 @@ button.browse-artist:focus-visible {
 .pill.is-clickable:focus-visible {
     outline: 2px solid var(--focus-ring);
     outline-offset: 1px;
+}
+
+.pill[hidden] {
+    display: none;
+}
+
+.pill-more {
+    border: 1px dashed var(--line);
+    background: var(--panel);
+    color: var(--muted);
+    cursor: pointer;
+}
+
+.pill-more:hover {
+    border-color: var(--teal);
+    color: var(--active-ink);
+    background: var(--hover-bg);
 }
 
 .pill.mood {
@@ -1314,7 +1331,7 @@ button.browse-artist:focus-visible {
     padding: 0 9px;
     color: var(--ink);
     font-size: 13px;
-    font-weight: 800;
+    font-weight: 700;
     text-decoration: none;
     white-space: nowrap;
 }
@@ -1340,7 +1357,7 @@ button.browse-artist:focus-visible {
 .tag-popout-label {
     color: var(--muted);
     font-size: 11px;
-    font-weight: 900;
+    font-weight: 700;
     letter-spacing: 0;
     text-transform: uppercase;
 }
@@ -1360,7 +1377,7 @@ button.browse-artist:focus-visible {
     color: var(--muted);
     cursor: pointer;
     font-size: 13px;
-    font-weight: 900;
+    font-weight: 700;
 }
 
 .version-list {
@@ -1390,7 +1407,7 @@ button.browse-artist:focus-visible {
     padding: 0 12px;
     color: var(--accent-ink);
     background: var(--accent);
-    font-weight: 800;
+    font-weight: 700;
 }
 
 .setlist {
@@ -1421,7 +1438,7 @@ button.browse-artist:focus-visible {
 .setlist-title {
     display: block;
     grid-column: 1;
-    font-weight: 800;
+    font-weight: 600;
     line-height: 1.25;
 }
 
@@ -1489,6 +1506,58 @@ button.browse-artist:focus-visible {
 .setlist > .empty-state {
     list-style: none;
     margin-left: -20px;
+}
+
+.results-sentinel {
+    height: 1px;
+}
+
+.snackbar {
+    position: fixed;
+    bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    left: 50%;
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    max-width: min(440px, calc(100vw - 32px));
+    border-radius: 10px;
+    padding: 12px 16px;
+    color: var(--bg);
+    background: var(--ink);
+    box-shadow: var(--drawer-shadow);
+    font-size: 14px;
+    font-weight: 600;
+    transform: translateX(-50%);
+}
+
+.snackbar[hidden] {
+    display: none;
+}
+
+.snackbar span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.snackbar button {
+    flex: 0 0 auto;
+    border: 0;
+    border-radius: 6px;
+    min-height: 32px;
+    padding: 0 10px;
+    color: var(--teal);
+    background: transparent;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 13px;
+    letter-spacing: 0.02em;
+}
+
+.snackbar button:hover {
+    background: rgb(255 255 255 / 0.12);
 }
 
 dialog {

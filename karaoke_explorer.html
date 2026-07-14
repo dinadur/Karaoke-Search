@@ -186,6 +186,7 @@
                 <div class="search-notice" id="searchNotice" hidden></div>
                 <div class="random-pick" id="randomPick" hidden></div>
                 <div class="results-list" id="resultsList"></div>
+                <div class="results-sentinel" id="resultsSentinel" aria-hidden="true"></div>
                 <div class="result-actions" id="resultActions" hidden>
                     <button id="showMoreResultsButton" class="command subtle-command" type="button">Show more</button>
                     <button id="showAllResultsButton" class="command subtle-command" type="button">Show all</button>
@@ -199,6 +200,9 @@
                         <h2 id="setlistTitle">Setlist</h2>
                         <p id="setlistCount">0 songs</p>
                     </div>
+                    <button id="shareSetlistButton" class="icon-button" type="button" title="Share setlist" aria-label="Share setlist" hidden>
+                        <i data-lucide="share-2" aria-hidden="true"></i>
+                    </button>
                     <button id="copySetlistButton" class="icon-button" type="button" title="Copy setlist">
                         <i data-lucide="copy" aria-hidden="true"></i>
                     </button>
@@ -215,6 +219,11 @@
     </main>
 
     <div class="sheet-backdrop" id="sheetBackdrop" hidden></div>
+
+    <div class="snackbar" id="snackbar" role="status" hidden>
+        <span id="snackbarText"></span>
+        <button id="snackbarAction" type="button">Undo</button>
+    </div>
 
     <button id="mobileSetlistButton" class="mobile-setlist-button" type="button" aria-label="Open setlist">
         <i data-lucide="list-music" aria-hidden="true"></i>
