@@ -654,8 +654,33 @@ function useSongs(songs) {
     render();
 }
 
+function renderLoadingSkeleton() {
+    els.resultsList.classList.add("is-discover");
+    els.resultsList.innerHTML = "";
+
+    for (let shelfIndex = 0; shelfIndex < 3; shelfIndex++) {
+        const shelf = document.createElement("div");
+        shelf.className = "shelf";
+
+        const bar = document.createElement("div");
+        bar.className = "skeleton skeleton-bar";
+
+        const row = document.createElement("div");
+        row.className = "shelf-row";
+        for (let cardIndex = 0; cardIndex < 6; cardIndex++) {
+            const card = document.createElement("div");
+            card.className = "skeleton skeleton-card";
+            row.appendChild(card);
+        }
+
+        shelf.append(bar, row);
+        els.resultsList.appendChild(shelf);
+    }
+}
+
 function startLoadStatus() {
     els.status.textContent = "Loading songbook";
+    renderLoadingSkeleton();
 
     for (const [delay, message] of [
         [2000, "Downloading songbook"],
@@ -1706,7 +1731,7 @@ function createGroupedSongRow(song, showArtist) {
 
     const title = document.createElement("div");
     title.className = "browse-title";
-    title.textContent = getDisplaySongTitle(song);
+    setHighlightedText(title, getDisplaySongTitle(song), getQueryTokens());
 
     if (showArtist) {
         row.append(title, createArtistSearchControl(song, "browse-artist"), createRowTools(song));
@@ -1860,6 +1885,102 @@ function createMiniAddButton(song) {
     return button;
 }
 
+function getQueryTokens() {
+    if (state.mode !== "search") {
+        return [];
+    }
+
+    return normalize(state.query).split(" ").filter(Boolean);
+}
+
+function setHighlightedText(element, rawText, tokens) {
+    element.textContent = "";
+    const ranges = getHighlightRanges(rawText, tokens);
+    if (!ranges.length) {
+        element.textContent = rawText;
+        return;
+    }
+
+    let cursor = 0;
+    for (const [start, end] of ranges) {
+        if (start > cursor) {
+            element.appendChild(document.createTextNode(rawText.slice(cursor, start)));
+        }
+
+        const mark = document.createElement("mark");
+        mark.textContent = rawText.slice(start, end);
+        element.appendChild(mark);
+        cursor = end;
+    }
+
+    if (cursor < rawText.length) {
+        element.appendChild(document.createTextNode(rawText.slice(cursor)));
+    }
+}
+
+function getHighlightRanges(rawText, tokens) {
+    if (!tokens.length || !rawText) {
+        return [];
+    }
+
+    // Rebuild normalize() one source char at a time so normalized match
+    // positions can be mapped back to raw string indices.
+    const map = [];
+    let normalized = "";
+    let prevSpace = true;
+    for (let i = 0; i < rawText.length; i++) {
+        const char = rawText[i];
+        let out = char === "&"
+            ? " and "
+            : char.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        out = out.replace(/[^a-z0-9]+/g, " ");
+
+        for (const outChar of out) {
+            if (outChar === " ") {
+                if (prevSpace) {
+                    continue;
+                }
+
+                normalized += " ";
+                map.push(i);
+                prevSpace = true;
+            } else {
+                normalized += outChar;
+                map.push(i);
+                prevSpace = false;
+            }
+        }
+    }
+
+    const ranges = [];
+    for (const token of tokens) {
+        let index = normalized.indexOf(token);
+        while (index !== -1) {
+            const start = map[index];
+            const end = map[index + token.length - 1] + 1;
+            ranges.push([start, end]);
+            index = normalized.indexOf(token, index + token.length);
+        }
+    }
+
+    if (!ranges.length) {
+        return [];
+    }
+
+    ranges.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const merged = [ranges[0]];
+    for (const [start, end] of ranges.slice(1)) {
+        const last = merged[merged.length - 1];
+        if (start <= last[1]) {
+            last[1] = Math.max(last[1], end);
+        } else {
+            merged.push([start, end]);
+        }
+    }
+
+    return merged;
+}
+
 function createCoverTile(song) {
     const tile = document.createElement("div");
     tile.className = "cover-tile";
@@ -1906,7 +2027,7 @@ function createSongCard(song) {
     text.className = "card-head-text";
     const title = document.createElement("div");
     title.className = "song-title";
-    title.textContent = getDisplaySongTitle(song);
+    setHighlightedText(title, getDisplaySongTitle(song), getQueryTokens());
 
     text.append(title, createArtistSearchControl(song, "song-artist"));
     head.append(createCoverTile(song), text);
@@ -1979,7 +2100,11 @@ function createArtistSearchControl(song, className) {
     const artistName = getDisplayArtist(song);
     const artist = document.createElement(artistName ? "button" : "div");
     artist.className = className;
-    artist.textContent = artistName || "Unknown artist";
+    if (artistName) {
+        setHighlightedText(artist, artistName, getQueryTokens());
+    } else {
+        artist.textContent = "Unknown artist";
+    }
 
     if (artistName) {
         artist.type = "button";
