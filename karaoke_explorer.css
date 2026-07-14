@@ -1,67 +1,77 @@
+@font-face {
+    font-family: "Space Grotesk";
+    font-style: normal;
+    font-weight: 300 700;
+    font-display: swap;
+    src: url("fonts/space-grotesk-latin-wght-normal.woff2") format("woff2");
+}
+
 :root {
     color-scheme: light;
-    --bg: #f3f5f2;
+    --bg: #f5f4fa;
+    --wash: rgba(98, 71, 201, 0.07);
     --panel: #ffffff;
-    --panel-strong: #f9faf7;
-    --ink: #18211f;
-    --muted: #65716c;
-    --line: #d9dfd8;
-    --accent: #d6533f;
+    --panel-strong: #f8f7fc;
+    --ink: #1c1a26;
+    --muted: #6b6880;
+    --line: #dfdde9;
+    --accent: #e05a47;
     --accent-ink: #ffffff;
-    --teal: #28727a;
+    --brand: #6247c9;
     --gold: #b77d19;
-    --shadow: 0 10px 28px rgba(21, 29, 27, 0.07);
-    --active-bg: #dcece7;
-    --active-ink: #123f43;
-    --soft-bg: #e7eee8;
-    --hover-bg: #eaf2ed;
-    --filter-bg: #f8faf7;
-    --chip-ink: #26302c;
-    --chip-bg: #edf0eb;
-    --mood-ink: #183f42;
-    --mood-bg: #dfeeed;
-    --genre-ink: #26302c;
-    --genre-bg: #edf0eb;
-    --era-ink: #26302c;
-    --era-bg: #edf0eb;
-    --flag-ink: #653024;
-    --flag-bg: #f5dfd9;
-    --focus-ring: rgba(40, 114, 122, 0.28);
-    --drawer-shadow: 0 18px 52px rgba(15, 23, 20, 0.28);
-    --mobile-button-shadow: 0 10px 24px rgba(92, 36, 27, 0.28);
+    --shadow: 0 10px 28px rgba(38, 32, 65, 0.08);
+    --active-bg: #e9e4fb;
+    --active-ink: #3a2b85;
+    --soft-bg: #edebf6;
+    --hover-bg: #efecf9;
+    --filter-bg: #faf9fd;
+    --chip-ink: #2b2938;
+    --chip-bg: #edecf4;
+    --mood-ink: #3a2b85;
+    --mood-bg: #e7e1fb;
+    --genre-ink: #2b2938;
+    --genre-bg: #edecf4;
+    --era-ink: #2b2938;
+    --era-bg: #edecf4;
+    --flag-ink: #7c3427;
+    --flag-bg: #fbe3dc;
+    --focus-ring: rgba(98, 71, 201, 0.3);
+    --drawer-shadow: 0 18px 52px rgba(24, 18, 48, 0.3);
+    --mobile-button-shadow: 0 10px 24px rgba(120, 42, 30, 0.3);
 }
 
 :root[data-theme="dark"] {
     color-scheme: dark;
-    --bg: #151a17;
-    --panel: #202721;
-    --panel-strong: #273027;
-    --ink: #eef5ef;
-    --muted: #a8b6ad;
-    --line: #3d493f;
-    --accent: #e0644f;
-    --accent-ink: #171311;
-    --teal: #75c9c3;
+    --bg: #14121d;
+    --wash: rgba(167, 149, 255, 0.06);
+    --panel: #1e1b2b;
+    --panel-strong: #262236;
+    --ink: #efedf7;
+    --muted: #a9a4c0;
+    --line: #3b3651;
+    --accent: #ef6a55;
+    --accent-ink: #1c120f;
+    --brand: #a795ff;
     --gold: #d5a642;
-    --shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-    --active-bg: #21413d;
-    --active-ink: #d9fbf5;
-    --soft-bg: #2b352d;
-    --hover-bg: #303b32;
-    --filter-bg: #1b221d;
-    --chip-ink: #e4ece6;
-    --chip-bg: #303a32;
-    --mood-ink: #d9fbf5;
-    --mood-bg: #244945;
-    --genre-ink: #e4ece6;
-    --genre-bg: #303a32;
-    --era-ink: #e4ece6;
-    --era-bg: #303a32;
-    --flag-ink: #ffd7cd;
-    --flag-bg: #55322c;
-    --focus-ring: rgba(117, 201, 195, 0.36);
-    --drawer-shadow: 0 18px 52px rgba(0, 0, 0, 0.52);
-    --mobile-button-shadow: 0 10px 24px rgba(0, 0, 0, 0.38);
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.32);
+    --active-bg: #322a55;
+    --active-ink: #d9d2ff;
+    --soft-bg: #282440;
+    --hover-bg: #2e2947;
+    --filter-bg: #191622;
+    --chip-ink: #e6e3f2;
+    --chip-bg: #2e2a44;
+    --mood-ink: #d9d2ff;
+    --mood-bg: #352c5c;
+    --genre-ink: #e6e3f2;
+    --genre-bg: #2e2a44;
+    --era-ink: #e6e3f2;
+    --era-bg: #2e2a44;
+    --flag-ink: #ffcfc2;
+    --flag-bg: #55302a;
+    --focus-ring: rgba(167, 149, 255, 0.4);
+    --drawer-shadow: 0 18px 52px rgba(0, 0, 0, 0.55);
+    --mobile-button-shadow: 0 10px 24px rgba(0, 0, 0, 0.4);
 }
 
 * {
@@ -76,9 +86,19 @@ body {
     margin: 0;
     min-height: 100vh;
     color: var(--ink);
-    background: var(--bg);
+    background-color: var(--bg);
+    background-image: linear-gradient(180deg, var(--wash), transparent 420px);
+    background-repeat: no-repeat;
     font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     overflow-x: hidden;
+}
+
+h1,
+h2,
+.shelf-head h3,
+.eyebrow,
+.song-title {
+    font-family: "Space Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
 html,
@@ -108,7 +128,7 @@ summary:focus-visible,
 }
 
 .search-box:focus-within {
-    border-color: var(--teal);
+    border-color: var(--brand);
     outline: 3px solid var(--focus-ring);
     outline-offset: 1px;
 }
@@ -118,9 +138,8 @@ summary:focus-visible,
     align-items: end;
     justify-content: space-between;
     gap: 24px;
-    padding: 28px 32px 18px;
-    border-bottom: 1px solid var(--line);
-    background: var(--panel);
+    padding: 30px 32px 14px;
+    background: transparent;
 }
 
 .brand {
@@ -139,7 +158,7 @@ summary:focus-visible,
     height: 46px;
     border-radius: 12px;
     color: #ffffff;
-    background: linear-gradient(135deg, var(--teal), var(--accent));
+    background: linear-gradient(135deg, var(--brand), var(--accent));
     box-shadow: var(--shadow);
 }
 
@@ -150,10 +169,10 @@ summary:focus-visible,
 
 .eyebrow {
     margin: 0 0 4px;
-    color: var(--teal);
+    color: var(--brand);
     font-size: 13px;
-    font-weight: 700;
-    letter-spacing: 0;
+    font-weight: 600;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
 }
 
@@ -208,7 +227,7 @@ h2 {
     flex: 0 0 auto;
     width: 19px;
     height: 19px;
-    color: var(--teal);
+    color: var(--brand);
 }
 
 .search-box input {
@@ -256,7 +275,7 @@ h2 {
 
 .fuzzy-toggle:hover span,
 .fuzzy-toggle input:checked + span {
-    border-color: var(--teal);
+    border-color: var(--brand);
     background: var(--active-bg);
     color: var(--active-ink);
 }
@@ -312,11 +331,11 @@ select option {
 .command:hover,
 .icon-button:hover,
 select:hover {
-    border-color: var(--teal);
+    border-color: var(--brand);
 }
 
 .icon-button.copied {
-    border-color: var(--teal);
+    border-color: var(--brand);
     color: var(--active-ink);
     background: var(--active-bg);
 }
@@ -501,7 +520,7 @@ select:hover {
 
 .search-scope label:hover span,
 .search-scope input:checked + span {
-    border-color: var(--teal);
+    border-color: var(--brand);
     background: var(--active-bg);
 }
 
@@ -614,11 +633,11 @@ select:hover {
 }
 
 .genre-filter-button:hover {
-    border-color: var(--teal);
+    border-color: var(--brand);
 }
 
 .genre-filter-button.has-selection {
-    border-color: var(--teal);
+    border-color: var(--brand);
     color: var(--active-ink);
     background: var(--active-bg);
 }
@@ -658,7 +677,7 @@ select:hover {
 .genre-clear {
     border: 0;
     padding: 2px 4px;
-    color: var(--teal);
+    color: var(--brand);
     background: transparent;
     font-size: 12px;
     font-weight: 700;
@@ -687,12 +706,12 @@ select:hover {
 }
 
 .genre-option:hover {
-    border-color: var(--teal);
+    border-color: var(--brand);
     background: var(--hover-bg);
 }
 
 .genre-option.is-active {
-    border-color: var(--teal);
+    border-color: var(--brand);
     color: var(--active-ink);
     background: var(--active-bg);
 }
@@ -733,7 +752,7 @@ select:hover {
 
 .filter-checks label:hover span,
 .filter-checks input:checked + span {
-    border-color: var(--teal);
+    border-color: var(--brand);
     background: var(--active-bg);
     color: var(--active-ink);
 }
@@ -844,9 +863,27 @@ select:hover {
 .setlist-panel {
     min-width: 0;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: 12px;
     background: var(--panel);
     box-shadow: var(--shadow);
+}
+
+.results-panel {
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.results-panel > .panel-heading {
+    min-height: auto;
+    padding: 4px 2px 12px;
+    border-bottom: 0;
+    background: transparent;
+    border-radius: 0;
+}
+
+.results-panel > .panel-heading h2 {
+    font-size: 20px;
 }
 
 .setlist-panel {
@@ -893,8 +930,10 @@ select:hover {
     flex-wrap: wrap;
     align-items: center;
     gap: 8px;
-    padding: 10px 16px;
-    border-bottom: 1px solid var(--line);
+    margin-bottom: 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px 14px;
     background: var(--panel);
 }
 
@@ -939,9 +978,12 @@ select:hover {
 }
 
 .search-notice {
-    padding: 10px 16px;
-    border-bottom: 1px solid var(--line);
+    margin-bottom: 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px 14px;
     color: var(--muted);
+    background: var(--panel-strong);
     font-size: 13px;
     font-weight: 600;
 }
@@ -953,7 +995,7 @@ select:hover {
 .random-pick {
     display: grid;
     gap: 10px;
-    padding: 14px 14px 0;
+    margin-bottom: 14px;
 }
 
 .random-pick[hidden] {
@@ -971,7 +1013,7 @@ select:hover {
     flex: 1 1 auto;
     align-items: center;
     gap: 7px;
-    color: var(--teal);
+    color: var(--brand);
     font-size: 14px;
     font-weight: 700;
 }
@@ -992,14 +1034,14 @@ select:hover {
 }
 
 .random-pick .song-card {
-    border-color: var(--teal);
+    border-color: var(--brand);
 }
 
 .results-list {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-    gap: 12px;
-    padding: 14px;
+    gap: 13px;
+    padding: 0 0 14px;
 }
 
 .results-list.is-discover {
@@ -1038,7 +1080,7 @@ select:hover {
 }
 
 .see-all:hover {
-    border-color: var(--teal);
+    border-color: var(--brand);
     background: var(--hover-bg);
 }
 
@@ -1066,7 +1108,7 @@ select:hover {
 }
 
 .shelf-arrow:hover {
-    border-color: var(--teal);
+    border-color: var(--brand);
     color: var(--active-ink);
     background: var(--hover-bg);
 }
@@ -1095,12 +1137,12 @@ select:hover {
 
 .shelf-row-wrap::before {
     left: 0;
-    background: linear-gradient(to right, var(--panel), transparent);
+    background: linear-gradient(to right, var(--bg), transparent);
 }
 
 .shelf-row-wrap::after {
     right: 0;
-    background: linear-gradient(to left, var(--panel), transparent);
+    background: linear-gradient(to left, var(--bg), transparent);
 }
 
 .shelf-row-wrap.at-start::before,
@@ -1164,7 +1206,7 @@ select:hover {
     flex-wrap: wrap;
     gap: 8px;
     justify-content: center;
-    padding: 0 14px 16px;
+    padding: 0 0 16px;
 }
 
 .result-actions[hidden] {
@@ -1226,7 +1268,7 @@ select:hover {
 }
 
 .empty-suggestion:hover {
-    border-color: var(--teal);
+    border-color: var(--brand);
     background: var(--hover-bg);
 }
 
@@ -1239,7 +1281,7 @@ select:hover {
 .browse-list {
     display: grid;
     gap: 12px;
-    padding: 14px;
+    padding: 0 0 14px;
 }
 
 .browse-section {
@@ -1317,7 +1359,7 @@ select:hover {
 }
 
 button.browse-artist:hover {
-    color: var(--teal);
+    color: var(--brand);
     text-decoration: underline;
     text-underline-offset: 2px;
 }
@@ -1405,7 +1447,7 @@ button.browse-artist:focus-visible {
 }
 
 .song-artist:hover {
-    color: var(--teal);
+    color: var(--brand);
     text-decoration: underline;
     text-underline-offset: 2px;
 }
@@ -1460,7 +1502,7 @@ button.browse-artist:focus-visible {
 }
 
 .pill-more:hover {
-    border-color: var(--teal);
+    border-color: var(--brand);
     color: var(--active-ink);
     background: var(--hover-bg);
 }
@@ -1541,7 +1583,7 @@ button.browse-artist:focus-visible {
 }
 
 .song-popout.is-open .link-popout-button {
-    border-color: var(--teal);
+    border-color: var(--brand);
     color: var(--active-ink);
     background: var(--active-bg);
 }
@@ -1605,7 +1647,7 @@ button.browse-artist:focus-visible {
 .song-links-popout svg {
     width: 16px;
     height: 16px;
-    color: var(--teal);
+    color: var(--brand);
 }
 
 .tag-popout-group {
@@ -1744,7 +1786,7 @@ button.browse-artist:focus-visible {
 
 .singer-add:hover,
 .singer-chip:hover {
-    border-color: var(--teal);
+    border-color: var(--brand);
     color: var(--active-ink);
     background: var(--hover-bg);
 }
@@ -1752,7 +1794,7 @@ button.browse-artist:focus-visible {
 .singer-input {
     width: min(200px, 100%);
     min-height: 28px;
-    border: 1px solid var(--teal);
+    border: 1px solid var(--brand);
     border-radius: 7px;
     padding: 0 8px;
     color: var(--ink);
@@ -1899,7 +1941,7 @@ mark {
     border-radius: 6px;
     min-height: 32px;
     padding: 0 10px;
-    color: var(--teal);
+    color: var(--brand);
     background: transparent;
     font-weight: 700;
     text-transform: uppercase;
@@ -1963,7 +2005,7 @@ dialog::backdrop {
     }
 
     .song-card:hover {
-        border-color: var(--teal);
+        border-color: var(--brand);
         box-shadow: var(--shadow);
         transform: translateY(-2px);
     }
@@ -2201,7 +2243,7 @@ dialog::backdrop {
 
     .results-list {
         grid-template-columns: 1fr;
-        padding: 12px;
+        padding: 0 0 12px;
     }
 
     .browse-tools {
