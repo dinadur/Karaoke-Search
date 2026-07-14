@@ -9,8 +9,8 @@
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%A4%3C/text%3E%3C/svg%3E">
     <link rel="manifest" href="manifest.json">
     <link rel="preload" href="fonts/space-grotesk-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="karaoke_explorer.css?v=20260714-3">
-    <script defer src="karaoke_explorer.js?v=20260714-3"></script>
+    <link rel="stylesheet" href="karaoke_explorer.css?v=20260714-4">
+    <script defer src="karaoke_explorer.js?v=20260714-4"></script>
 </head>
 <body>
     <svg xmlns="http://www.w3.org/2000/svg" class="icon-sprite" aria-hidden="true" focusable="false">
@@ -114,38 +114,10 @@
                     <span>Artist</span>
                 </label>
             </div>
-            <label class="select-filter" for="moodFilter">
-                <span class="filter-label">Mood</span>
-                <select id="moodFilter" aria-label="Filter by mood">
-                    <option value="">Any mood</option>
-                </select>
-            </label>
-            <div class="select-filter genre-filter">
-                <span class="filter-label">Genre</span>
-                <button id="genreFilterButton" class="genre-filter-button" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Filter by genre">
-                    <span id="genreFilterLabel">Any genre</span>
-                    <i data-lucide="chevron-down" aria-hidden="true"></i>
-                </button>
-                <div class="genre-popover" id="genrePopover" hidden>
-                    <div class="genre-popover-head">
-                        <span>Pick any number of genres</span>
-                        <button id="clearGenresButton" class="genre-clear" type="button" hidden>Clear</button>
-                    </div>
-                    <div class="genre-options" id="genreOptions" role="group" aria-label="Genres"></div>
-                </div>
-            </div>
-            <label class="select-filter" for="decadeFilter">
-                <span class="filter-label">Decade</span>
-                <select id="decadeFilter" aria-label="Filter by decade">
-                    <option value="">Any decade</option>
-                </select>
-            </label>
-            <label class="select-filter" for="holidayFilter">
-                <span class="filter-label">Holiday</span>
-                <select id="holidayFilter" aria-label="Filter by holiday">
-                    <option value="">Any holiday</option>
-                </select>
-            </label>
+            <div class="select-filter multi-filter" data-filter="mood"></div>
+            <div class="select-filter multi-filter" data-filter="genre"></div>
+            <div class="select-filter multi-filter" data-filter="decade"></div>
+            <div class="select-filter multi-filter" data-filter="holiday"></div>
             <div class="filter-checks" aria-label="More filters">
                 <label>
                     <input id="duetFilter" type="checkbox">

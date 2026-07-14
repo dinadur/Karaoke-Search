@@ -56,7 +56,7 @@ This is used as a cache buster for Vercel, browsers, and the service worker cach
 ## Current App Behavior
 
 - Search scopes are `all` (songs & artists, default), `song`, and `artist`.
-- Genre filtering is multi-select (OR semantics): `state.filters.genres` is an array, the URL `genre` param is comma-separated, and the UI is a toggle-chip popover (inline inside the mobile sheet). There is no Explicit filter (songs still show Explicit pills).
+- Mood, genre, decade, and holiday filters are all multi-select (OR within a category, AND across categories). State lives in `state.filters.{moods,genres,decades,holidays}` arrays, URL params are comma-separated, and the UI is a shared toggle-chip popover component (`MULTI_FILTER_DEFS` + `buildMultiFilters`) with per-option song counts, inline inside the mobile sheet. There is no Explicit filter (songs still show Explicit pills).
 - Headings and song titles use self-hosted Space Grotesk (`fonts/`, OFL license alongside); body text is the system stack.
 - The palette is violet/coral ("stage light"): `--brand` is the primary accent variable (renamed from `--teal`).
 - Fuzzy search is off by default; if an exact query has zero matches, a fuzzy pass runs automatically and a notice labels the results.

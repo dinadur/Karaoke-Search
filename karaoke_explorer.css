@@ -609,11 +609,11 @@ select:hover {
     gap: 6px;
 }
 
-.genre-filter {
+.multi-filter {
     position: relative;
 }
 
-.genre-filter-button {
+.multi-filter-button {
     display: inline-flex;
     align-items: center;
     gap: 7px;
@@ -626,23 +626,23 @@ select:hover {
     font-weight: 600;
 }
 
-.genre-filter-button svg {
+.multi-filter-button svg {
     width: 15px;
     height: 15px;
     color: var(--muted);
 }
 
-.genre-filter-button:hover {
+.multi-filter-button:hover {
     border-color: var(--brand);
 }
 
-.genre-filter-button.has-selection {
+.multi-filter-button.has-selection {
     border-color: var(--brand);
     color: var(--active-ink);
     background: var(--active-bg);
 }
 
-.genre-popover {
+.multi-popover {
     position: absolute;
     top: calc(100% + 7px);
     left: 0;
@@ -659,11 +659,11 @@ select:hover {
     box-shadow: var(--shadow);
 }
 
-.genre-popover[hidden] {
+.multi-popover[hidden] {
     display: none;
 }
 
-.genre-popover-head {
+.multi-popover-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -674,7 +674,7 @@ select:hover {
     text-transform: uppercase;
 }
 
-.genre-clear {
+.multi-clear {
     border: 0;
     padding: 2px 4px;
     color: var(--brand);
@@ -684,17 +684,17 @@ select:hover {
     text-transform: uppercase;
 }
 
-.genre-clear[hidden] {
+.multi-clear[hidden] {
     display: none;
 }
 
-.genre-options {
+.multi-options {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
 }
 
-.genre-option {
+.multi-option {
     min-height: 32px;
     border: 1px solid var(--line);
     border-radius: 999px;
@@ -705,15 +705,32 @@ select:hover {
     font-weight: 600;
 }
 
-.genre-option:hover {
+.multi-option:hover {
     border-color: var(--brand);
     background: var(--hover-bg);
 }
 
-.genre-option.is-active {
+.multi-option.is-active {
     border-color: var(--brand);
     color: var(--active-ink);
     background: var(--active-bg);
+}
+
+.multi-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.option-count {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.multi-option.is-active .option-count {
+    color: var(--active-ink);
+    opacity: 0.75;
 }
 
 .select-filter {
@@ -2210,17 +2227,17 @@ dialog::backdrop {
         min-height: 42px;
     }
 
-    .genre-filter {
+    .multi-filter {
         flex-wrap: wrap;
     }
 
-    .genre-filter-button {
+    .multi-filter-button {
         flex: 1 1 auto;
         justify-content: space-between;
         min-height: 42px;
     }
 
-    .genre-popover {
+    .multi-popover {
         position: static;
         width: 100%;
         max-height: 40vh;

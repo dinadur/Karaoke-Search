@@ -1,10 +1,49 @@
-const APP_VERSION = "20260714-3";
+const APP_VERSION = "20260714-4";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const TAG_CONSOLIDATION_URL = `tag_consolidation.json?v=${APP_VERSION}`;
 const MOOD_CONSOLIDATION_URL = `mood_consolidation.json?v=${APP_VERSION}`;
 const RESULT_BATCH_SIZE = 160;
 const SEARCH_RENDER_DELAY = 90;
 const SEARCH_SCOPES = ["all", "song", "artist"];
+const MULTI_FILTER_DEFS = [
+    {
+        key: "moods",
+        param: "mood",
+        label: "Mood",
+        anyLabel: "Any mood",
+        pickHint: "Pick any number of moods",
+        options: () => state.availableMoods,
+        matches: (song, value) => includesValue(getSongMoods(song), value),
+    },
+    {
+        key: "genres",
+        param: "genre",
+        label: "Genre",
+        anyLabel: "Any genre",
+        pickHint: "Pick any number of genres",
+        options: () => state.availableGenres,
+        matches: (song, value) => includesValue(getSongGenres(song), value),
+    },
+    {
+        key: "decades",
+        param: "decade",
+        label: "Decade",
+        anyLabel: "Any decade",
+        pickHint: "Pick any number of decades",
+        options: () => state.availableDecades,
+        matches: (song, value) => (song.eras || []).includes(value),
+    },
+    {
+        key: "holidays",
+        param: "holiday",
+        label: "Holiday",
+        anyLabel: "Any holiday",
+        pickHint: "Pick any number of holidays",
+        options: () => state.availableHolidays,
+        matches: (song, value) => getHolidayValues(song).includes(value),
+    },
+];
+const multiFilterControls = new Map();
 const TAG_GENRE_MIN_COUNT = 50;
 const THEME_STORAGE_KEY = "karaokeTheme";
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -205,12 +244,13 @@ const state = {
     tagConsolidation: createEmptyTagConsolidation(),
     moodConsolidation: createEmptyMoodConsolidation(),
     filters: {
-        mood: "",
+        moods: [],
         genres: [],
-        decade: "",
-        holiday: "",
+        decades: [],
+        holidays: [],
         duet: false,
     },
+    filterValueCounts: {},
     mode: "search",
     browseBy: "song",
     browseLetter: "#",
@@ -235,14 +275,6 @@ const els = {
     closeFiltersButton: document.getElementById("closeFiltersButton"),
     applyFiltersButton: document.getElementById("applyFiltersButton"),
     sheetBackdrop: document.getElementById("sheetBackdrop"),
-    moodFilter: document.getElementById("moodFilter"),
-    genreFilterButton: document.getElementById("genreFilterButton"),
-    genreFilterLabel: document.getElementById("genreFilterLabel"),
-    genrePopover: document.getElementById("genrePopover"),
-    genreOptions: document.getElementById("genreOptions"),
-    clearGenresButton: document.getElementById("clearGenresButton"),
-    decadeFilter: document.getElementById("decadeFilter"),
-    holidayFilter: document.getElementById("holidayFilter"),
     duetFilter: document.getElementById("duetFilter"),
     favoriteFilter: document.getElementById("favoriteFilter"),
     fuzzySearch: document.getElementById("fuzzySearch"),
@@ -300,6 +332,7 @@ window.addEventListener("unhandledrejection", () => {
 init();
 
 async function init() {
+    buildMultiFilters();
     bindEvents();
     bindResultsSentinel();
     registerServiceWorker();
@@ -362,19 +395,6 @@ function bindEvents() {
         });
     }
 
-    for (const [filterName, element] of [
-        ["mood", els.moodFilter],
-        ["decade", els.decadeFilter],
-        ["holiday", els.holidayFilter],
-    ]) {
-        element.addEventListener("change", () => {
-            state.filters[filterName] = element.value;
-            state.mode = "search";
-            resetResultLimit();
-            render();
-        });
-    }
-
     els.duetFilter.addEventListener("change", () => {
         state.filters.duet = els.duetFilter.checked;
         state.mode = "search";
@@ -398,17 +418,6 @@ function bindEvents() {
 
     els.clearFiltersButton.addEventListener("click", () => {
         clearSearchFilters();
-        state.mode = "search";
-        resetResultLimit();
-        render();
-    });
-
-    els.genreFilterButton.addEventListener("click", () => {
-        toggleGenrePopover();
-    });
-
-    els.clearGenresButton.addEventListener("click", () => {
-        state.filters.genres = [];
         state.mode = "search";
         resetResultLimit();
         render();
@@ -494,8 +503,8 @@ function bindEvents() {
             closeSongTagMenus();
         }
 
-        if (!event.target.closest(".genre-filter")) {
-            toggleGenrePopover(false);
+        if (!event.target.closest(".multi-filter")) {
+            closeMultiFilterPopovers();
         }
     });
 
@@ -503,7 +512,7 @@ function bindEvents() {
         if (event.key === "Escape") {
             closeSongLinkMenus();
             closeSongTagMenus();
-            toggleGenrePopover(false);
+            closeMultiFilterPopovers();
             closeFiltersSheet();
             closeSetlistDrawer();
             return;
@@ -1043,12 +1052,7 @@ function updateSheetBackdrop() {
 }
 
 function countActiveFilters() {
-    return [
-        state.filters.mood,
-        state.filters.decade,
-        state.filters.holiday,
-    ].filter(Boolean).length +
-        state.filters.genres.length +
+    return MULTI_FILTER_DEFS.reduce((count, def) => count + state.filters[def.key].length, 0) +
         Number(state.filters.duet) +
         Number(state.favoriteOnly) +
         Number(state.fuzzySearch);
@@ -1155,21 +1159,11 @@ function rankSongs(songs, query, { fuzzy = state.fuzzySearch } = {}) {
 
 function applySearchFilters(songs) {
     return songs.filter((song) => {
-        if (state.filters.mood && !includesValue(getSongMoods(song), state.filters.mood)) {
-            return false;
-        }
-
-        if (state.filters.genres.length &&
-            !state.filters.genres.some((genre) => includesValue(getSongGenres(song), genre))) {
-            return false;
-        }
-
-        if (state.filters.decade && !(song.eras || []).includes(state.filters.decade)) {
-            return false;
-        }
-
-        if (state.filters.holiday && !getHolidayValues(song).includes(state.filters.holiday)) {
-            return false;
+        for (const def of MULTI_FILTER_DEFS) {
+            const selected = state.filters[def.key];
+            if (selected.length && !selected.some((value) => def.matches(song, value))) {
+                return false;
+            }
         }
 
         if (state.filters.duet && !hasFlag(song, "Duet")) {
@@ -1248,10 +1242,9 @@ function resetResultLimit() {
 }
 
 function clearSearchFilters({ resetFuzzy = true } = {}) {
-    state.filters.mood = "";
-    state.filters.genres = [];
-    state.filters.decade = "";
-    state.filters.holiday = "";
+    for (const def of MULTI_FILTER_DEFS) {
+        state.filters[def.key] = [];
+    }
     state.filters.duet = false;
     state.favoriteOnly = false;
 
@@ -2374,10 +2367,9 @@ function capPills(container, limit) {
 }
 
 function applyPillFilter(filterName, value) {
-    if (filterName === "genre") {
-        state.filters.genres = [value];
-    } else {
-        state.filters[filterName] = value;
+    const def = MULTI_FILTER_DEFS.find((item) => item.param === filterName);
+    if (def) {
+        state.filters[def.key] = [value];
     }
     state.mode = "search";
     state.query = "";
@@ -2394,10 +2386,9 @@ function applyPillFilter(filterName, value) {
 }
 
 function applyArtistSearch(artistName) {
-    state.filters.mood = "";
-    state.filters.genres = [];
-    state.filters.decade = "";
-    state.filters.holiday = "";
+    for (const def of MULTI_FILTER_DEFS) {
+        state.filters[def.key] = [];
+    }
     state.filters.duet = false;
     state.mode = "search";
     state.query = artistName;
@@ -2574,16 +2565,17 @@ function applyStoredUiState() {
     }
 
     if (stored.filters && typeof stored.filters === "object") {
-        state.filters.mood = typeof stored.filters.mood === "string" ? stored.filters.mood : "";
-        if (Array.isArray(stored.filters.genres)) {
-            state.filters.genres = stored.filters.genres.filter((value) => typeof value === "string" && value);
-        } else if (typeof stored.filters.genre === "string" && stored.filters.genre) {
-            state.filters.genres = [stored.filters.genre];
-        } else {
-            state.filters.genres = [];
+        for (const def of MULTI_FILTER_DEFS) {
+            const arrayValue = stored.filters[def.key];
+            const legacyValue = stored.filters[def.param];
+            if (Array.isArray(arrayValue)) {
+                state.filters[def.key] = arrayValue.filter((value) => typeof value === "string" && value);
+            } else if (typeof legacyValue === "string" && legacyValue) {
+                state.filters[def.key] = [legacyValue];
+            } else {
+                state.filters[def.key] = [];
+            }
         }
-        state.filters.decade = typeof stored.filters.decade === "string" ? stored.filters.decade : "";
-        state.filters.holiday = typeof stored.filters.holiday === "string" ? stored.filters.holiday : "";
         state.filters.duet = Boolean(stored.filters.duet);
     }
 }
@@ -2596,10 +2588,6 @@ function applyInitialRoute() {
     const scope = params.get("scope");
     const query = params.get("q");
     const sort = params.get("sort");
-    const mood = params.get("mood");
-    const genre = params.get("genre");
-    const decade = params.get("decade");
-    const holiday = params.get("holiday");
 
     if (mode === "browse") {
         state.mode = "browse";
@@ -2630,10 +2618,12 @@ function applyInitialRoute() {
         state.sortMode = sort;
     }
 
-    if (mood) state.filters.mood = mood;
-    if (genre) state.filters.genres = genre.split(",").map((value) => value.trim()).filter(Boolean);
-    if (decade) state.filters.decade = decade;
-    if (holiday) state.filters.holiday = holiday;
+    for (const def of MULTI_FILTER_DEFS) {
+        const raw = params.get(def.param);
+        if (raw) {
+            state.filters[def.key] = raw.split(",").map((value) => value.trim()).filter(Boolean);
+        }
+    }
     if (params.get("duet") === "1") state.filters.duet = true;
     if (params.get("favorites") === "1") state.favoriteOnly = true;
     if (params.get("fuzzy") === "1") state.fuzzySearch = true;
@@ -2680,10 +2670,11 @@ function syncUrlState() {
         if (state.sortMode !== "relevance") {
             params.set("sort", state.sortMode);
         }
-        if (state.filters.mood) params.set("mood", state.filters.mood);
-        if (state.filters.genres.length) params.set("genre", state.filters.genres.join(","));
-        if (state.filters.decade) params.set("decade", state.filters.decade);
-        if (state.filters.holiday) params.set("holiday", state.filters.holiday);
+        for (const def of MULTI_FILTER_DEFS) {
+            if (state.filters[def.key].length) {
+                params.set(def.param, state.filters[def.key].join(","));
+            }
+        }
         if (state.filters.duet) params.set("duet", "1");
         if (state.favoriteOnly) params.set("favorites", "1");
         if (state.fuzzySearch) params.set("fuzzy", "1");
@@ -3220,32 +3211,40 @@ function boundedEditDistance(a, b, maxDistance) {
 }
 
 function renderFilterOptions() {
-    fillSelectOptions(els.moodFilter, "Any mood", state.availableMoods);
-    fillSelectOptions(els.decadeFilter, "Any decade", state.availableDecades);
-    fillSelectOptions(els.holidayFilter, "Any holiday", state.availableHolidays);
-}
+    const counts = {};
+    for (const def of MULTI_FILTER_DEFS) {
+        counts[def.key] = new Map();
+    }
 
-function fillSelectOptions(select, emptyLabel, values) {
-    select.innerHTML = "";
+    const valueGetters = {
+        moods: getSongMoods,
+        genres: getSongGenres,
+        decades: (song) => song.eras || [],
+        holidays: getHolidayValues,
+    };
+    for (const song of state.songs) {
+        for (const def of MULTI_FILTER_DEFS) {
+            const seen = new Set();
+            for (const value of valueGetters[def.key](song) || []) {
+                const key = normalize(value);
+                if (!key || seen.has(key)) {
+                    continue;
+                }
 
-    const emptyOption = document.createElement("option");
-    emptyOption.value = "";
-    emptyOption.textContent = emptyLabel;
-    select.appendChild(emptyOption);
+                seen.add(key);
+                counts[def.key].set(key, (counts[def.key].get(key) || 0) + 1);
+            }
+        }
+    }
 
-    for (const value of values) {
-        const option = document.createElement("option");
-        option.value = value;
-        option.textContent = value;
-        select.appendChild(option);
+    state.filterValueCounts = counts;
+    for (const control of multiFilterControls.values()) {
+        control.options.innerHTML = "";
     }
 }
 
 function renderSearchFilters() {
-    els.moodFilter.value = state.filters.mood;
-    renderGenreFilter();
-    els.decadeFilter.value = state.filters.decade;
-    els.holidayFilter.value = state.filters.holiday;
+    renderMultiFilters();
     els.duetFilter.checked = state.filters.duet;
     els.favoriteFilter.checked = state.favoriteOnly;
     els.fuzzySearch.checked = state.fuzzySearch;
@@ -3260,45 +3259,124 @@ function renderSearchFilters() {
     setToggleState(els.orderArtistButton, state.sortMode === "artist");
 }
 
-function renderGenreFilter() {
-    const selected = state.filters.genres;
-    els.genreFilterLabel.textContent = !selected.length
-        ? "Any genre"
-        : selected.length === 1
-            ? selected[0]
-            : `${selected[0]} +${selected.length - 1}`;
-    els.genreFilterButton.classList.toggle("has-selection", selected.length > 0);
-    els.clearGenresButton.hidden = !selected.length;
+function buildMultiFilters() {
+    for (const root of document.querySelectorAll(".multi-filter")) {
+        const def = MULTI_FILTER_DEFS.find((item) => item.param === root.dataset.filter);
+        if (!def) {
+            continue;
+        }
 
-    // Update options in place when possible: rebuilding mid-click detaches the
-    // clicked button, which breaks the outside-click check and drops focus.
-    const existing = [...els.genreOptions.children];
-    if (existing.length === state.availableGenres.length) {
-        state.availableGenres.forEach((value, index) => {
-            setToggleState(existing[index], includesValue(selected, value));
+        const label = document.createElement("span");
+        label.className = "filter-label";
+        label.textContent = def.label;
+
+        const button = document.createElement("button");
+        button.className = "multi-filter-button";
+        button.type = "button";
+        button.setAttribute("aria-haspopup", "true");
+        button.setAttribute("aria-expanded", "false");
+        button.setAttribute("aria-label", `Filter by ${def.label.toLowerCase()}`);
+        const buttonLabel = document.createElement("span");
+        buttonLabel.textContent = def.anyLabel;
+        button.appendChild(buttonLabel);
+        button.innerHTML += '<i data-lucide="chevron-down" aria-hidden="true"></i>';
+        button.addEventListener("click", () => toggleMultiFilterPopover(def.param));
+
+        const popover = document.createElement("div");
+        popover.className = "multi-popover";
+        popover.hidden = true;
+
+        const head = document.createElement("div");
+        head.className = "multi-popover-head";
+        const hint = document.createElement("span");
+        hint.textContent = def.pickHint;
+        const clear = document.createElement("button");
+        clear.className = "multi-clear";
+        clear.type = "button";
+        clear.textContent = "Clear";
+        clear.hidden = true;
+        clear.addEventListener("click", () => {
+            state.filters[def.key] = [];
+            state.mode = "search";
+            resetResultLimit();
+            render();
         });
-        return;
-    }
+        head.append(hint, clear);
 
-    els.genreOptions.innerHTML = "";
-    for (const value of state.availableGenres) {
-        const option = document.createElement("button");
-        option.type = "button";
-        option.className = "genre-option";
-        option.textContent = value;
-        setToggleState(option, includesValue(selected, value));
-        option.addEventListener("click", () => toggleGenre(value));
-        els.genreOptions.appendChild(option);
+        const options = document.createElement("div");
+        options.className = "multi-options";
+        options.setAttribute("role", "group");
+        options.setAttribute("aria-label", `${def.label} options`);
+
+        popover.append(head, options);
+        root.append(label, button, popover);
+        multiFilterControls.set(def.param, {
+            def,
+            button,
+            buttonLabel: button.querySelector("span"),
+            popover,
+            options,
+            clear,
+        });
     }
 }
 
-function toggleGenre(value) {
-    if (includesValue(state.filters.genres, value)) {
-        state.filters.genres = state.filters.genres.filter(
-            (genre) => normalize(genre) !== normalize(value)
+function renderMultiFilters() {
+    for (const control of multiFilterControls.values()) {
+        const { def, button, buttonLabel, options, clear } = control;
+        const selected = state.filters[def.key];
+        const values = def.options();
+
+        buttonLabel.textContent = !selected.length
+            ? def.anyLabel
+            : selected.length === 1
+                ? selected[0]
+                : `${selected[0]} +${selected.length - 1}`;
+        button.classList.toggle("has-selection", selected.length > 0);
+        clear.hidden = !selected.length;
+
+        // Update options in place when possible: rebuilding mid-click detaches
+        // the clicked button, which breaks the outside-click check and drops focus.
+        const existing = [...options.children];
+        if (existing.length === values.length) {
+            values.forEach((value, index) => {
+                setToggleState(existing[index], includesValue(selected, value));
+            });
+            continue;
+        }
+
+        options.innerHTML = "";
+        const counts = state.filterValueCounts[def.key] || new Map();
+        for (const value of values) {
+            const option = document.createElement("button");
+            option.type = "button";
+            option.className = "multi-option";
+            const text = document.createElement("span");
+            text.textContent = value;
+            option.appendChild(text);
+
+            const count = counts.get(normalize(value));
+            if (count) {
+                const countLabel = document.createElement("span");
+                countLabel.className = "option-count";
+                countLabel.textContent = count.toLocaleString();
+                option.appendChild(countLabel);
+            }
+
+            setToggleState(option, includesValue(selected, value));
+            option.addEventListener("click", () => toggleMultiFilterValue(def, value));
+            options.appendChild(option);
+        }
+    }
+}
+
+function toggleMultiFilterValue(def, value) {
+    if (includesValue(state.filters[def.key], value)) {
+        state.filters[def.key] = state.filters[def.key].filter(
+            (item) => normalize(item) !== normalize(value)
         );
     } else {
-        state.filters.genres = [...state.filters.genres, value];
+        state.filters[def.key] = [...state.filters[def.key], value];
     }
 
     state.mode = "search";
@@ -3306,9 +3384,23 @@ function toggleGenre(value) {
     render();
 }
 
-function toggleGenrePopover(open = els.genrePopover.hidden) {
-    els.genrePopover.hidden = !open;
-    els.genreFilterButton.setAttribute("aria-expanded", String(open));
+function toggleMultiFilterPopover(param) {
+    const control = multiFilterControls.get(param);
+    if (!control) {
+        return;
+    }
+
+    const open = control.popover.hidden;
+    closeMultiFilterPopovers();
+    control.popover.hidden = !open;
+    control.button.setAttribute("aria-expanded", String(open));
+}
+
+function closeMultiFilterPopovers() {
+    for (const control of multiFilterControls.values()) {
+        control.popover.hidden = true;
+        control.button.setAttribute("aria-expanded", "false");
+    }
 }
 
 function setToggleState(button, isActive) {
@@ -3336,28 +3428,15 @@ function renderActiveFilters() {
         });
     }
 
-    for (const [filterName, label] of [
-        ["mood", "Mood"],
-        ["decade", "Decade"],
-        ["holiday", "Holiday"],
-    ]) {
-        if (state.filters[filterName]) {
+    for (const def of MULTI_FILTER_DEFS) {
+        for (const value of state.filters[def.key]) {
             chips.push({
-                label: `${label}: ${state.filters[filterName]}`,
+                label: `${def.label}: ${value}`,
                 onClear: () => {
-                    state.filters[filterName] = "";
+                    state.filters[def.key] = state.filters[def.key].filter((item) => item !== value);
                 },
             });
         }
-    }
-
-    for (const genre of state.filters.genres) {
-        chips.push({
-            label: `Genre: ${genre}`,
-            onClear: () => {
-                state.filters.genres = state.filters.genres.filter((value) => value !== genre);
-            },
-        });
     }
 
     if (state.filters.duet) {
@@ -3432,20 +3511,14 @@ function createActiveFilterChip(label, onClear) {
 }
 
 function hasActiveSearchFilters() {
-    return Boolean(state.filters.mood) ||
-        state.filters.genres.length > 0 ||
-        Boolean(state.filters.decade) ||
-        Boolean(state.filters.holiday) ||
+    return MULTI_FILTER_DEFS.some((def) => state.filters[def.key].length > 0) ||
         state.filters.duet ||
         state.favoriteOnly ||
         state.fuzzySearch;
 }
 
 function hasSongFilters() {
-    return Boolean(state.filters.mood) ||
-        state.filters.genres.length > 0 ||
-        Boolean(state.filters.decade) ||
-        Boolean(state.filters.holiday) ||
+    return MULTI_FILTER_DEFS.some((def) => state.filters[def.key].length > 0) ||
         state.filters.duet ||
         state.favoriteOnly;
 }
