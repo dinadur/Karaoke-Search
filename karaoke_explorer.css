@@ -287,16 +287,102 @@ select:hover {
     color: var(--accent);
 }
 
+.control-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 14px;
+}
+
 .mode-tabs {
     display: inline-grid;
     grid-template-columns: repeat(2, minmax(112px, 1fr));
     gap: 4px;
     max-width: 100%;
-    margin-top: 14px;
     padding: 4px;
     border: 1px solid var(--line);
     border-radius: 8px;
     background: var(--panel);
+}
+
+.filters-toggle {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-height: 44px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 0 13px;
+    color: var(--ink);
+    background: var(--panel);
+    font-weight: 700;
+}
+
+.filters-toggle[hidden] {
+    display: none;
+}
+
+.filters-toggle svg {
+    width: 17px;
+    height: 17px;
+}
+
+.filter-count-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    min-height: 20px;
+    border-radius: 999px;
+    padding: 0 6px;
+    color: var(--accent-ink);
+    background: var(--accent);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.filter-count-badge[hidden] {
+    display: none;
+}
+
+.sheet-head {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.sheet-head h2 {
+    font-size: 17px;
+}
+
+.sheet-foot {
+    display: none;
+}
+
+.apply-filters {
+    width: 100%;
+    border: 0;
+    color: var(--accent-ink);
+    background: var(--accent);
+}
+
+.sheet-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 24;
+    background: rgb(0 0 0 / 0.42);
+}
+
+.sheet-backdrop[hidden] {
+    display: none;
+}
+
+@media (min-width: 721px) {
+    .sheet-backdrop {
+        display: none;
+    }
 }
 
 .mode-tab,
@@ -341,10 +427,9 @@ select:hover {
 
 .search-scope {
     display: flex;
+    flex-wrap: wrap;
+    align-items: center;
     gap: 8px;
-    margin: 14px 0 16px;
-    overflow-x: auto;
-    padding-bottom: 2px;
 }
 
 .search-scope[hidden] {
@@ -387,7 +472,7 @@ select:hover {
     align-items: center;
     gap: 10px 16px;
     min-width: 0;
-    margin: -2px 0 16px;
+    margin: 12px 0 16px;
     padding: 10px;
     border: 1px solid var(--line);
     border-radius: 8px;
@@ -1309,10 +1394,9 @@ dialog::backdrop {
     color: var(--muted);
     line-height: 1.45;
 }
-
 @media (max-width: 980px) {
     .content-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
     }
 
     .setlist-panel {
@@ -1322,57 +1406,68 @@ dialog::backdrop {
 
 @media (max-width: 720px) {
     .topbar {
-        align-items: start;
-        flex-direction: column;
-        padding: 22px 18px 16px;
+        align-items: baseline;
+        gap: 12px;
+        padding: 14px 16px 10px;
+    }
+
+    .eyebrow {
+        display: none;
+    }
+
+    h1 {
+        font-size: 18px;
     }
 
     .status {
-        text-align: left;
+        flex: 0 1 auto;
+        max-width: 45%;
+        font-size: 11px;
     }
 
     .shell {
-        padding: 16px 14px 92px;
+        padding: 0 14px 96px;
     }
 
     .toolbar {
-        grid-template-columns: 1fr 44px;
+        position: sticky;
+        top: 0;
+        z-index: 15;
+        grid-template-columns: minmax(0, 1fr) 44px 44px;
+        gap: 8px;
+        margin: 0 -14px;
+        padding: 10px 14px;
+        background: var(--bg);
     }
 
-    .search-box,
-    select,
-    .command {
-        grid-column: 1 / -1;
-    }
-
-    #randomButton {
-        grid-column: 1;
-    }
-
-    .icon-button {
-        grid-column: 2;
+    .search-box {
+        box-shadow: none;
     }
 
     #clearButton {
         display: none;
     }
 
-    h1 {
-        font-size: 28px;
+    #randomButton {
+        width: 44px;
+        padding: 0;
     }
 
-    .results-list {
-        grid-template-columns: 1fr;
-        padding: 12px;
+    #randomButton span {
+        display: none;
     }
 
-    .mode-tabs,
-    .search-scope,
-    .search-filters,
-    .active-filters,
-    .browse-tools {
-        width: calc(100vw - 28px);
-        max-width: calc(100vw - 28px);
+    .control-row {
+        gap: 8px;
+        margin-top: 6px;
+    }
+
+    .mode-tab svg {
+        display: none;
+    }
+
+    .mode-tabs {
+        flex: 1 1 auto;
     }
 
     .mode-tabs,
@@ -1380,61 +1475,89 @@ dialog::backdrop {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
+    .filters-toggle {
+        display: inline-flex;
+        flex: 0 0 auto;
+    }
+
+    .filters-toggle[hidden] {
+        display: none;
+    }
+
+    .search-filters {
+        display: none;
+    }
+
+    body.filters-open .search-filters:not([hidden]) {
+        position: fixed;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        z-index: 30;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 16px;
+        max-height: 82vh;
+        margin: 0;
+        padding: 14px 16px calc(18px + env(safe-area-inset-bottom, 0px));
+        border-bottom: 0;
+        border-radius: 16px 16px 0 0;
+        overflow: auto;
+        background: var(--panel);
+        box-shadow: var(--drawer-shadow);
+    }
+
+    .sheet-head {
+        display: flex;
+    }
+
+    .sheet-foot {
+        display: block;
+        position: sticky;
+        bottom: 0;
+        margin: 0 -16px -18px;
+        padding: 10px 16px calc(14px + env(safe-area-inset-bottom, 0px));
+        background: var(--panel);
+    }
+
+    .active-filters {
+        margin: 10px 0 12px;
+    }
+
+    .search-filters .select-filter select {
+        flex: 1 1 auto;
+        width: auto;
+        min-height: 42px;
+    }
+
+    .search-order {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+    }
+
+    .content-grid,
+    .results-panel,
+    .browse-tools,
+    .active-filters {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .results-list {
+        grid-template-columns: 1fr;
+        padding: 12px;
+    }
+
     .browse-tools {
         grid-template-columns: 1fr;
-    }
-
-    .browse-choice,
-    .letter-strip,
-    .results-panel,
-    .setlist-panel {
-        width: calc(100vw - 28px);
-        max-width: calc(100vw - 28px);
-    }
-
-    .content-grid {
-        width: calc(100vw - 28px);
-        min-width: 0;
-        max-width: calc(100vw - 28px);
+        margin-top: 12px;
     }
 
     .letter-strip {
         flex-wrap: nowrap;
         overflow-x: auto;
         padding-bottom: 4px;
-    }
-
-    .search-scope {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        overflow-x: visible;
-    }
-
-    .search-scope label {
-        min-width: 0;
-    }
-
-    .search-scope span,
-    .mode-tab {
-        width: 100%;
-        padding-right: 10px;
-        padding-left: 10px;
-    }
-
-    .select-filter,
-    .filter-checks,
-    .search-order {
-        width: 100%;
-    }
-
-    .select-filter select {
-        flex: 1 1 160px;
-        width: auto;
-    }
-
-    .search-order {
-        overflow-x: auto;
-        flex-wrap: nowrap;
     }
 
     .letter-button {
@@ -1503,20 +1626,28 @@ dialog::backdrop {
 
     .setlist-panel {
         display: none;
-        position: fixed;
-        right: 12px;
-        bottom: 12px;
-        left: 12px;
-        z-index: 20;
-        width: auto;
-        max-width: none;
-        max-height: min(76vh, 620px);
-        overflow: auto;
-        box-shadow: var(--drawer-shadow);
     }
 
     body.setlist-open .setlist-panel {
-        display: block;
+        position: fixed;
+        top: auto;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        z-index: 30;
+        display: flex;
+        flex-direction: column;
+        width: auto;
+        max-width: none;
+        max-height: min(76vh, 640px);
+        overflow: auto;
+        border-bottom: 0;
+        border-radius: 16px 16px 0 0;
+        box-shadow: var(--drawer-shadow);
+    }
+
+    .setlist-panel .panel-heading {
+        border-radius: 16px 16px 0 0;
     }
 
     .close-setlist {
@@ -1526,7 +1657,7 @@ dialog::backdrop {
     .mobile-setlist-button {
         position: fixed;
         right: 14px;
-        bottom: 14px;
+        bottom: calc(14px + env(safe-area-inset-bottom, 0px));
         z-index: 18;
         display: inline-flex;
         align-items: center;
@@ -1539,7 +1670,7 @@ dialog::backdrop {
         color: var(--accent-ink);
         background: var(--accent);
         box-shadow: var(--mobile-button-shadow);
-        font-weight: 900;
+        font-weight: 700;
     }
 
     .mobile-setlist-button svg {

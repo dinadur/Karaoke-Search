@@ -226,6 +226,11 @@ const els = {
     searchScope: document.getElementById("searchScope"),
     searchScopeInputs: [...document.querySelectorAll('input[name="searchScope"]')],
     searchFilters: document.getElementById("searchFilters"),
+    filtersToggleButton: document.getElementById("filtersToggleButton"),
+    filterCountBadge: document.getElementById("filterCountBadge"),
+    closeFiltersButton: document.getElementById("closeFiltersButton"),
+    applyFiltersButton: document.getElementById("applyFiltersButton"),
+    sheetBackdrop: document.getElementById("sheetBackdrop"),
     moodFilter: document.getElementById("moodFilter"),
     genreFilter: document.getElementById("genreFilter"),
     decadeFilter: document.getElementById("decadeFilter"),
@@ -462,12 +467,23 @@ function bindEvents() {
         render();
     });
 
-    els.mobileSetlistButton.addEventListener("click", () => {
-        document.body.classList.add("setlist-open");
+    els.mobileSetlistButton.addEventListener("click", openSetlistDrawer);
+    els.closeSetlistButton.addEventListener("click", () => closeSetlistDrawer());
+
+    els.filtersToggleButton.addEventListener("click", () => {
+        if (document.body.classList.contains("filters-open")) {
+            closeFiltersSheet();
+        } else {
+            openFiltersSheet();
+        }
     });
 
-    els.closeSetlistButton.addEventListener("click", () => {
-        document.body.classList.remove("setlist-open");
+    els.closeFiltersButton.addEventListener("click", () => closeFiltersSheet());
+    els.applyFiltersButton.addEventListener("click", () => closeFiltersSheet());
+
+    els.sheetBackdrop.addEventListener("click", () => {
+        closeFiltersSheet({ restoreFocus: false });
+        closeSetlistDrawer({ restoreFocus: false });
     });
 
     document.addEventListener("click", (event) => {
@@ -481,6 +497,8 @@ function bindEvents() {
         if (event.key === "Escape") {
             closeSongLinkMenus();
             closeSongTagMenus();
+            closeFiltersSheet();
+            closeSetlistDrawer();
         }
     });
 
@@ -769,6 +787,62 @@ function render() {
     hydrateIcons();
 }
 
+function openFiltersSheet() {
+    document.body.classList.add("filters-open");
+    els.filtersToggleButton.setAttribute("aria-expanded", "true");
+    updateSheetBackdrop();
+    els.closeFiltersButton.focus({ preventScroll: true });
+}
+
+function closeFiltersSheet({ restoreFocus = true } = {}) {
+    if (!document.body.classList.contains("filters-open")) {
+        return;
+    }
+
+    document.body.classList.remove("filters-open");
+    els.filtersToggleButton.setAttribute("aria-expanded", "false");
+    updateSheetBackdrop();
+    if (restoreFocus && els.filtersToggleButton.offsetParent) {
+        els.filtersToggleButton.focus({ preventScroll: true });
+    }
+}
+
+function openSetlistDrawer() {
+    document.body.classList.add("setlist-open");
+    updateSheetBackdrop();
+    els.closeSetlistButton.focus({ preventScroll: true });
+}
+
+function closeSetlistDrawer({ restoreFocus = true } = {}) {
+    if (!document.body.classList.contains("setlist-open")) {
+        return;
+    }
+
+    document.body.classList.remove("setlist-open");
+    updateSheetBackdrop();
+    if (restoreFocus && els.mobileSetlistButton.offsetParent) {
+        els.mobileSetlistButton.focus({ preventScroll: true });
+    }
+}
+
+function updateSheetBackdrop() {
+    els.sheetBackdrop.hidden = !document.body.classList.contains("filters-open") &&
+        !document.body.classList.contains("setlist-open");
+}
+
+function countActiveFilters() {
+    return [
+        state.filters.mood,
+        state.filters.genre,
+        state.filters.decade,
+        state.filters.holiday,
+    ].filter(Boolean).length +
+        Number(state.filters.duet) +
+        Number(state.filters.explicit) +
+        Number(state.favoriteOnly) +
+        Number(state.fuzzySearch);
+}
+
 function renderMode() {
     const isBrowse = state.mode === "browse";
     els.searchModeButton.classList.toggle("is-active", !isBrowse);
@@ -776,6 +850,10 @@ function renderMode() {
     els.browseTools.hidden = !isBrowse;
     els.searchScope.hidden = isBrowse;
     els.searchFilters.hidden = isBrowse;
+    els.filtersToggleButton.hidden = isBrowse;
+    if (isBrowse) {
+        closeFiltersSheet({ restoreFocus: false });
+    }
     els.activeFilters.hidden = isBrowse || !els.activeFilters.childElementCount;
     els.resultsList.hidden = isBrowse;
     els.resultActions.hidden = true;
@@ -1712,6 +1790,8 @@ function renderStatus(totalMatches) {
     } else {
         const shown = state.visibleSongs.length.toLocaleString();
         els.resultCount.textContent = `${shown} shown from ${totalMatches.toLocaleString()} matches`;
+        els.applyFiltersButton.textContent =
+            `Show ${totalMatches.toLocaleString()} ${totalMatches === 1 ? "song" : "songs"}`;
     }
 }
 
@@ -2348,6 +2428,11 @@ function renderSearchFilters() {
     els.favoriteFilter.checked = state.favoriteOnly;
     els.fuzzySearch.checked = state.fuzzySearch;
     els.clearFiltersButton.hidden = !hasActiveSearchFilters();
+
+    const activeCount = countActiveFilters();
+    els.filterCountBadge.hidden = !activeCount;
+    els.filterCountBadge.textContent = activeCount ? String(activeCount) : "";
+
     els.orderRelevanceButton.classList.toggle("is-active", state.sortMode === "relevance");
     els.orderSongButton.classList.toggle("is-active", state.sortMode === "song");
     els.orderArtistButton.classList.toggle("is-active", state.sortMode === "artist");

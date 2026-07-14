@@ -64,29 +64,42 @@
             </button>
         </section>
 
-        <section class="mode-tabs" aria-label="View mode">
-            <button id="searchModeButton" class="mode-tab is-active" type="button">
-                <i data-lucide="search" aria-hidden="true"></i>
-                <span>Search</span>
+        <section class="control-row" aria-label="View mode">
+            <div class="mode-tabs" role="group" aria-label="View mode">
+                <button id="searchModeButton" class="mode-tab is-active" type="button">
+                    <i data-lucide="search" aria-hidden="true"></i>
+                    <span>Search</span>
+                </button>
+                <button id="browseModeButton" class="mode-tab" type="button">
+                    <i data-lucide="list-tree" aria-hidden="true"></i>
+                    <span>Browse</span>
+                </button>
+            </div>
+            <button id="filtersToggleButton" class="filters-toggle" type="button" aria-expanded="false" aria-controls="searchFilters">
+                <i data-lucide="sliders-horizontal" aria-hidden="true"></i>
+                <span>Filters</span>
+                <span class="filter-count-badge" id="filterCountBadge" hidden></span>
             </button>
-            <button id="browseModeButton" class="mode-tab" type="button">
-                <i data-lucide="list-tree" aria-hidden="true"></i>
-                <span>Browse</span>
-            </button>
-        </section>
-
-        <section class="search-scope" id="searchScope" aria-label="Search by">
-            <label>
-                <input type="radio" name="searchScope" value="song" checked>
-                <span>Song title</span>
-            </label>
-            <label>
-                <input type="radio" name="searchScope" value="artist">
-                <span>Artist</span>
-            </label>
         </section>
 
         <section class="search-filters" id="searchFilters" aria-label="Filter search results">
+            <div class="sheet-head">
+                <h2>Search &amp; filters</h2>
+                <button id="closeFiltersButton" class="icon-button" type="button" title="Close filters" aria-label="Close filters">
+                    <i data-lucide="x" aria-hidden="true"></i>
+                </button>
+            </div>
+            <div class="search-scope" id="searchScope" role="radiogroup" aria-label="Search in">
+                <span class="filter-label">Search in</span>
+                <label>
+                    <input type="radio" name="searchScope" value="song" checked>
+                    <span>Song title</span>
+                </label>
+                <label>
+                    <input type="radio" name="searchScope" value="artist">
+                    <span>Artist</span>
+                </label>
+            </div>
             <label class="select-filter" for="moodFilter">
                 <span class="filter-label">Mood</span>
                 <select id="moodFilter" aria-label="Filter by mood">
@@ -134,6 +147,9 @@
                 <button id="orderRelevanceButton" class="choice-button is-active" type="button">Relevance</button>
                 <button id="orderSongButton" class="choice-button" type="button">Song title</button>
                 <button id="orderArtistButton" class="choice-button" type="button">Artist</button>
+            </div>
+            <div class="sheet-foot">
+                <button id="applyFiltersButton" class="command apply-filters" type="button">Show songs</button>
             </div>
         </section>
         <section class="active-filters" id="activeFilters" aria-label="Active filters" hidden></section>
@@ -191,6 +207,8 @@
             </aside>
         </section>
     </main>
+
+    <div class="sheet-backdrop" id="sheetBackdrop" hidden></div>
 
     <button id="mobileSetlistButton" class="mobile-setlist-button" type="button" aria-label="Open setlist">
         <i data-lucide="list-music" aria-hidden="true"></i>
