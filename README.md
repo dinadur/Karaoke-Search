@@ -18,6 +18,9 @@ Live site: https://karaokesearch.uk
 - Shareable URLs — query, scope, sort, and filters sync to the address bar.
 - Dark mode (follows system preference on first visit) and saved UI state across refreshes.
 - Links out to Spotify and YouTube Music searches for each song.
+- Setlist singer assignments — tag who's singing what, included when copying/sharing.
+- Installable PWA that works fully offline after the first visit.
+- Search-match highlighting, gradient cover tiles per artist, and skeleton loading states.
 - No external runtime dependencies: icons ship as an inline SVG sprite.
 
 ## Data

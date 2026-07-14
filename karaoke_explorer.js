@@ -1799,6 +1799,11 @@ function renderBrowseControls() {
         });
         els.letterStrip.appendChild(button);
     }
+
+    const active = els.letterStrip.querySelector(".letter-button.is-active");
+    if (active) {
+        active.scrollIntoView({ block: "nearest", inline: "center" });
+    }
 }
 
 function renderSongBrowse(songs, fragment) {

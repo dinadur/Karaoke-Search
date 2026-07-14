@@ -42,15 +42,16 @@ Invoke-WebRequest -Uri 'http://127.0.0.1:8765/karaoke_explorer.html' -UseBasicPa
 
 ## Versioning
 
-`karaoke_explorer.js` defines `APP_VERSION`. The HTML also references `karaoke_explorer.css?v=...` and `karaoke_explorer.js?v=...`.
+`karaoke_explorer.js` defines `APP_VERSION`. The HTML also references `karaoke_explorer.css?v=...` and `karaoke_explorer.js?v=...`, and `sw.js` defines `CACHE_VERSION` for the offline cache.
 
-When editing JS or CSS, update all three version references together:
+When editing JS, CSS, or data files, update all four version references together:
 
 - `APP_VERSION` in `karaoke_explorer.js`
 - CSS query string in `karaoke_explorer.html`
 - JS query string in `karaoke_explorer.html`
+- `CACHE_VERSION` in `sw.js` (must equal `APP_VERSION`, or the service worker precache misses the URLs the page requests and offline mode breaks)
 
-This is used as a simple cache buster for Vercel and browsers.
+This is used as a cache buster for Vercel, browsers, and the service worker cache.
 
 ## Current App Behavior
 
@@ -68,7 +69,12 @@ This is used as a simple cache buster for Vercel and browsers.
 - Setlist supports add, remove (undo via snackbar), copy, share (Web Share API when available), clear (undo), drag reorder, and up/down reorder.
 - Song titles are cleaned for display only (`getDisplaySongTitle`): karaoke bracket noise, empty/dangling brackets, and unclosed trailing brackets are stripped. Identity keys still use raw values.
 - Icons render from an inline SVG sprite in `karaoke_explorer.html` (no CDN). New icons must be added to the sprite as `<symbol id="icon-NAME">` and referenced via `<i data-lucide="NAME">` + `hydrateIcons()`.
-- Assets are cached immutably via `vercel.json` headers; the HTML revalidates. Bumping `APP_VERSION` + the HTML query strings remains the cache-busting mechanism, including for the catalog JSON.
+- Assets are cached immutably via `vercel.json` headers; the HTML, `sw.js`, and `manifest.json` revalidate. Bumping the version references (see Versioning) is the cache-busting mechanism, including for the catalog JSON.
+- The app is an installable PWA: `manifest.json` + `sw.js` precache the shell and catalog, so the app works offline after one visit.
+- Song cards show deterministic gradient cover tiles (hue hashed from artist key) with artist initials; matched query text is highlighted via a per-character `normalize()` index map.
+- Discover shelves hide scrollbars (edge fades + hover arrows + dice reshuffle button); skeleton shelves show while the catalog loads.
+- Setlist entries support an optional `singer` field (inline edit, shown as a chip, included in copy/share text); entries are stored as copies of catalog songs.
+- Deploys from `main` may need a manual "Promote to Production" in the Vercel dashboard: `main` is updated server-side by the git proxy and Vercel sometimes only builds it as a preview.
 
 ## Data Notes
 

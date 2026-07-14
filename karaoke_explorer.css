@@ -2085,9 +2085,19 @@ dialog::backdrop {
     }
 
     .letter-strip {
+        position: sticky;
+        top: 66px;
+        z-index: 12;
         flex-wrap: nowrap;
+        margin: 0 -14px;
+        padding: 6px 14px 8px;
         overflow-x: auto;
-        padding-bottom: 4px;
+        background: var(--bg);
+        scrollbar-width: none;
+    }
+
+    .letter-strip::-webkit-scrollbar {
+        display: none;
     }
 
     .letter-button {
