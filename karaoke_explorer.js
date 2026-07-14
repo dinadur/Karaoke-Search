@@ -210,7 +210,6 @@ const state = {
         decade: "",
         holiday: "",
         duet: false,
-        explicit: false,
     },
     mode: "search",
     browseBy: "song",
@@ -241,7 +240,6 @@ const els = {
     decadeFilter: document.getElementById("decadeFilter"),
     holidayFilter: document.getElementById("holidayFilter"),
     duetFilter: document.getElementById("duetFilter"),
-    explicitFilter: document.getElementById("explicitFilter"),
     favoriteFilter: document.getElementById("favoriteFilter"),
     fuzzySearch: document.getElementById("fuzzySearch"),
     clearFiltersButton: document.getElementById("clearFiltersButton"),
@@ -376,13 +374,6 @@ function bindEvents() {
 
     els.duetFilter.addEventListener("change", () => {
         state.filters.duet = els.duetFilter.checked;
-        state.mode = "search";
-        resetResultLimit();
-        render();
-    });
-
-    els.explicitFilter.addEventListener("change", () => {
-        state.filters.explicit = els.explicitFilter.checked;
         state.mode = "search";
         resetResultLimit();
         render();
@@ -1040,7 +1031,6 @@ function countActiveFilters() {
         state.filters.holiday,
     ].filter(Boolean).length +
         Number(state.filters.duet) +
-        Number(state.filters.explicit) +
         Number(state.favoriteOnly) +
         Number(state.fuzzySearch);
 }
@@ -1166,10 +1156,6 @@ function applySearchFilters(songs) {
             return false;
         }
 
-        if (state.filters.explicit && !hasFlag(song, "Explicit")) {
-            return false;
-        }
-
         if (state.favoriteOnly && !isFavorite(song)) {
             return false;
         }
@@ -1247,7 +1233,6 @@ function clearSearchFilters({ resetFuzzy = true } = {}) {
     state.filters.decade = "";
     state.filters.holiday = "";
     state.filters.duet = false;
-    state.filters.explicit = false;
     state.favoriteOnly = false;
 
     if (resetFuzzy) {
@@ -2390,7 +2375,6 @@ function applyArtistSearch(artistName) {
     state.filters.decade = "";
     state.filters.holiday = "";
     state.filters.duet = false;
-    state.filters.explicit = false;
     state.mode = "search";
     state.query = artistName;
     state.searchScope = "artist";
@@ -2571,7 +2555,6 @@ function applyStoredUiState() {
         state.filters.decade = typeof stored.filters.decade === "string" ? stored.filters.decade : "";
         state.filters.holiday = typeof stored.filters.holiday === "string" ? stored.filters.holiday : "";
         state.filters.duet = Boolean(stored.filters.duet);
-        state.filters.explicit = Boolean(stored.filters.explicit);
     }
 }
 
@@ -2622,7 +2605,6 @@ function applyInitialRoute() {
     if (decade) state.filters.decade = decade;
     if (holiday) state.filters.holiday = holiday;
     if (params.get("duet") === "1") state.filters.duet = true;
-    if (params.get("explicit") === "1") state.filters.explicit = true;
     if (params.get("favorites") === "1") state.favoriteOnly = true;
     if (params.get("fuzzy") === "1") state.fuzzySearch = true;
 }
@@ -2673,7 +2655,6 @@ function syncUrlState() {
         if (state.filters.decade) params.set("decade", state.filters.decade);
         if (state.filters.holiday) params.set("holiday", state.filters.holiday);
         if (state.filters.duet) params.set("duet", "1");
-        if (state.filters.explicit) params.set("explicit", "1");
         if (state.favoriteOnly) params.set("favorites", "1");
         if (state.fuzzySearch) params.set("fuzzy", "1");
     }
@@ -3237,7 +3218,6 @@ function renderSearchFilters() {
     els.decadeFilter.value = state.filters.decade;
     els.holidayFilter.value = state.filters.holiday;
     els.duetFilter.checked = state.filters.duet;
-    els.explicitFilter.checked = state.filters.explicit;
     els.favoriteFilter.checked = state.favoriteOnly;
     els.fuzzySearch.checked = state.fuzzySearch;
     els.clearFiltersButton.hidden = !hasActiveSearchFilters();
@@ -3297,15 +3277,6 @@ function renderActiveFilters() {
             label: "Duet",
             onClear: () => {
                 state.filters.duet = false;
-            },
-        });
-    }
-
-    if (state.filters.explicit) {
-        chips.push({
-            label: "Explicit",
-            onClear: () => {
-                state.filters.explicit = false;
             },
         });
     }
@@ -3378,7 +3349,6 @@ function hasActiveSearchFilters() {
         Boolean(state.filters.decade) ||
         Boolean(state.filters.holiday) ||
         state.filters.duet ||
-        state.filters.explicit ||
         state.favoriteOnly ||
         state.fuzzySearch;
 }
@@ -3389,7 +3359,6 @@ function hasSongFilters() {
         Boolean(state.filters.decade) ||
         Boolean(state.filters.holiday) ||
         state.filters.duet ||
-        state.filters.explicit ||
         state.favoriteOnly;
 }
 
