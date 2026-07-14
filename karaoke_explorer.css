@@ -2109,6 +2109,27 @@ dialog::backdrop {
     .song-tags-popout {
         animation: fade-in 0.14s ease;
     }
+
+    .is-discover .shelf {
+        animation: rise-in 0.28s ease;
+    }
+}
+
+.reshuffle-button {
+    min-height: 38px;
+}
+
+.reshuffle-button svg {
+    width: 16px;
+    height: 16px;
+}
+
+.draft-cta {
+    margin-top: 12px;
+}
+
+.setlist > .empty-state .draft-cta {
+    display: inline-flex;
 }
 
 @keyframes sheet-up {

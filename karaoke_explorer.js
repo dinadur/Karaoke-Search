@@ -2940,7 +2940,22 @@ function renderSetlist() {
     );
 
     if (!state.setlist.length) {
-        els.setlist.innerHTML = '<li class="empty-state">Nothing queued</li>';
+        const empty = document.createElement("li");
+        empty.className = "empty-state";
+
+        const message = document.createElement("p");
+        message.textContent = "Nothing queued";
+
+        const draft = document.createElement("button");
+        draft.className = "command subtle-command draft-cta";
+        draft.type = "button";
+        draft.innerHTML = '<i data-lucide="dices" aria-hidden="true"></i><span>Draft 10 songs for me</span>';
+        draft.title = "Fill the setlist from your current results";
+        draft.addEventListener("click", draftSetlist);
+
+        empty.append(message, draft);
+        els.setlist.appendChild(empty);
+        hydrateIcons();
         return;
     }
 
