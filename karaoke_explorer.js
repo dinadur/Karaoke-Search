@@ -692,6 +692,7 @@ function useSongs(songs) {
         (count, song) => count + (song.status === "ok" ? 1 : 0), 0
     );
     state.defaultRankedSongs = [...state.songs].sort((a, b) =>
+        (b.popularity || 0) - (a.popularity || 0) ||
         (b.confidence || 0) - (a.confidence || 0) ||
         compareArtistSort(a, b) ||
         compareSongSort(a, b)
@@ -1191,7 +1192,10 @@ function rankSongs(songs, query, { fuzzy = state.fuzzySearch } = {}) {
             return { song, score };
         })
         .filter((item) => item.score > 0)
-        .sort((a, b) => b.score - a.score || compareArtistSort(a.song, b.song) || compareSongSort(a.song, b.song))
+        .sort((a, b) => b.score - a.score ||
+            (b.song.popularity || 0) - (a.song.popularity || 0) ||
+            compareArtistSort(a.song, b.song) ||
+            compareSongSort(a.song, b.song))
         .map((item) => item.song);
 }
 
@@ -1418,6 +1422,14 @@ function buildDiscoverShelves() {
 function buildSampledShelves() {
     const shelves = [];
     const tagged = state.songs.filter((song) => song.status === "ok");
+
+    const popular = state.songs.filter((song) => (song.popularity || 0) > 0);
+    if (popular.length >= 100) {
+        const top = [...popular]
+            .sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
+            .slice(0, 800);
+        shelves.push({ title: "Crowd pleasers", songs: sampleSongs(top, 8) });
+    }
 
     shelves.push({
         title: "Lucky dip",
@@ -2929,7 +2941,7 @@ function shouldGroupSearchResults() {
 
 function renderSetlist() {
     els.setlist.innerHTML = "";
-    els.setlistCount.textContent = `${state.setlist.length} ${state.setlist.length === 1 ? "song" : "songs"}`;
+    els.setlistCount.textContent = getSetlistSummary();
     els.copySetlistButton.disabled = !state.setlist.length;
     els.clearSetlistButton.disabled = !state.setlist.length;
     els.mobileSetlistButton.querySelector("span").textContent =
@@ -3293,9 +3305,14 @@ function draftSetlist() {
         return;
     }
 
-    const pool = getDraftPool().filter(
+    let pool = getDraftPool().filter(
         (song) => !state.setlist.some((item) => isSameSong(item, song))
     );
+    if (pool.length > 300 && pool.some((song) => (song.popularity || 0) > 0)) {
+        pool = [...pool]
+            .sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
+            .slice(0, Math.max(300, Math.floor(pool.length * 0.2)));
+    }
     const additions = sampleSongs(pool, missing);
     if (!additions.length) {
         showSnackbar("No matching songs left to draft");
@@ -3365,6 +3382,20 @@ function hideSnackbar() {
     state.snackbarTimer = 0;
     state.snackbarAction = null;
     els.snackbar.hidden = true;
+}
+
+function getSetlistSummary() {
+    const count = state.setlist.length;
+    const label = `${count} ${count === 1 ? "song" : "songs"}`;
+    if (!count) {
+        return label;
+    }
+
+    // Average karaoke track is ~3.5 min; use real durations where known.
+    const totalSeconds = state.setlist.reduce(
+        (sum, song) => sum + (song.seconds || 210), 0
+    );
+    return `${label} · ~${Math.max(1, Math.round(totalSeconds / 60))} min`;
 }
 
 function moveSetlistItem(index, direction) {
