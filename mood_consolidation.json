@@ -71,6 +71,7 @@
       "label": "Mellow",
       "tags": [
         "ambient",
+        "ballad",
         "chill",
         "easy listening",
         "lounge",
@@ -90,6 +91,21 @@
         "americana",
         "bluegrass",
         "indie folk"
+      ]
+    },
+    {
+      "label": "Big chorus",
+      "tags": [
+        "arena rock",
+        "anthemic"
+      ]
+    },
+    {
+      "label": "Romantic",
+      "tags": [
+        "romantic",
+        "love songs",
+        "love song"
       ]
     }
   ]

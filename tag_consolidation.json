@@ -37,13 +37,6 @@
       "musicBrainzArtists": 58
     },
     {
-      "tag": "blues",
-      "label": "Blues",
-      "overlapArtists": 92,
-      "lastFmArtists": 308,
-      "musicBrainzArtists": 131
-    },
-    {
       "tag": "blues rock",
       "label": "Blues rock",
       "overlapArtists": 107,
@@ -72,13 +65,6 @@
       "musicBrainzArtists": 121
     },
     {
-      "tag": "country",
-      "label": "Country",
-      "overlapArtists": 511,
-      "lastFmArtists": 955,
-      "musicBrainzArtists": 585
-    },
-    {
       "tag": "country pop",
       "label": "Country pop",
       "overlapArtists": 35,
@@ -93,13 +79,6 @@
       "musicBrainzArtists": 108
     },
     {
-      "tag": "dance",
-      "label": "Dance",
-      "overlapArtists": 104,
-      "lastFmArtists": 817,
-      "musicBrainzArtists": 166
-    },
-    {
       "tag": "disco",
       "label": "Disco",
       "overlapArtists": 82,
@@ -107,39 +86,11 @@
       "musicBrainzArtists": 140
     },
     {
-      "tag": "electronic",
-      "label": "Electronic",
-      "overlapArtists": 246,
-      "lastFmArtists": 855,
-      "musicBrainzArtists": 338
-    },
-    {
-      "tag": "electropop",
-      "label": "Electropop",
-      "overlapArtists": 65,
-      "lastFmArtists": 162,
-      "musicBrainzArtists": 207
-    },
-    {
-      "tag": "emo",
-      "label": "Emo",
-      "overlapArtists": 105,
-      "lastFmArtists": 273,
-      "musicBrainzArtists": 119
-    },
-    {
       "tag": "eurodance",
       "label": "Eurodance",
       "overlapArtists": 40,
       "lastFmArtists": 82,
       "musicBrainzArtists": 52
-    },
-    {
-      "tag": "folk",
-      "label": "Folk",
-      "overlapArtists": 192,
-      "lastFmArtists": 626,
-      "musicBrainzArtists": 283
     },
     {
       "tag": "folk rock",
@@ -191,20 +142,6 @@
       "musicBrainzArtists": 89
     },
     {
-      "tag": "hardcore punk",
-      "label": "Hardcore punk",
-      "overlapArtists": 45,
-      "lastFmArtists": 106,
-      "musicBrainzArtists": 68
-    },
-    {
-      "tag": "heavy metal",
-      "label": "Heavy metal",
-      "overlapArtists": 95,
-      "lastFmArtists": 196,
-      "musicBrainzArtists": 137
-    },
-    {
       "tag": "hip hop",
       "label": "Hip hop",
       "overlapArtists": 410,
@@ -240,25 +177,11 @@
       "musicBrainzArtists": 499
     },
     {
-      "tag": "jazz",
-      "label": "Jazz",
-      "overlapArtists": 140,
-      "lastFmArtists": 361,
-      "musicBrainzArtists": 202
-    },
-    {
       "tag": "latin",
       "label": "Latin",
       "overlapArtists": 155,
       "lastFmArtists": 314,
       "musicBrainzArtists": 186
-    },
-    {
-      "tag": "latin pop",
-      "label": "Latin pop",
-      "overlapArtists": 58,
-      "lastFmArtists": 106,
-      "musicBrainzArtists": 104
     },
     {
       "tag": "metal",
@@ -359,55 +282,6 @@
       "musicBrainzArtists": 140
     },
     {
-      "tag": "punk",
-      "label": "Punk",
-      "overlapArtists": 232,
-      "lastFmArtists": 560,
-      "musicBrainzArtists": 287
-    },
-    {
-      "tag": "punk rock",
-      "label": "Punk rock",
-      "overlapArtists": 160,
-      "lastFmArtists": 410,
-      "musicBrainzArtists": 218
-    },
-    {
-      "tag": "r and b",
-      "label": "R&B",
-      "overlapArtists": 123,
-      "lastFmArtists": 447,
-      "musicBrainzArtists": 373
-    },
-    {
-      "tag": "rnb",
-      "label": "R&B",
-      "overlapArtists": 57,
-      "lastFmArtists": 984,
-      "musicBrainzArtists": 79
-    },
-    {
-      "tag": "rhythm and blues",
-      "label": "R&B",
-      "overlapArtists": 57,
-      "lastFmArtists": 263,
-      "musicBrainzArtists": 111
-    },
-    {
-      "tag": "rap",
-      "label": "Rap",
-      "overlapArtists": 106,
-      "lastFmArtists": 756,
-      "musicBrainzArtists": 125
-    },
-    {
-      "tag": "reggae",
-      "label": "Reggae",
-      "overlapArtists": 49,
-      "lastFmArtists": 152,
-      "musicBrainzArtists": 64
-    },
-    {
       "tag": "rock",
       "label": "Rock",
       "overlapArtists": 1087,
@@ -443,32 +317,11 @@
       "musicBrainzArtists": 394
     },
     {
-      "tag": "ska",
-      "label": "Ska",
-      "overlapArtists": 59,
-      "lastFmArtists": 118,
-      "musicBrainzArtists": 65
-    },
-    {
-      "tag": "ska punk",
-      "label": "Ska punk",
-      "overlapArtists": 38,
-      "lastFmArtists": 71,
-      "musicBrainzArtists": 49
-    },
-    {
       "tag": "soft rock",
       "label": "Soft rock",
       "overlapArtists": 87,
       "lastFmArtists": 241,
       "musicBrainzArtists": 204
-    },
-    {
-      "tag": "soul",
-      "label": "Soul",
-      "overlapArtists": 392,
-      "lastFmArtists": 1085,
-      "musicBrainzArtists": 461
     },
     {
       "tag": "southern rock",
@@ -500,19 +353,43 @@
     }
   ],
   "aliases": {
-    "hiphop": "Hip hop",
+    "americana": "Country / folk",
+    "blues": "Jazz / blues",
+    "country": "Country / folk",
+    "country and western": "Country / folk",
+    "dance": "Dance / electronic",
+    "edm": "Dance / electronic",
+    "electronic": "Dance / electronic",
+    "electronica": "Dance / electronic",
+    "electropop": "Synthpop",
+    "emo": "Punk / emo",
+    "folk": "Country / folk",
+    "hardcore punk": "Hardcore",
+    "heavy metal": "Metal",
     "hip hop": "Hip hop",
+    "hiphop": "Hip hop",
+    "jazz": "Jazz / blues",
+    "latin pop": "Latin",
+    "post grunge": "Post-grunge",
     "post hardcore": "Post-hardcore",
     "post punk": "Post-punk",
-    "post grunge": "Post-grunge",
-    "r and b": "R&B",
-    "r b": "R&B",
-    "rnb": "R&B",
-    "rhythm and blues": "R&B",
+    "punk": "Punk / emo",
+    "punk rock": "Punk / emo",
+    "r and b": "R and B / soul",
+    "r b": "R and B / soul",
+    "randb": "R and B / soul",
+    "rap": "Hip hop",
+    "reggae": "Reggae / ska",
+    "rhythm and blues": "R and B / soul",
+    "rnb": "R and B / soul",
     "rock n roll": "Rock and roll",
     "rock roll": "Rock and roll",
     "singer songwriter": "Singer-songwriter",
-    "synth pop": "Synthpop"
+    "ska": "Reggae / ska",
+    "ska punk": "Reggae / ska",
+    "soul": "R and B / soul",
+    "synth pop": "Synthpop",
+    "vocal jazz": "Vocal jazz"
   },
   "hiddenOtherTags": [
     "00s",
