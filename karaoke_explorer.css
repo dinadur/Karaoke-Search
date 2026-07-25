@@ -2519,3 +2519,12 @@ dialog::backdrop {
         height: 18px;
     }
 }
+
+/* Last in the cascade on purpose: .setlist-handle sets display later in this
+   file. HTML5 drag events never fire from touch, so on touch devices the grab
+   handle would be pure decoration - the up/down buttons are the reorder path. */
+@media (hover: none) {
+    .setlist-handle {
+        display: none;
+    }
+}

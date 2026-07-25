@@ -1,4 +1,4 @@
-const APP_VERSION = "20260715-7";
+const APP_VERSION = "20260715-8";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const TAG_CONSOLIDATION_URL = `tag_consolidation.json?v=${APP_VERSION}`;
 const MOOD_CONSOLIDATION_URL = `mood_consolidation.json?v=${APP_VERSION}`;
@@ -6,6 +6,11 @@ const RESULT_BATCH_SIZE = 160;
 const POPULAR_PILL_PERCENTILE = 0.9;
 const SEARCH_RENDER_DELAY = 90;
 const SEARCH_SCOPES = ["all", "song", "artist"];
+// Params that fully describe a shared view (init() runs before later consts,
+// so this must live with the top-level constants).
+const ROUTE_PARAMS = ["q", "scope", "sort", "mood", "genre", "decade", "holiday",
+    "duet", "popular", "favorites", "fuzzy", "mode", "by", "letter"];
+
 const MULTI_FILTER_DEFS = [
     {
         key: "moods",
@@ -234,6 +239,7 @@ const state = {
     randomPick: null,
     snackbarTimer: 0,
     snackbarAction: null,
+    pushHistory: false,
     pendingSharedSetlist: "",
     fuzzySearch: false,
     favoriteOnly: false,
@@ -480,6 +486,7 @@ function bindEvents() {
     });
 
     els.browseModeButton.addEventListener("click", () => {
+        state.pushHistory = true;
         state.mode = "browse";
         ensureBrowseLetter();
         render();
@@ -728,6 +735,7 @@ function useSongs(songs) {
     state.availableDecades = getAvailableDecades();
     state.availableHolidays = getAvailableValues(getHolidayValues);
     state.cachedDiscoverShelves = null;
+    sanitizeFilterValues();
     renderFilterOptions();
     updateSearchPlaceholder();
     ensureBrowseLetter();
@@ -917,6 +925,7 @@ function render() {
         els.randomPick.innerHTML = "";
         els.shuffleShelvesButton.hidden = true;
         renderBrowse();
+        renderGroupActions();
         renderStatus(getBrowseSongs().length);
         renderResultContext();
         saveUiState();
@@ -959,6 +968,7 @@ function render() {
 }
 
 function goToDiscover() {
+    state.pushHistory = true;
     clearSearchQuery();
     clearSearchFilters();
     state.mode = "search";
@@ -1595,6 +1605,7 @@ function sampleSongs(pool, count) {
 }
 
 function applyShelfFilter(mutate) {
+    state.pushHistory = true;
     mutate();
     state.mode = "search";
     resetResultLimit();
@@ -1878,14 +1889,17 @@ function renderGroupedSearchResults() {
 }
 
 function renderGroupActions() {
-    els.groupActions.hidden = !shouldGroupSearchResults() || !state.visibleSongs.length;
+    const browseGrouped = state.mode === "browse" && state.browseBy === "artist";
+    const searchGrouped = shouldGroupSearchResults() && state.visibleSongs.length > 0;
+    els.groupActions.hidden = !browseGrouped && !searchGrouped;
     els.expandGroupsButton.disabled = state.groupOpenMode === "expanded";
     els.collapseGroupsButton.disabled = state.groupOpenMode === "collapsed";
 }
 
 function setGroupedResultsOpen(open) {
     state.groupOpenMode = open ? "expanded" : "collapsed";
-    for (const section of els.resultsList.querySelectorAll(".browse-section")) {
+    const container = state.mode === "browse" ? els.browseList : els.resultsList;
+    for (const section of container.querySelectorAll(".browse-section")) {
         section.open = open;
     }
     renderGroupActions();
@@ -1987,7 +2001,9 @@ function renderArtistBrowse(songs, fragment) {
     for (const group of groups) {
         const section = createBrowseSection(group.artist, group.songs.length, false);
         const body = section.querySelector(".browse-items");
-        section.open = groups.length <= 8;
+        section.open = state.groupOpenMode === "expanded" ? true
+            : state.groupOpenMode === "collapsed" ? false
+            : groups.length <= 8;
 
         for (const song of group.songs) {
             const row = document.createElement("div");
@@ -2553,6 +2569,7 @@ function capPills(container, limit) {
 }
 
 function applyPillFilter(filterName, value) {
+    state.pushHistory = true;
     const def = MULTI_FILTER_DEFS.find((item) => item.param === filterName);
     if (def) {
         state.filters[def.key] = [value];
@@ -2572,6 +2589,7 @@ function applyPillFilter(filterName, value) {
 }
 
 function applyArtistSearch(artistName) {
+    state.pushHistory = true;
     for (const def of MULTI_FILTER_DEFS) {
         state.filters[def.key] = [];
     }
@@ -2694,11 +2712,53 @@ function renderResultActions(totalMatches) {
 }
 
 function applyInitialState() {
-    applyStoredUiState();
+    const params = new URLSearchParams(window.location.search);
+    // A link that carries state describes a complete view. Merging it with the
+    // visitor's stored filters made shared links show something else entirely.
+    if (!ROUTE_PARAMS.some((key) => params.has(key))) {
+        applyStoredUiState();
+    }
+
     applyInitialRoute();
     els.searchInput.value = state.query;
     syncSearchScopeInput();
     updateSearchPlaceholder();
+    bindHistoryNavigation();
+}
+
+function resetViewState() {
+    clearSearchQuery();
+    clearSearchFilters();
+    state.mode = "search";
+    state.browseBy = "song";
+    state.sortMode = "relevance";
+    state.groupOpenMode = "auto";
+    state.randomPick = null;
+}
+
+function bindHistoryNavigation() {
+    window.addEventListener("popstate", () => {
+        resetViewState();
+        applyInitialRoute();
+        sanitizeFilterValues();
+        els.searchInput.value = state.query;
+        syncSearchScopeInput();
+        updateSearchPlaceholder();
+        ensureBrowseLetter();
+        resetResultLimit();
+        render();
+    });
+}
+
+// URL values may be stale, mis-cased, or hand-edited; keep only ones the
+// catalog actually has, mapped to their canonical label.
+function sanitizeFilterValues() {
+    for (const def of MULTI_FILTER_DEFS) {
+        const available = def.options();
+        state.filters[def.key] = state.filters[def.key]
+            .map((value) => available.find((option) => normalize(option) === normalize(value)) || "")
+            .filter(Boolean);
+    }
 }
 
 function applyStoredUiState() {
@@ -2877,12 +2937,21 @@ function syncUrlState() {
     }
 
     const search = params.toString() ? `?${params.toString()}` : "";
-    if (window.location.search !== search) {
-        try {
-            history.replaceState(null, "", `${window.location.pathname}${search}`);
-        } catch {
-            // URL sync is a convenience (e.g. blocked in sandboxed iframes); ignore.
+    const push = state.pushHistory;
+    state.pushHistory = false;
+    if (window.location.search === search) {
+        return;
+    }
+
+    try {
+        const url = `${window.location.pathname}${search}`;
+        if (push) {
+            history.pushState(null, "", url);
+        } else {
+            history.replaceState(null, "", url);
         }
+    } catch {
+        // URL sync is a convenience (e.g. blocked in sandboxed iframes); ignore.
     }
 }
 
