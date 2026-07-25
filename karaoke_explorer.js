@@ -1,4 +1,4 @@
-const APP_VERSION = "20260715-2";
+const APP_VERSION = "20260715-3";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const TAG_CONSOLIDATION_URL = `tag_consolidation.json?v=${APP_VERSION}`;
 const MOOD_CONSOLIDATION_URL = `mood_consolidation.json?v=${APP_VERSION}`;
@@ -266,6 +266,7 @@ const state = {
 
 const els = {
     status: document.getElementById("status"),
+    homeButton: document.getElementById("homeButton"),
     searchInput: document.getElementById("searchInput"),
     randomButton: document.getElementById("randomButton"),
     clearButton: document.getElementById("clearButton"),
@@ -385,6 +386,8 @@ async function init() {
 }
 
 function bindEvents() {
+    els.homeButton.addEventListener("click", goToDiscover);
+
     els.themeButton.addEventListener("click", () => {
         const nextTheme = getTheme() === "dark" ? "light" : "dark";
         setTheme(nextTheme);
@@ -931,6 +934,23 @@ function render() {
     saveUiState();
 
     hydrateIcons();
+}
+
+function goToDiscover() {
+    clearSearchQuery();
+    clearSearchFilters();
+    state.mode = "search";
+    state.sortMode = "relevance";
+    state.groupOpenMode = "auto";
+    state.randomPick = null;
+    closeMultiFilterPopovers();
+    closeFiltersSheet({ restoreFocus: false });
+    resetResultLimit();
+    render();
+    window.scrollTo({
+        top: 0,
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+    });
 }
 
 function isDiscoverView() {
