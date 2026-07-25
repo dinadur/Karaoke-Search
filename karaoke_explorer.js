@@ -1,4 +1,4 @@
-const APP_VERSION = "20260715-3";
+const APP_VERSION = "20260715-4";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const TAG_CONSOLIDATION_URL = `tag_consolidation.json?v=${APP_VERSION}`;
 const MOOD_CONSOLIDATION_URL = `mood_consolidation.json?v=${APP_VERSION}`;
@@ -2842,11 +2842,40 @@ function addToSetlist(song) {
     recordRecentSearch();
     const exists = state.setlist.some((item) => isSameSong(item, song));
     if (!exists) {
-        // Copy so setlist-only fields (e.g. singer) never mutate catalog entries.
-        state.setlist.push({ ...song });
+        state.setlist.push(toSetlistEntry(song));
         saveSetlist();
         renderSetlist();
     }
+}
+
+// Store only what the setlist needs. Copying whole prepared songs dragged
+// ~1.1KB of search indexes per entry into localStorage, and their Set fields
+// serialized to empty objects that would break any code expecting Sets.
+function toSetlistEntry(song, extra = {}) {
+    const entry = {
+        id: song.id,
+        legacyId: song.legacyId,
+        song: song.song,
+        lookupSong: song.lookupSong,
+        artist: song.artist,
+        lookupArtist: song.lookupArtist,
+        displayArtist: song.displayArtist,
+        artistKey: song.artistKey,
+        seconds: song.seconds,
+        ...extra,
+    };
+
+    if (song.singer) {
+        entry.singer = song.singer;
+    }
+
+    for (const key of Object.keys(entry)) {
+        if (entry[key] === undefined) {
+            delete entry[key];
+        }
+    }
+
+    return entry;
 }
 
 function toggleFavorite(song) {
@@ -3279,11 +3308,11 @@ async function offerSharedSetlistImport() {
     const applyImport = (replace) => {
         const previous = [...state.setlist];
         if (replace) {
-            state.setlist = shared.map((song) => ({ ...song }));
+            state.setlist = shared.map((song) => toSetlistEntry(song));
         } else {
             for (const song of shared) {
                 if (!state.setlist.some((item) => isSameSong(item, song))) {
-                    state.setlist.push({ ...song });
+                    state.setlist.push(toSetlistEntry(song));
                 }
             }
         }
@@ -3342,7 +3371,7 @@ function draftSetlist() {
 
     const previous = [...state.setlist];
     for (const song of additions) {
-        state.setlist.push({ ...song });
+        state.setlist.push(toSetlistEntry(song));
     }
     saveSetlist();
     renderSetlist();
@@ -3371,10 +3400,7 @@ function rerollSetlistSong(index) {
         return;
     }
 
-    const next = { ...replacement };
-    if (current.singer) {
-        next.singer = current.singer;
-    }
+    const next = toSetlistEntry(replacement, current.singer ? { singer: current.singer } : {});
     state.setlist.splice(index, 1, next);
     saveSetlist();
     renderSetlist();
@@ -3448,7 +3474,14 @@ function saveSetlist() {
 
 function loadSetlist() {
     try {
-        return JSON.parse(localStorage.getItem("karaokeSetlist") || "[]");
+        const stored = JSON.parse(localStorage.getItem("karaokeSetlist") || "[]");
+        if (!Array.isArray(stored)) {
+            return [];
+        }
+
+        // Entries saved by older versions carry the full prepared song; slim
+        // them so the next save writes the compact shape.
+        return stored.map((song) => toSetlistEntry(song));
     } catch {
         return [];
     }

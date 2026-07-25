@@ -1914,7 +1914,9 @@ button.browse-artist:focus-visible {
 }
 
 .setlist-icon-button:disabled,
-.icon-button:disabled {
+.icon-button:disabled,
+.command:disabled,
+.choice-button:disabled {
     opacity: 0.42;
     cursor: default;
 }
