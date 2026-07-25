@@ -73,12 +73,15 @@
         "ambient",
         "ballad",
         "chill",
+        "chill out",
+        "chillout",
         "easy listening",
         "lounge",
         "mellow",
         "quiet storm",
         "slow jam",
         "slow jams",
+        "smooth",
         "soft rock",
         "trip hop",
         "vocal jazz"
@@ -96,8 +99,11 @@
     {
       "label": "Big chorus",
       "tags": [
+        "anthemic",
         "arena rock",
-        "anthemic"
+        "diva",
+        "divas",
+        "powerhouse vocals"
       ]
     },
     {
@@ -106,6 +112,21 @@
         "romantic",
         "love songs",
         "love song"
+      ]
+    },
+    {
+      "label": "Nostalgic",
+      "tags": [
+        "golden oldies",
+        "oldie",
+        "oldies"
+      ]
+    },
+    {
+      "label": "Party",
+      "tags": [
+        "club",
+        "party anthem"
       ]
     }
   ]
