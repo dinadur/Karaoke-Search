@@ -1,8 +1,9 @@
-const APP_VERSION = "20260715-4";
+const APP_VERSION = "20260715-5";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const TAG_CONSOLIDATION_URL = `tag_consolidation.json?v=${APP_VERSION}`;
 const MOOD_CONSOLIDATION_URL = `mood_consolidation.json?v=${APP_VERSION}`;
 const RESULT_BATCH_SIZE = 160;
+const POPULAR_PILL_PERCENTILE = 0.9;
 const SEARCH_RENDER_DELAY = 90;
 const SEARCH_SCOPES = ["all", "song", "artist"];
 const MULTI_FILTER_DEFS = [
@@ -243,6 +244,7 @@ const state = {
     availableHolidays: [],
     defaultRankedSongs: [],
     queryScopedSongs: [],
+    popularThreshold: 0,
     taggedCount: 0,
     cachedDiscoverShelves: null,
     promotedGenreTags: new Map(),
@@ -287,6 +289,7 @@ const els = {
     clearFiltersButton: document.getElementById("clearFiltersButton"),
     activeFilters: document.getElementById("activeFilters"),
     orderRelevanceButton: document.getElementById("orderRelevanceButton"),
+    orderPopularButton: document.getElementById("orderPopularButton"),
     orderSongButton: document.getElementById("orderSongButton"),
     orderArtistButton: document.getElementById("orderArtistButton"),
     browseTools: document.getElementById("browseTools"),
@@ -447,6 +450,7 @@ function bindEvents() {
     });
 
     els.orderRelevanceButton.addEventListener("click", () => setSearchOrder("relevance"));
+    els.orderPopularButton.addEventListener("click", () => setSearchOrder("popular"));
     els.orderSongButton.addEventListener("click", () => setSearchOrder("song"));
     els.orderArtistButton.addEventListener("click", () => setSearchOrder("artist"));
     els.expandGroupsButton.addEventListener("click", () => setGroupedResultsOpen(true));
@@ -694,6 +698,15 @@ function useSongs(songs) {
     state.taggedCount = state.songs.reduce(
         (count, song) => count + (song.status === "ok" ? 1 : 0), 0
     );
+    // "Popular" marks the top decile of songs that have a popularity score,
+    // so the badge stays meaningful as score coverage grows.
+    const scores = state.songs
+        .map((song) => song.popularity || 0)
+        .filter(Boolean)
+        .sort((a, b) => a - b);
+    state.popularThreshold = scores.length
+        ? scores[Math.floor(scores.length * POPULAR_PILL_PERCENTILE)]
+        : 0;
     state.defaultRankedSongs = [...state.songs].sort((a, b) =>
         (b.popularity || 0) - (a.popularity || 0) ||
         (b.confidence || 0) - (a.confidence || 0) ||
@@ -1253,6 +1266,14 @@ function matchesFilterKey(song, key, value) {
 
 function sortSongs(songs) {
     const mode = state.sortMode;
+
+    if (mode === "popular") {
+        return [...songs].sort((a, b) =>
+            (b.popularity || 0) - (a.popularity || 0) ||
+            compareArtistSort(a, b) ||
+            compareSongSort(a, b)
+        );
+    }
 
     if (mode === "artist") {
         return [...songs].sort((a, b) => compareArtistSort(a, b) || compareSongSort(a, b));
@@ -2180,6 +2201,13 @@ function createSongCard(song) {
 
     const meta = document.createElement("div");
     meta.className = "meta-row";
+    if (state.popularThreshold && (song.popularity || 0) >= state.popularThreshold) {
+        const popular = document.createElement("span");
+        popular.className = "pill popular";
+        popular.textContent = "Popular";
+        popular.title = "Among the most-streamed songs in this songbook";
+        meta.appendChild(popular);
+    }
     appendPills(meta, getSongMoods(song), "mood", "mood");
     appendPills(meta, getSongGenres(song), "genre", "genre");
     appendPills(meta, song.eras, "era", "decade");
@@ -2701,7 +2729,7 @@ function applyStoredUiState() {
         state.favoriteOnly = stored.favoriteOnly;
     }
 
-    if (["relevance", "artist", "song"].includes(stored.sortMode)) {
+    if (["relevance", "popular", "artist", "song"].includes(stored.sortMode)) {
         state.sortMode = stored.sortMode;
     }
 
@@ -2762,7 +2790,7 @@ function applyInitialRoute() {
         state.query = query;
     }
 
-    if (["relevance", "artist", "song"].includes(sort)) {
+    if (["relevance", "popular", "artist", "song"].includes(sort)) {
         state.sortMode = sort;
     }
 
@@ -3706,6 +3734,7 @@ function renderSearchFilters() {
     els.filterCountBadge.textContent = activeCount ? String(activeCount) : "";
 
     setToggleState(els.orderRelevanceButton, state.sortMode === "relevance");
+    setToggleState(els.orderPopularButton, state.sortMode === "popular");
     setToggleState(els.orderSongButton, state.sortMode === "song");
     setToggleState(els.orderArtistButton, state.sortMode === "artist");
 }

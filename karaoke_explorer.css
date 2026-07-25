@@ -1601,6 +1601,12 @@ button.browse-artist:focus-visible {
     background: var(--flag-bg);
 }
 
+.pill.popular {
+    color: var(--accent-ink);
+    background: var(--accent);
+    font-weight: 700;
+}
+
 .card-actions {
     display: flex;
     align-items: center;
