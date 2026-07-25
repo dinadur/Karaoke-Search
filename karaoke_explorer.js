@@ -1,4 +1,4 @@
-const APP_VERSION = "20260715-5";
+const APP_VERSION = "20260715-6";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const TAG_CONSOLIDATION_URL = `tag_consolidation.json?v=${APP_VERSION}`;
 const MOOD_CONSOLIDATION_URL = `mood_consolidation.json?v=${APP_VERSION}`;
@@ -256,6 +256,7 @@ const state = {
         decades: [],
         holidays: [],
         duet: false,
+        popular: false,
     },
     mode: "search",
     browseBy: "song",
@@ -283,6 +284,7 @@ const els = {
     closeFiltersButton: document.getElementById("closeFiltersButton"),
     applyFiltersButton: document.getElementById("applyFiltersButton"),
     sheetBackdrop: document.getElementById("sheetBackdrop"),
+    popularFilter: document.getElementById("popularFilter"),
     duetFilter: document.getElementById("duetFilter"),
     favoriteFilter: document.getElementById("favoriteFilter"),
     fuzzySearch: document.getElementById("fuzzySearch"),
@@ -420,6 +422,13 @@ function bindEvents() {
             els.searchInput.focus();
         });
     }
+
+    els.popularFilter.addEventListener("change", () => {
+        state.filters.popular = els.popularFilter.checked;
+        state.mode = "search";
+        resetResultLimit();
+        render();
+    });
 
     els.duetFilter.addEventListener("change", () => {
         state.filters.duet = els.duetFilter.checked;
@@ -1126,6 +1135,7 @@ function updateSheetBackdrop() {
 function countActiveFilters() {
     return MULTI_FILTER_DEFS.reduce((count, def) => count + state.filters[def.key].length, 0) +
         Number(state.filters.duet) +
+        Number(state.filters.popular) +
         Number(state.favoriteOnly) +
         Number(state.fuzzySearch);
 }
@@ -1252,6 +1262,11 @@ function applySearchFilters(songs, excludeKey = "") {
             return false;
         }
 
+        if (state.filters.popular &&
+            !(state.popularThreshold && (song.popularity || 0) >= state.popularThreshold)) {
+            return false;
+        }
+
         if (state.favoriteOnly && !isFavorite(song)) {
             return false;
         }
@@ -1340,6 +1355,7 @@ function clearSearchFilters({ resetFuzzy = true } = {}) {
         state.filters[def.key] = [];
     }
     state.filters.duet = false;
+    state.filters.popular = false;
     state.favoriteOnly = false;
 
     if (resetFuzzy) {
@@ -2560,6 +2576,7 @@ function applyArtistSearch(artistName) {
         state.filters[def.key] = [];
     }
     state.filters.duet = false;
+    state.filters.popular = false;
     state.mode = "search";
     state.query = artistName;
     state.searchScope = "artist";
@@ -2746,6 +2763,7 @@ function applyStoredUiState() {
             }
         }
         state.filters.duet = Boolean(stored.filters.duet);
+        state.filters.popular = Boolean(stored.filters.popular);
     }
 }
 
@@ -2801,6 +2819,7 @@ function applyInitialRoute() {
         }
     }
     if (params.get("duet") === "1") state.filters.duet = true;
+    if (params.get("popular") === "1") state.filters.popular = true;
     if (params.get("favorites") === "1") state.favoriteOnly = true;
     if (params.get("fuzzy") === "1") state.fuzzySearch = true;
 }
@@ -2852,6 +2871,7 @@ function syncUrlState() {
             }
         }
         if (state.filters.duet) params.set("duet", "1");
+        if (state.filters.popular) params.set("popular", "1");
         if (state.favoriteOnly) params.set("favorites", "1");
         if (state.fuzzySearch) params.set("fuzzy", "1");
     }
@@ -3724,6 +3744,7 @@ function renderFilterOptions() {
 
 function renderSearchFilters() {
     renderMultiFilters();
+    els.popularFilter.checked = state.filters.popular;
     els.duetFilter.checked = state.filters.duet;
     els.favoriteFilter.checked = state.favoriteOnly;
     els.fuzzySearch.checked = state.fuzzySearch;
@@ -3950,6 +3971,15 @@ function renderActiveFilters() {
         });
     }
 
+    if (state.filters.popular) {
+        chips.push({
+            label: "Popular",
+            onClear: () => {
+                state.filters.popular = false;
+            },
+        });
+    }
+
     if (state.favoriteOnly) {
         chips.push({
             label: "Favorites",
@@ -4015,6 +4045,7 @@ function createActiveFilterChip(label, onClear) {
 function hasActiveSearchFilters() {
     return MULTI_FILTER_DEFS.some((def) => state.filters[def.key].length > 0) ||
         state.filters.duet ||
+        state.filters.popular ||
         state.favoriteOnly ||
         state.fuzzySearch;
 }
@@ -4022,6 +4053,7 @@ function hasActiveSearchFilters() {
 function hasSongFilters() {
     return MULTI_FILTER_DEFS.some((def) => state.filters[def.key].length > 0) ||
         state.filters.duet ||
+        state.filters.popular ||
         state.favoriteOnly;
 }
 
