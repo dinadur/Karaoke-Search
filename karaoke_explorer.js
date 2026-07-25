@@ -1,4 +1,4 @@
-const APP_VERSION = "20260715-1";
+const APP_VERSION = "20260715-2";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const TAG_CONSOLIDATION_URL = `tag_consolidation.json?v=${APP_VERSION}`;
 const MOOD_CONSOLIDATION_URL = `mood_consolidation.json?v=${APP_VERSION}`;
@@ -3308,10 +3308,11 @@ function draftSetlist() {
     let pool = getDraftPool().filter(
         (song) => !state.setlist.some((item) => isSameSong(item, song))
     );
-    if (pool.length > 300 && pool.some((song) => (song.popularity || 0) > 0)) {
+    // Bias to the recognizable end: a draft should be songs a room knows.
+    if (pool.length > 200 && pool.some((song) => (song.popularity || 0) > 0)) {
         pool = [...pool]
             .sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
-            .slice(0, Math.max(300, Math.floor(pool.length * 0.2)));
+            .slice(0, Math.max(200, Math.floor(pool.length * 0.05)));
     }
     const additions = sampleSongs(pool, missing);
     if (!additions.length) {
