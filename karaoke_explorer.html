@@ -7,13 +7,13 @@
     <meta name="theme-color" content="#f5f4fa" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#14121d" media="(prefers-color-scheme: dark)">
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%A4%3C/text%3E%3C/svg%3E">
-    <link rel="apple-touch-icon" href="apple-touch-icon.png?v=20260907-8">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png?v=20260907-9">
     <link rel="manifest" href="manifest.json">
     <link rel="preload" href="fonts/space-grotesk-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="karaoke_explorer.css?v=20260907-8">
-    <script defer src="qrcode.js?v=20260907-8"></script>
-    <script defer src="personal-songbook.js?v=20260907-8"></script>
-    <script defer src="karaoke_explorer.js?v=20260907-8"></script>
+    <link rel="stylesheet" href="karaoke_explorer.css?v=20260907-9">
+    <script defer src="qrcode.js?v=20260907-9"></script>
+    <script defer src="personal-songbook.js?v=20260907-9"></script>
+    <script defer src="karaoke_explorer.js?v=20260907-9"></script>
 </head>
 <body>
     <svg xmlns="http://www.w3.org/2000/svg" class="icon-sprite" aria-hidden="true" focusable="false">
@@ -63,22 +63,11 @@
             <div class="search-box">
                 <i data-lucide="search" aria-hidden="true"></i>
                 <input id="searchInput" type="search" autocomplete="off" placeholder="Search song titles" aria-label="Search song titles">
-                <label class="fuzzy-toggle">
-                    <input id="fuzzySearch" type="checkbox">
-                    <span>Fuzzy</span>
-                </label>
+                <button id="clearButton" class="icon-button" type="button" title="Clear search" aria-label="Clear search"><i data-lucide="x" aria-hidden="true"></i></button>
             </div>
-            <button id="randomButton" class="command" type="button" title="Random song">
-                <i data-lucide="shuffle" aria-hidden="true"></i>
-                <span>Random</span>
-            </button>
-            <button id="clearButton" class="icon-button" type="button" title="Clear search">
-                <i data-lucide="x" aria-hidden="true"></i>
-            </button>
-            <button id="themeButton" class="icon-button" type="button" title="Dark mode" aria-label="Dark mode">
-                <i data-lucide="moon" aria-hidden="true"></i>
-            </button>
         </section>
+
+        <p class="search-hint">Find a song or artist. Tap the star to save a song for later.</p>
 
         <section class="control-row" aria-label="View mode">
             <div class="mode-tabs" role="group" aria-label="View mode">
@@ -96,12 +85,18 @@
                 <span>Filters</span>
                 <span class="filter-count-badge" id="filterCountBadge" hidden></span>
             </button>
+            <details id="moreTools" class="more-tools">
+                <summary id="moreToolsButton">More <i data-lucide="chevron-down" aria-hidden="true"></i></summary>
+                <div class="more-tools-panel">
+                    <button id="repertoireButton" type="button" disabled><i data-lucide="star" aria-hidden="true"></i>Saved songs <span id="repertoireCount">0</span></button>
+                    <button id="planSetlistButton" type="button"><i data-lucide="list-music" aria-hidden="true"></i><span id="planSetlistLabel">Plan a setlist</span></button>
+                    <button id="chooseSongButton" type="button" disabled><i data-lucide="dices" aria-hidden="true"></i>Help me choose</button>
+                    <button id="randomButton" type="button" title="Random song"><i data-lucide="shuffle" aria-hidden="true"></i>Random song</button>
+                    <button id="themeButton" type="button" title="Dark mode" aria-label="Dark mode"><i data-lucide="moon" aria-hidden="true"></i>Dark mode</button>
+                </div>
+            </details>
         </section>
-
-        <div class="personal-actions" aria-label="Personal songbook">
-            <button id="chooseSongButton" class="command" type="button" disabled><i data-lucide="dices" aria-hidden="true"></i>Help me choose</button>
-            <button id="repertoireButton" class="command subtle-command" type="button" disabled><i data-lucide="book" aria-hidden="true"></i>My repertoire <span id="repertoireCount">0</span></button>
-        </div>
+        <div id="planningNotice" class="planning-notice" hidden><span>Planning a setlist · Add songs as you browse.</span><button id="finishPlanningButton" class="filter-clear" type="button">Done planning</button></div>
 
         <section class="search-filters" id="searchFilters" aria-label="Filter search results">
             <div class="sheet-head">
@@ -139,13 +134,14 @@
                 </label>
                 <label>
                     <input id="favoriteFilter" type="checkbox">
-                    <span>Favorites</span>
+                    <span>Saved songs</span>
                 </label>
                 <button id="clearFiltersButton" class="filter-clear" type="button" title="Clear filters" hidden>
                     <i data-lucide="x" aria-hidden="true"></i>
                     <span>Clear</span>
                 </button>
             </div>
+            <label class="fuzzy-toggle"><input id="fuzzySearch" type="checkbox"><span>Include near matches</span></label>
             <div class="search-order" role="group" aria-label="Order search results">
                 <span class="filter-label">Order</span>
                 <button id="orderRelevanceButton" class="choice-button is-active" type="button">Relevance</button>
@@ -248,7 +244,7 @@
     </button>
 
     <dialog id="repertoireDialog" class="personal-dialog" aria-labelledby="repertoireTitle" aria-describedby="repertoireIntro">
-        <div class="personal-dialog-head"><div><h2 id="repertoireTitle">My repertoire</h2><p id="repertoireIntro">Your songs, your notes. Saved only in this browser.</p></div><button class="icon-button" type="button" data-close-dialog="repertoireDialog" aria-label="Close repertoire">×</button></div>
+        <div class="personal-dialog-head"><div><h2 id="repertoireTitle">Saved songs</h2><p id="repertoireIntro">Saved in this browser. Notes and practice details are optional.</p></div><button class="icon-button" type="button" data-close-dialog="repertoireDialog" aria-label="Close saved songs">×</button></div>
         <div class="personal-library-tools">
             <label>Find a saved song<input id="repertoireSearch" type="search" placeholder="Song or artist"></label>
             <label>Show<select id="repertoireFilter"><option value="all">All saved songs</option><option value="want">Want to try</option><option value="sung">Sung before</option></select></label>
@@ -259,14 +255,14 @@
 
     <dialog id="songNotesDialog" class="personal-dialog notes-dialog" aria-labelledby="songNotesTitle" aria-describedby="songNotesArtist">
         <form id="songNotesForm">
-            <div class="personal-dialog-head"><div><h2 id="songNotesTitle">Save to repertoire</h2><p id="songNotesArtist"></p></div><button class="icon-button" type="button" data-close-dialog="songNotesDialog" aria-label="Cancel song notes">×</button></div>
-            <label>Status<select id="repertoireStatus"><option value="want">Want to try</option><option value="sung">Sung before</option></select></label>
+            <div class="personal-dialog-head"><div><h2 id="songNotesTitle">Song notes</h2><p id="songNotesArtist"></p></div><button class="icon-button" type="button" data-close-dialog="songNotesDialog" aria-label="Cancel song notes">×</button></div>
+            <label>Status<select id="repertoireStatus"><option value="saved">Saved for later</option><option value="want">Want to try</option><option value="sung">Sung before</option></select></label>
             <label>How comfortable is this song?<select id="repertoireComfort"><option value="">Not rated yet</option><option value="1">1 — A challenge</option><option value="2">2 — Needs practice</option><option value="3">3 — Getting there</option><option value="4">4 — Comfortable</option><option value="5">5 — A go-to song</option></select></label>
             <label><span>Preferred key <span class="optional-label">(optional)</span></span><input id="repertoireKey" maxlength="40" placeholder="e.g. G minor or −2 semitones"></label>
             <label><span>Personal notes <span class="optional-label">(optional)</span></span><textarea id="repertoireNotes" rows="3" maxlength="1000" placeholder="Remember the quiet opening…"></textarea></label>
             <p class="personal-hint">These notes stay on this device and are not included in shared setlists.</p>
             <p id="repertoireError" class="personal-error" role="alert"></p>
-            <div class="personal-form-actions"><button class="command" type="submit">Save song</button><button id="repertoireRemove" class="command subtle-command" type="button" hidden>Remove from repertoire</button></div>
+            <div class="personal-form-actions"><button class="command" type="submit">Save changes</button><button id="repertoireRemove" class="command subtle-command" type="button" hidden>Remove saved song</button></div>
         </form>
     </dialog>
 
@@ -276,7 +272,7 @@
             <fieldset><legend>Familiar or adventurous?</legend><div class="picker-options"><label><input type="radio" name="familiarity" value="any" checked>Either</label><label><input type="radio" name="familiarity" value="familiar">Familiar</label><label><input type="radio" name="familiarity" value="adventurous">Adventurous</label></div></fieldset>
             <fieldset><legend>Who's singing?</legend><div class="picker-options"><label><input type="radio" name="voices" value="any" checked>Either</label><label><input type="radio" name="voices" value="solo">Solo</label><label><input type="radio" name="voices" value="duet">Duet</label></div></fieldset>
             <fieldset><legend>What energy?</legend><div class="picker-options"><label><input type="radio" name="energy" value="any" checked>Either</label><label><input type="radio" name="energy" value="relaxed">Relaxed</label><label><input type="radio" name="energy" value="energetic">Energetic</label></div></fieldset>
-            <p class="personal-hint">Familiar uses your sung songs and favorites. Adventurous explores beyond them. Energy and duet matches use catalog tags, not vocal difficulty.</p>
+            <p class="personal-hint">Familiar uses your saved songs. Adventurous explores beyond them. Energy and duet matches use catalog tags, not vocal difficulty.</p>
             <button class="command" type="submit">Find my five</button>
         </form>
         <p id="pickerSummary" role="status"></p><div id="pickerResults" class="personal-results"></div>

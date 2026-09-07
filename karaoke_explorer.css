@@ -2662,7 +2662,7 @@ dialog::backdrop {
     .personal-dialog { padding: 16px; }
     .personal-library-tools { grid-template-columns: 1fr; }
 }
-#chooseSongButton, #chooseSongForm > button[type="submit"], .personal-form-actions > button[type="submit"] { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+#chooseSongForm > button[type="submit"], .personal-form-actions > button[type="submit"] { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
 .personal-dialog label > .optional-label { display: inline; }
 #pickerSummary, #repertoireSummary { margin: 16px 0; line-height: 1.5; color: var(--muted); }
 .personal-actions > button { white-space: nowrap; }
@@ -2697,3 +2697,57 @@ dialog::backdrop {
     text-decoration: underline;
     text-underline-offset: 2px;
 }
+
+/* Search first: advanced tools are available when someone asks for them. */
+.toolbar { grid-template-columns: minmax(0, 1fr); }
+.toolbar .search-box { grid-column: 1; }
+#clearButton { flex: 0 0 44px; width: 44px; height: 44px; margin-right: -12px; border: 0; background: transparent; }
+.search-box:has(input:placeholder-shown) #clearButton { display: none; }
+#searchInput::-webkit-search-cancel-button { -webkit-appearance: none; }
+.search-hint { margin: 8px 0 14px; color: var(--muted); font-size: 13px; }
+.control-row { justify-content: flex-start; gap: 8px; }
+.filters-toggle { display: inline-flex; margin-left: auto; }
+.more-tools { position: relative; }
+.more-tools summary { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); cursor: pointer; font-weight: 700; list-style: none; }
+.more-tools summary::-webkit-details-marker { display: none; }
+.more-tools summary svg, .more-tools-panel svg { width: 18px; height: 18px; flex-shrink: 0; }
+.more-tools-panel { position: absolute; top: calc(100% + 8px); right: 0; width: 240px; padding: 6px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); box-shadow: var(--drawer-shadow); z-index: 20; }
+.more-tools-panel button { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 46px; padding: 10px 12px; border: 0; border-radius: 6px; color: var(--ink); background: transparent; text-align: left; font-weight: 600; }
+.more-tools-panel button:hover { background: var(--panel-strong); }
+.more-tools-panel #repertoireCount { margin-left: auto; }
+.more-tools-panel #themeButton { border-top: 1px solid var(--line); border-radius: 0; }
+body:not(.planning-setlist) .content-grid { grid-template-columns: minmax(0, 1fr); }
+body:not(.planning-setlist) .setlist-panel,
+body:not(.planning-setlist) .mobile-setlist-button,
+body:not(.planning-setlist) .add-button,
+body:not(.planning-setlist) .mini-add { display: none; }
+.planning-notice { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); background: var(--panel); font-size: 13px; }
+.planning-notice[hidden] { display: none; }
+.planning-notice button { flex-shrink: 0; }
+.favorite-button:has(.save-label) { width: auto; padding: 0 10px; gap: 6px; }
+.save-label { font-size: 12px; font-weight: 600; }
+.repertoire-song-button { width: auto; padding: 0 10px; gap: 6px; }
+body:not(.planning-setlist):not(.filters-open) .snackbar { bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+/* Use the existing focus-managed filter sheet on desktop as well as mobile. */
+.search-filters { display: none; }
+@media (min-width: 721px) {
+    body.filters-open { overflow: hidden; }
+    .sheet-backdrop:not([hidden]) { display: block; }
+    body.filters-open .search-filters:not([hidden]) { position: fixed; inset: 10vh auto auto 50%; transform: translateX(-50%); z-index: 30; display: flex; flex-direction: column; align-items: stretch; gap: 18px; width: min(620px, calc(100vw - 48px)); max-height: 80vh; overflow: auto; margin: 0; padding: 20px; background: var(--panel); box-shadow: var(--drawer-shadow); }
+    .search-filters > * { flex-shrink: 0; }
+    .sheet-head { display: flex; }
+    .sheet-foot { display: block; }
+    .search-filters .multi-filter { flex-wrap: wrap; }
+}
+@media (max-width: 420px) {
+    .control-row { flex-wrap: wrap; gap: 6px; }
+    .control-row .mode-tab { padding: 0 9px; }
+    .filters-toggle { padding: 0 9px; }
+    .more-tools summary { padding: 0 9px; }
+    .more-tools summary svg { display: none; }
+}
+
+body:not(.planning-setlist) .card-actions { flex-direction: row; }
+body:not(.planning-setlist) .card-tools { justify-content: flex-start; }
+/* Choosing a suggestion can start a setlist without enabling planning first. */
+body:not(.planning-setlist) #pickerResults .mini-add { display: inline-flex; }

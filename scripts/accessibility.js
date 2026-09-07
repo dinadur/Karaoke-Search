@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+const { menu, plan, notes } = require("./ui-helpers");
 // Automated checks supplement keyboard tests and screenshot review; they do
 // not certify accessibility or replace testing with assistive technology.
 const assert = require("node:assert/strict");
@@ -63,6 +64,7 @@ const BASE = process.env.SMOKE_URL || "http://127.0.0.1:8765/karaoke_explorer.ht
             assert.doesNotMatch(filterTree, /heading "Setlist"/);
         }
         await page.keyboard.press("Escape");
+        await plan(page);
         await page.locator(".add-button").first().click();
         await page.click("#mobileSetlistButton");
         await page.click("#clearSetlistButton");
@@ -73,7 +75,7 @@ const BASE = process.env.SMOKE_URL || "http://127.0.0.1:8765/karaoke_explorer.ht
             assert.doesNotMatch(setlistTree, /searchbox "Search/);
         }
         await page.keyboard.press("Escape");
-        await page.click("#themeButton");
+        await menu(page, "#themeButton");
         await inspect("dark search and Undo");
         await page.click("#mobileSetlistButton");
         await page.click("#qrSetlistButton");

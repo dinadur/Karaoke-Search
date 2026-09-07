@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+const { menu, plan, notes } = require("./ui-helpers");
 // Headless smoke test for the songbook. Serves nothing itself — expects the
 // repo root at http://127.0.0.1:8765 (python3 -m http.server 8765).
 // Uses `playwright` when installed (CI) and falls back to `playwright-core`
@@ -47,12 +48,14 @@ function check(name, condition, detail = "") {
     check("search finds results", await page.locator(".song-card").count() >= 1);
     check("match highlighting", await page.locator(".song-card mark").count() >= 1);
 
+    await plan(page);
     await page.locator(".add-button").first().click();
     await page.waitForTimeout(300);
     check("add to setlist", (await page.locator("#setlistCount").textContent()).startsWith("1"));
 
     await page.fill("#searchInput", "");
     await page.waitForTimeout(400);
+    await page.click("#filtersToggleButton");
     await page.locator('.multi-filter[data-filter="decade"] .multi-filter-button').click();
     await page.waitForTimeout(300);
     await page.locator('.multi-filter[data-filter="decade"] .multi-option', { hasText: "80s" }).first().click();
@@ -60,6 +63,7 @@ function check(name, condition, detail = "") {
     const countLine = await page.locator("#resultCount").textContent();
     check("decade filter narrows results", /from [\d,]+ matches/.test(countLine) && !countLine.includes("37,125"), countLine);
 
+    await page.click("#applyFiltersButton");
     await page.click("#browseModeButton");
     await page.waitForTimeout(800);
     check("browse mode lists songs", await page.locator(".browse-row").count() > 0);

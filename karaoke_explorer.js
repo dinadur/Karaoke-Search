@@ -1,4 +1,4 @@
-const APP_VERSION = "20260907-8";
+const APP_VERSION = "20260907-9";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const TAG_CONSOLIDATION_URL = `tag_consolidation.json?v=${APP_VERSION}`;
 const MOOD_CONSOLIDATION_URL = `mood_consolidation.json?v=${APP_VERSION}`;
@@ -850,6 +850,7 @@ async function useSongs(songs) {
         promotedGenreTags, songs: enrichedSongs, taggedCount, popularThreshold,
         defaultRankedSongs, availableMoods, availableGenres, availableDecades, availableHolidays,
     });
+    migrateSavedSongs();
     state.cachedDiscoverShelves = null;
     if (els.resultsList.querySelector(".skeleton")) els.resultsList.replaceChildren();
     sanitizeFilterValues();
@@ -1675,7 +1676,7 @@ function buildDiscoverShelves() {
         .sort((a, b) => compareArtistSort(a, b) || compareSongSort(a, b));
     if (favorites.length) {
         shelves.push({
-            title: "Your favorites",
+            title: "Your saved songs",
             songs: favorites.slice(0, 8),
             seeAll: () => applyShelfFilter(() => {
                 state.favoriteOnly = true;
@@ -2272,7 +2273,7 @@ function createBrowseRow(song) {
 function createRowTools(song) {
     const tools = document.createElement("div");
     tools.className = "row-tools";
-    tools.append(createFavoriteButton(song), createRepertoireButton(song), createSongTags(song), createSongLinks(song), createMiniAddButton(song));
+    tools.append(createFavoriteButton(song), createSongTags(song), createSongLinks(song), createMiniAddButton(song));
     return tools;
 }
 
@@ -2281,8 +2282,8 @@ function createFavoriteButton(song) {
     button.className = "icon-button favorite-button";
     button.type = "button";
     FAVORITE_BUTTON_SONGS.set(button, song);
+    button.innerHTML = '<i data-lucide="star" aria-hidden="true"></i><span class="save-label">Save</span>';
     updateFavoriteButton(button, song);
-    button.innerHTML = '<i data-lucide="star" aria-hidden="true"></i>';
     button.addEventListener("click", () => toggleFavorite(song));
     return button;
 }
@@ -2290,7 +2291,9 @@ function createFavoriteButton(song) {
 function updateFavoriteButton(button, song) {
     const active = isFavorite(song);
     button.classList.toggle("is-active", active);
-    button.title = active ? "Remove favorite" : "Add favorite";
+    const label = button.querySelector(".save-label");
+    if (label) label.textContent = active ? "Saved" : "Save";
+    button.title = active ? "Edit saved song" : "Save song";
     button.setAttribute("aria-label", `${button.title}: ${getDisplaySongTitle(song)}`);
     button.setAttribute("aria-pressed", String(active));
 }
@@ -2491,14 +2494,14 @@ function createSongCard(song) {
         appendPills(meta, song.tags.slice(0, 3), "");
     }
 
-    capPills(meta, 5);
+    capPills(meta, 2);
 
     const actions = document.createElement("div");
     actions.className = "card-actions";
 
     const cardTools = document.createElement("div");
     cardTools.className = "card-tools";
-    cardTools.append(createFavoriteButton(song), createRepertoireButton(song), createSongLinks(song));
+    cardTools.append(createFavoriteButton(song), createSongLinks(song));
 
     const button = document.createElement("button");
     button.className = "add-button";
@@ -2816,14 +2819,17 @@ function capPills(container, limit) {
     const more = document.createElement("button");
     more.className = "pill pill-more";
     more.type = "button";
-    more.textContent = `+${hiddenPills.length}`;
+    more.textContent = `Details +${hiddenPills.length}`;
     more.title = `Show ${hiddenPills.length} more tags`;
     more.setAttribute("aria-label", `Show ${hiddenPills.length} more tags`);
+    more.setAttribute("aria-expanded", "false");
     more.addEventListener("click", () => {
-        for (const pill of hiddenPills) {
-            pill.hidden = false;
-        }
-        more.remove();
+        const expanded = more.getAttribute("aria-expanded") !== "true";
+        for (const pill of hiddenPills) pill.hidden = !expanded;
+        more.setAttribute("aria-expanded", String(expanded));
+        more.textContent = expanded ? "Fewer details" : `Details +${hiddenPills.length}`;
+        more.title = expanded ? "Hide extra details" : `Show ${hiddenPills.length} more tags`;
+        more.setAttribute("aria-label", more.title);
     });
     container.appendChild(more);
 }
@@ -3225,6 +3231,7 @@ function syncUrlState() {
 }
 
 function addToSetlist(song) {
+    setPlanningMode(true);
     recordRecentSearch();
     const exists = state.setlist.some((item) => isSameSong(item, song));
     if (!exists) {
@@ -3266,34 +3273,19 @@ function toSetlistEntry(song, extra = {}) {
 }
 
 function toggleFavorite(song) {
-    if (!isFavorite(song)) {
-        recordRecentSearch();
-    }
-
     if (isFavorite(song)) {
-        state.favorites.delete(song.id);
-        if (song.legacyId) {
-            state.favorites.delete(song.legacyId);
-        }
-    } else {
-        state.favorites.add(song.id);
+        openSongNotes(song, document.activeElement);
+        return;
     }
-
-    saveFavorites();
-    if (state.favoriteOnly || isDiscoverView()) {
-        render();
-    } else {
-        // Preserve open groups, scroll position, and keyboard focus when the
-        // result membership is unchanged by a favorite toggle.
-        for (const button of document.querySelectorAll(".favorite-button")) {
-            const item = FAVORITE_BUTTON_SONGS.get(button);
-            if (item) updateFavoriteButton(button, item);
-        }
-    }
+    recordRecentSearch();
+    const next = { ...repertoire, [getSongIdentity(song)]: {
+        song: toSetlistEntry(song), status: "saved", comfort: null, key: "", notes: "",
+    } };
+    if (persistRepertoire(next)) showSnackbar("Saved. Find your songs in More → Saved songs.");
 }
 
 function isFavorite(song) {
-    return Boolean(song?.id && (state.favorites.has(song.id) || state.favorites.has(song.legacyId)));
+    return Boolean(song && repertoire[song.id || getSongIdentity(song)]);
 }
 
 function isSameSong(left, right) {
@@ -3385,6 +3377,7 @@ function shouldGroupSearchResults() {
 }
 
 function renderSetlist() {
+    personalEl("planSetlistLabel").textContent = state.setlist.length ? `Setlist (${state.setlist.length})` : "Plan a setlist";
     syncAddButtons();
     const focusedItem = document.activeElement?.closest(".setlist-item");
     const focusedSongId = focusedItem?.dataset.songId;
@@ -3736,6 +3729,8 @@ async function offerSharedSetlistImport() {
         saveSetlist();
         renderSetlist();
         els.importDialog.close();
+        setPlanningMode(true);
+        if (matchMedia("(max-width: 720px)").matches) openSetlistDrawer();
         showSnackbar(`Setlist ${replace ? "replaced" : "updated"} (${state.setlist.length} songs)`, () => {
             state.setlist = previous;
             saveSetlist();
@@ -3940,14 +3935,6 @@ function recordRecentSearch(query = state.query) {
     saveRecentSearches();
 }
 
-function saveFavorites() {
-    try {
-        localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify([...state.favorites]));
-    } catch {
-        // Favorites are still usable for the current page if storage is unavailable.
-    }
-}
-
 function loadFavorites() {
     try {
         const values = JSON.parse(localStorage.getItem(FAVORITES_STORAGE_KEY) || "[]");
@@ -4000,7 +3987,7 @@ function renderThemeButton() {
     const isDark = getTheme() === "dark";
     els.themeButton.title = isDark ? "Light mode" : "Dark mode";
     els.themeButton.setAttribute("aria-label", isDark ? "Switch to light mode" : "Switch to dark mode");
-    els.themeButton.innerHTML = `<i data-lucide="${isDark ? "sun" : "moon"}" aria-hidden="true"></i>`;
+    els.themeButton.innerHTML = `<i data-lucide="${isDark ? "sun" : "moon"}" aria-hidden="true"></i>${isDark ? "Light mode" : "Dark mode"}`;
 
     hydrateIcons();
 }
@@ -4354,7 +4341,7 @@ function renderActiveFilters() {
 
     if (state.favoriteOnly) {
         chips.push({
-            label: "Favorites",
+            label: "Saved songs",
             onClear: () => {
                 state.favoriteOnly = false;
             },

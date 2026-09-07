@@ -1,5 +1,8 @@
 // Personal data never enters catalog requests, URLs, or shared setlist payloads.
-const REPERTOIRE_STORAGE_KEY = "karaokeRepertoireV1";
+// One atomic store prevents removed favorites from reappearing after migration.
+// Legacy stores are retained for recovery; notes never enter shared payloads.
+const REPERTOIRE_STORAGE_KEY = "karaokeSavedSongsV1";
+let migratedFavoriteIds = new Set();
 const REPERTOIRE_BUTTON_SONGS = new WeakMap();
 let repertoire = readRepertoire();
 let repertoireLimit = 40;
@@ -10,10 +13,13 @@ const personalEl = (id) => document.getElementById(id);
 
 function readRepertoire() {
     try {
-        const stored = JSON.parse(localStorage.getItem(REPERTOIRE_STORAGE_KEY) || "{}");
+        const unified = localStorage.getItem(REPERTOIRE_STORAGE_KEY);
+        const envelope = unified === null ? null : JSON.parse(unified);
+        if (envelope && Array.isArray(envelope.importedFavorites)) migratedFavoriteIds = new Set(envelope.importedFavorites);
+        const stored = unified === null ? JSON.parse(localStorage.getItem("karaokeRepertoireV1") || "{}") : envelope?.songs;
         if (!stored || typeof stored !== "object" || Array.isArray(stored)) return {};
         return Object.fromEntries(Object.entries(stored).filter(([, entry]) =>
-            entry && ["want", "sung"].includes(entry.status) &&
+            entry && ["saved", "want", "sung"].includes(entry.status) &&
             entry.song && typeof entry.song.song === "string" && typeof entry.song.artist === "string"
         ).map(([key, entry]) => [key, {
             song: entry.song, status: entry.status,
@@ -24,7 +30,47 @@ function readRepertoire() {
     } catch { return {}; }
 }
 
+function migrateSavedSongs() {
+    const next = { ...repertoire };
+    for (const song of state.songs) {
+        const legacyIds = [song.id, song.legacyId].filter((id) => state.favorites.has(id) && !migratedFavoriteIds.has(id));
+        if (!legacyIds.length) continue;
+        const id = getSongIdentity(song);
+        next[id] ||= { song: toSetlistEntry(song), status: "saved", comfort: null, key: "", notes: "" };
+        legacyIds.forEach((key) => migratedFavoriteIds.add(key));
+    }
+    // Keep the merged collection usable in memory if the browser is full.
+    repertoire = next;
+    persistRepertoire(next);
+}
+
+function setPlanningMode(enabled) {
+    document.body.classList.toggle("planning-setlist", enabled);
+    personalEl("planningNotice").hidden = !enabled;
+    if (!enabled) closeSetlistDrawer({ restoreFocus: false });
+}
+
 function bindPersonalFeatures() {
+    const more = personalEl("moreTools");
+    const closeMore = () => { more.open = false; personalEl("moreToolsButton").focus({ preventScroll: true }); };
+    // Close before activating a tool so a dialog restores focus to the visible summary.
+    more.querySelectorAll("button").forEach((button) => button.addEventListener("click", closeMore));
+    document.addEventListener("click", (event) => { if (!more.contains(event.target)) more.open = false; });
+    more.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && more.open) { event.preventDefault(); event.stopPropagation(); closeMore(); }
+    });
+    document.addEventListener("focusin", (event) => {
+        if (!more.contains(event.target)) more.open = false;
+    });
+    personalEl("planSetlistButton").addEventListener("click", () => {
+        setPlanningMode(true);
+        if (matchMedia("(max-width: 720px)").matches) openSetlistDrawer();
+        else { personalEl("draftSetlistButton").focus({ preventScroll: true }); personalEl("setlistTitle").scrollIntoView({ block: "nearest" }); }
+    });
+    personalEl("finishPlanningButton").addEventListener("click", () => {
+        setPlanningMode(false);
+        personalEl("searchInput").focus({ preventScroll: true });
+    });
     personalEl("repertoireButton").addEventListener("click", () => {
         repertoireLimit = 40;
         renderRepertoire();
@@ -86,13 +132,21 @@ function bindPersonalFeatures() {
 }
 
 function persistRepertoire(next) {
-    try { localStorage.setItem(REPERTOIRE_STORAGE_KEY, JSON.stringify(next)); }
+    try { localStorage.setItem(REPERTOIRE_STORAGE_KEY, JSON.stringify({ songs: next, importedFavorites: [...migratedFavoriteIds] })); }
     catch {
+        showSnackbar("Couldn’t save on this device. Please free some browser storage and try again.");
         personalEl("repertoireError").textContent = "Couldn't save on this device. Your edits are still here; free some browser storage and try again.";
         return false;
     }
     repertoire = next;
     updateRepertoireButtons();
+    state.cachedDiscoverShelves = null;
+    // Preserve the focused save button and open groups when membership is unchanged.
+    if (state.favoriteOnly) render();
+    else document.querySelectorAll(".favorite-button").forEach((button) => {
+        const song = FAVORITE_BUTTON_SONGS.get(button);
+        if (song) updateFavoriteButton(button, song);
+    });
     return true;
 }
 
@@ -101,6 +155,7 @@ function createRepertoireButton(song) {
     button.type = "button";
     button.className = "icon-button repertoire-song-button";
     button.appendChild(createIcon("book"));
+    button.append("Notes");
     REPERTOIRE_BUTTON_SONGS.set(button, song);
     updateRepertoireButton(button, song);
     button.addEventListener("click", () => openSongNotes(song, button));
@@ -110,8 +165,8 @@ function createRepertoireButton(song) {
 function updateRepertoireButton(button, song) {
     const saved = Boolean(repertoire[getSongIdentity(song)]);
     button.classList.toggle("is-saved", saved);
-    button.title = saved ? "Edit repertoire notes" : "Save to repertoire";
-    button.setAttribute("aria-label", `${saved ? "Edit repertoire notes" : "Save to repertoire"}: ${getDisplaySongTitle(song)}`);
+    button.title = saved ? "Edit song notes" : "Add song notes";
+    button.setAttribute("aria-label", `${saved ? "Edit song notes" : "Add song notes"}: ${getDisplaySongTitle(song)}`);
 }
 
 function updateRepertoireButtons() {
@@ -128,7 +183,7 @@ function openSongNotes(song, opener) {
     const entry = repertoire[getSongIdentity(song)];
     personalEl("songNotesTitle").textContent = getDisplaySongTitle(song);
     personalEl("songNotesArtist").textContent = getDisplayArtist(song);
-    personalEl("repertoireStatus").value = entry?.status || "want";
+    personalEl("repertoireStatus").value = entry?.status || "saved";
     personalEl("repertoireComfort").value = entry?.comfort || "";
     personalEl("repertoireKey").value = entry?.key || "";
     personalEl("repertoireNotes").value = entry?.notes || "";
@@ -137,7 +192,7 @@ function openSongNotes(song, opener) {
     personalEl("songNotesDialog").showModal();
 }
 
-function personalSongRow(song, description) {
+function personalSongRow(song, description, savedLibrary = false) {
     const row = document.createElement("article");
     row.className = "personal-song-row";
     const title = document.createElement("h3");
@@ -149,7 +204,7 @@ function personalSongRow(song, description) {
     reason.textContent = description;
     const actions = document.createElement("div");
     actions.className = "personal-row-actions";
-    actions.append(createRepertoireButton(song), createMiniAddButton(song));
+    actions.append(savedLibrary ? createRepertoireButton(song) : createFavoriteButton(song), createMiniAddButton(song));
     row.append(title, artist, reason, actions);
     return row;
 }
@@ -166,9 +221,9 @@ function renderRepertoire() {
     list.replaceChildren();
     for (const [id, entry] of entries.slice(0, repertoireLimit)) {
         const song = songsById.get(id) || entry.song;
-        const description = [entry.status === "sung" ? "Sung before" : "Want to try",
+        const description = [entry.status === "sung" ? "Sung before" : entry.status === "want" ? "Want to try" : "Saved for later",
             entry.comfort ? `Comfort ${entry.comfort}/5` : "", entry.key ? `Key: ${entry.key}` : ""].filter(Boolean).join(" · ");
-        const row = personalSongRow(song, description);
+        const row = personalSongRow(song, description, true);
         if (entry.notes) {
             const note = document.createElement("p");
             note.className = "repertoire-note"; note.textContent = entry.notes; row.appendChild(note);
@@ -178,7 +233,7 @@ function renderRepertoire() {
     personalEl("repertoireSummary").textContent = entries.length
         ? `${Math.min(entries.length, repertoireLimit)} of ${entries.length} saved songs`
         : Object.keys(repertoire).length ? "No saved songs match. Try another search or choose All saved songs."
-            : "Your next go-to song starts here. Use the book button on any song to save it and add notes.";
+            : "Tap the star on any song to save it here. Notes and practice details are optional.";
     personalEl("repertoireMore").hidden = entries.length <= repertoireLimit;
 }
 
@@ -212,10 +267,10 @@ function pickPersonalSongs(pool, preferences) {
         seen.add(group);
         const reasons = [];
         if (entry?.status === "sung") reasons.push("You've sung this before");
-        else if (isFavorite(song)) reasons.push("One of your favorites");
-        else if (familiar) reasons.push("Another version of a song you've favorited or sung");
+        else if (isFavorite(song)) reasons.push("One of your saved songs");
+        else if (familiar) reasons.push("Another version of a song you've saved");
         else if (entry?.status === "want") reasons.push("On your want-to-try list");
-        else if (preferences.familiarity === "adventurous") reasons.push("Beyond your sung songs and favorites");
+        else if (preferences.familiarity === "adventurous") reasons.push("Beyond your saved songs");
         if (entry?.comfort) reasons.push(`Your comfort rating: ${entry.comfort}/5`);
         if (preferences.voices === "duet") reasons.push("Tagged as a duet");
         if (preferences.voices === "solo") reasons.push("Not tagged as a duet");
@@ -248,7 +303,7 @@ function renderPickerResults() {
     list.replaceChildren();
     personalEl("pickerSummary").textContent = chosen.length
         ? `${chosen.length} ${chosen.length === 1 ? "suggestion" : "suggestions"} for you. Choose Find my five again for another selection.`
-        : "No songs match these choices. Try Either, add favorites for familiar picks, or close this picker and broaden your search.";
+        : "No songs match these choices. Try Either, save songs for familiar picks, or close this picker and broaden your search.";
     for (const { song, reasons } of chosen) list.appendChild(personalSongRow(song, reasons.join(" · ")));
     personalEl("pickerSummary").scrollIntoView({ block: "start", behavior: "instant" });
 }

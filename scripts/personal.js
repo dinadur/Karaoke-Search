@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+const { menu, plan, notes } = require("./ui-helpers");
 const assert = require("node:assert/strict");
 let pw; try { pw = require("playwright"); } catch { pw = require("playwright-core"); }
 const browserName = process.env.BROWSER || "chromium";
@@ -15,17 +16,18 @@ const search = async (p, query) => { await p.fill("#searchInput", query); await 
 const tests = [
     ["repertoire saves, reloads, filters, edits, and keeps notes out of sharing", async (page) => {
         await search(page, "Tune 0");
-        await page.locator(".repertoire-song-button").first().click();
+        await notes(page);
         await page.selectOption("#repertoireStatus", "sung");
         await page.selectOption("#repertoireComfort", "4");
         await page.fill("#repertoireKey", "G minor");
         await page.fill("#repertoireNotes", "PRIVATE rehearsal note <img src=x>");
         await page.click('#songNotesForm button[type="submit"]');
+        await plan(page);
         await page.locator(".add-button").first().click();
         assert.doesNotMatch(await page.evaluate(() => buildSetlistText()), /PRIVATE|G minor/);
         assert.doesNotMatch(await page.evaluate(() => buildShareUrl()), /PRIVATE|G minor/);
         await page.reload(); await page.waitForFunction(() => state.songs.length && !songbookLoadPending);
-        await page.click("#repertoireButton");
+        await menu(page, "#repertoireButton");
         assert.match(await page.locator("#repertoireList").textContent(), /Sung before.*Comfort 4\/5.*G minor/s);
         assert.match(await page.locator(".repertoire-note").textContent(), /PRIVATE/);
         assert.equal(await page.locator("#repertoireList img").count(), 0);
@@ -41,24 +43,26 @@ const tests = [
         assert.equal(await page.locator("#repertoireList article").count(), 0);
     }],
     ["storage failure retains edits and leaves the saved library unchanged", async (page) => {
-        await search(page, "Tune 1"); await page.locator(".repertoire-song-button").first().click();
+        await search(page, "Tune 1"); await notes(page);
         await page.fill("#repertoireNotes", "Keep this draft");
         await page.evaluate(() => { const original = Storage.prototype.setItem; Storage.prototype.setItem = function(key, value) { if (key === REPERTOIRE_STORAGE_KEY) throw new DOMException("Full", "QuotaExceededError"); return original.call(this, key, value); }; });
         await page.click('#songNotesForm button[type="submit"]');
         assert.ok(await page.locator("#songNotesDialog").isVisible());
         assert.equal(await page.inputValue("#repertoireNotes"), "Keep this draft");
         assert.match(await page.locator("#repertoireError").textContent(), /Couldn't save/);
-        assert.equal(await page.evaluate(() => Object.keys(repertoire).length), 0);
+        assert.equal(await page.evaluate(() => Object.keys(repertoire).length), 1);
+        assert.equal(await page.evaluate(() => Object.values(repertoire)[0].notes), "");
     }],
     ["picker honors familiarity, duet, energy, current scope, and queued songs", async (page) => {
         await search(page, "Tune 0"); await page.locator(".favorite-button").first().click();
-        await search(page, "Tune"); await page.click("#chooseSongButton");
+        await plan(page);
+        await search(page, "Tune"); await menu(page, "#chooseSongButton");
         await page.check('[name="familiarity"][value="familiar"]');
         await page.check('[name="voices"][value="duet"]');
         await page.check('[name="energy"][value="energetic"]');
         await page.click('#chooseSongForm button[type="submit"]');
         assert.deepEqual(await page.locator("#pickerResults h3").allTextContents(), ["Tune 0"]);
-        assert.match(await page.locator("#pickerResults").textContent(), /favorites.*duet.*Energetic/s);
+        assert.match(await page.locator("#pickerResults").textContent(), /saved songs.*duet.*Energetic/s);
         await page.locator("#pickerResults .mini-add").click();
         await page.click('#chooseSongForm button[type="submit"]');
         assert.equal(await page.locator("#pickerResults article").count(), 0);
@@ -68,7 +72,7 @@ const tests = [
         await page.click('#chooseSongForm button[type="submit"]');
         assert.equal(await page.locator("#pickerResults article").count(), 5);
         assert.ok(!(await page.locator("#pickerResults h3").allTextContents()).includes("Tune 0"));
-        await page.keyboard.press("Escape"); await search(page, "zzzzzzzz"); await page.click("#chooseSongButton");
+        await page.keyboard.press("Escape"); await search(page, "zzzzzzzz"); await menu(page, "#chooseSongButton");
         await page.click('#chooseSongForm button[type="submit"]');
         assert.equal(await page.locator("#pickerResults article").count(), 0);
     }],
@@ -87,13 +91,14 @@ const tests = [
             assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
             assert.ok(await page.locator("dialog[open]").last().evaluate((dialog) => dialog.scrollWidth <= dialog.clientWidth));
         };
-        await page.click("#chooseSongButton"); await inspect();
+        await menu(page, "#chooseSongButton"); await inspect();
         await page.click('#chooseSongForm button[type="submit"]'); await inspect();
-        await page.locator("#pickerResults .repertoire-song-button").first().click(); await inspect();
+        await page.locator("#pickerResults .favorite-button").first().click();
+        await page.locator("#pickerResults .favorite-button").first().click(); await inspect();
         await page.click('#songNotesForm button[type="submit"]'); await page.keyboard.press("Escape");
-        await page.click("#repertoireButton"); await inspect();
-        await page.keyboard.press("Escape"); await page.click("#themeButton");
-        await page.click("#repertoireButton"); await inspect();
+        await menu(page, "#repertoireButton"); await inspect();
+        await page.keyboard.press("Escape"); await menu(page, "#themeButton");
+        await menu(page, "#repertoireButton"); await inspect();
     }],
 ];
 (async () => {

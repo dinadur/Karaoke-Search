@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+const { menu, plan, notes } = require("./ui-helpers");
 const assert = require('node:assert/strict');
 let pw; try { pw = require('playwright'); } catch { pw = require('playwright-core'); }
 const engine = process.env.BROWSER || 'chromium';
@@ -28,7 +29,7 @@ const entry = { ...songs[0], bpm: 122, referenceKey: 'Em', source: { type: 'gets
                     const violations = await page.evaluate(async () => (await axe.run({ runOnly: { type: 'tag', values: ['wcag2a','wcag2aa','wcag21aa','wcag22aa'] } })).violations.map(v=>v.id));
                     assert.deepEqual(violations, []);
                     // Metadata is not a singer's preferred key and cannot overwrite it.
-                    await page.locator('.repertoire-song-button').first().click();
+                    await notes(page);
                     assert.equal(await page.inputValue('#repertoireKey'), '');
                     await page.fill('#repertoireKey', 'D minor'); await page.click('#songNotesForm button[type="submit"]');
                     await page.reload(); await page.waitForFunction(() => state.songs.length === 3 && !songbookLoadPending);

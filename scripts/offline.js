@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+const { menu, plan, notes } = require("./ui-helpers");
 // A private static server simulates two app releases. No live deployment or
 // production cache is modified. Verify activation, saved data, and offline use.
 const assert = require("node:assert/strict");
@@ -48,16 +49,17 @@ const types = { ".html": "text/html", ".js": "application/javascript", ".css": "
         await page.waitForFunction(() => state.songs.length && !document.querySelector(".skeleton"));
         await page.fill("#searchInput", "dancing queen");
         await page.waitForFunction(() => state.query === "dancing queen" && !searchRenderTimer);
+        await plan(page);
         await page.locator(".add-button").first().click();
         await page.locator(".favorite-button").first().click();
         await page.locator(".singer-add").click();
         await page.locator(".singer-input").fill("Alex");
         await page.locator(".singer-input").press("Enter");
-        await page.locator(".repertoire-song-button").first().click();
+        await notes(page);
         await page.fill("#repertoireNotes", "Private offline rehearsal note");
         await page.click('#songNotesForm button[type="submit"]');
         const savedAudio = await page.evaluate(() => state.songs.filter((song) => song.audioSource).map((song) => [getSongIdentity(song), song.bpm, song.referenceKey]));
-        const saved = await page.evaluate(() => ({ setlist: localStorage.getItem("karaokeSetlist"), favorites: [...state.favorites], repertoire: localStorage.getItem("karaokeRepertoireV1") }));
+        const saved = await page.evaluate(() => ({ setlist: localStorage.getItem("karaokeSetlist"), favorites: [...state.favorites], repertoire: localStorage.getItem("karaokeSavedSongsV1") }));
         await page.evaluate(async () => {
             await navigator.serviceWorker.ready;
             if (!navigator.serviceWorker.controller) await new Promise((resolve) => navigator.serviceWorker.addEventListener("controllerchange", resolve, { once: true }));
@@ -83,7 +85,7 @@ const types = { ".html": "text/html", ".js": "application/javascript", ".css": "
         assert.deepEqual(await page.evaluate(() => state.songs.filter((song) => song.audioSource).map((song) => [getSongIdentity(song), song.bpm, song.referenceKey])), savedAudio);
         assert.equal(await page.locator(".setlist-title").count(), 1);
         assert.match(await page.locator(".singer-chip").textContent(), /Alex/);
-        assert.deepEqual(await page.evaluate(() => ({ setlist: localStorage.getItem("karaokeSetlist"), favorites: [...state.favorites], repertoire: localStorage.getItem("karaokeRepertoireV1") })), saved);
+        assert.deepEqual(await page.evaluate(() => ({ setlist: localStorage.getItem("karaokeSetlist"), favorites: [...state.favorites], repertoire: localStorage.getItem("karaokeSavedSongsV1") })), saved);
         const assets = await page.evaluate(async () => {
             const manifest = await (await fetch("manifest.json")).json();
             return ["manifest.json", ...manifest.icons.map((icon) => icon.src), document.querySelector('link[rel="apple-touch-icon"]').getAttribute("href")];
@@ -94,10 +96,10 @@ const types = { ".html": "text/html", ".js": "application/javascript", ".css": "
         await page.fill("#searchInput", "bohemian rhapsody");
         await page.waitForFunction(() => state.query === "bohemian rhapsody" && !searchRenderTimer);
         assert.ok(await page.locator(".song-card").count());
-        await page.click("#repertoireButton");
+        await menu(page, "#repertoireButton");
         assert.match(await page.locator("#repertoireList").textContent(), /Private offline rehearsal note/);
         await page.keyboard.press("Escape");
-        await page.click("#chooseSongButton");
+        await menu(page, "#chooseSongButton");
         await page.click('#chooseSongForm button[type="submit"]');
         assert.ok(await page.locator("#pickerResults article").count());
         assert.deepEqual(errors, []);

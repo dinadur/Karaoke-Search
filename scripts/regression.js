@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+const { menu, plan, notes } = require("./ui-helpers");
 // Behavioral regressions for the review findings. Uses a deterministic catalog
 // and a fresh browser context per case; run against the same server as smoke.js.
 const assert = require("node:assert/strict");
@@ -27,6 +28,7 @@ async function search(page, query) {
 }
 
 async function add(page, query) {
+    await plan(page);
     await search(page, query);
     await page.locator(".add-button").first().click();
 }
@@ -153,7 +155,7 @@ const tests = [
         await add(page, "Second Tune");
         assert.equal(await page.locator("#snackbarAction").isVisible(), false);
         await page.reload();
-        await page.waitForSelector(".setlist-title");
+        await page.waitForSelector(".setlist-title", { state: "attached" });
         assert.deepEqual(await page.locator(".setlist-title").allTextContents(), ["Second Tune"]);
     }],
     ["draft Undo expires after editing a singer", async (page) => {
@@ -169,9 +171,9 @@ const tests = [
         await add(page, "First Tune");
         for (const favorites of [false, true]) {
             await search(page, favorites ? "" : "zzzzzzzzzzzzzzzzzz");
-            if (favorites) await page.locator("label", { has: page.locator("#favoriteFilter") }).click();
+            if (favorites) { await page.click("#filtersToggleButton"); await page.locator("label", { has: page.locator("#favoriteFilter") }).click(); await page.click("#applyFiltersButton"); }
             assert.match(await page.locator("#resultCount").textContent(), /0 matches/);
-            await page.click("#randomButton");
+            await menu(page, "#randomButton");
             assert.equal(await page.locator("#randomPick").isVisible(), false);
             await page.click("#draftSetlistButton");
             await page.locator('[aria-label="Swap for another matching song"]').click();
@@ -180,13 +182,19 @@ const tests = [
     }],
     ["empty search facets show zero, and open facets follow query edits", async (page) => {
         await search(page, "zzzzzzzzzzzzzzzzzz");
+        await page.click("#filtersToggleButton");
         await page.click('.multi-filter[data-filter="decade"] .multi-filter-button');
         const counts = page.locator('.multi-filter[data-filter="decade"] .option-count');
         assert.deepEqual(await counts.allTextContents(), ["0", "0", "0"]);
-        await page.keyboard.press("/");
+        await page.click("#applyFiltersButton");
         await search(page, "Alpha");
+        await page.click("#filtersToggleButton");
+        await page.click('.multi-filter[data-filter="decade"] .multi-filter-button');
         assert.deepEqual(await counts.allTextContents(), ["1", "0", "0"]);
+        await page.click("#applyFiltersButton");
         await search(page, "Beta");
+        await page.click("#filtersToggleButton");
+        await page.click('.multi-filter[data-filter="decade"] .multi-filter-button');
         assert.deepEqual(await counts.allTextContents(), ["0", "1", "0"]);
         assert.equal(await counts.first().isVisible(), true);
     }],
@@ -197,7 +205,7 @@ const tests = [
             ]));
         }, catalog[0]);
         await page.reload();
-        await page.waitForSelector(".setlist-title");
+        await page.waitForSelector(".setlist-title", { state: "attached" });
         await add(page, "Second Tune");
         await page.click("#qrSetlistButton");
         await page.waitForSelector("#qrHolder svg");
@@ -295,6 +303,7 @@ const tests = [
             try {
                 await page.goto(BASE);
                 await page.waitForFunction(() => state.songs.length && !document.querySelector(".skeleton"));
+                await plan(page);
                 await run(page, context);
                 assert.deepEqual(errors, []);
                 console.log(`ok   ${name}`);
