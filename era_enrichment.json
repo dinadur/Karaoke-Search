@@ -4,8 +4,8 @@
   "summary": {
     "total": 36734,
     "before": 15277,
-    "added": 40,
-    "after": 15317,
+    "added": 41,
+    "after": 15318,
     "conflictsSkipped": 15
   },
   "entries": [
@@ -1046,6 +1046,35 @@
               "80s"
             ]
           }
+        ]
+      }
+    },
+    {
+      "artist": "Alex Warren",
+      "song": "Ordinary",
+      "lookupArtist": "",
+      "lookupSong": "",
+      "eras": [
+        "2020s"
+      ],
+      "source": {
+        "type": "musicbrainz",
+        "confidence": "exact-name-consensus",
+        "checkedAt": "2026-09-07",
+        "firstReleaseDate": "2024-09-27",
+        "recordingIds": [
+          "b550f9f4-c259-4fe5-8da1-44f4921f9d5f",
+          "0cf8e086-3f73-41b1-b6a2-5c969bb28c83",
+          "18c0f758-b5da-48da-9a2c-c21804702e9d",
+          "0c812fa4-e7c7-4beb-916b-3711865ac246",
+          "e76a9e44-e8bc-4147-8c78-406c73249b0e"
+        ],
+        "urls": [
+          "https://musicbrainz.org/recording/b550f9f4-c259-4fe5-8da1-44f4921f9d5f",
+          "https://musicbrainz.org/recording/0cf8e086-3f73-41b1-b6a2-5c969bb28c83",
+          "https://musicbrainz.org/recording/18c0f758-b5da-48da-9a2c-c21804702e9d",
+          "https://musicbrainz.org/recording/0c812fa4-e7c7-4beb-916b-3711865ac246",
+          "https://musicbrainz.org/recording/e76a9e44-e8bc-4147-8c78-406c73249b0e"
         ]
       }
     }

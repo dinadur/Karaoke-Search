@@ -123,3 +123,6 @@ Invoke-WebRequest -Uri 'https://karaokesearch.uk/' -UseBasicParsing
 ```
 
 Do not add scraping scripts, API keys, raw CSVs, cache files, logs, or `.env` files to the public repo.
+
+
+GetSongBPM maintenance uses `scripts/enrich-getsongbpm.js` with `GETSONGBPM_API_KEY` supplied through an ignored `.env.local`. Never commit credentials or put them in client JavaScript, URLs, or logs. Preserve the public GetSongBPM backlink, use the API at no more than the documented quota, and keep checkpoints/locks under ignored `metadata_cache/`. `audio_enrichment.json` contains reference-recording metadata; do not imply its BPM/key has been verified against a specific karaoke backing track. Run `scripts/test-getsongbpm.js` and, when real output exists, `scripts/check-audio-enrichment.js`. The audio sidecar is not yet loaded by the app; wire it in only after an authenticated data batch is validated.

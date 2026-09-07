@@ -2671,3 +2671,21 @@ dialog::backdrop {
 .personal-dialog-head { position: sticky; top: -22px; z-index: 2; padding: 12px 0; background: var(--panel); }
 #pickerSummary { scroll-margin-top: 150px; }
 @media (max-width: 720px) { .personal-dialog-head { top: -16px; } }
+
+.data-sources {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0 12px;
+    padding: 16px 24px 88px;
+    color: var(--muted);
+    font-size: .875rem;
+}
+.data-sources a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    color: var(--brand);
+    text-underline-offset: 3px;
+}

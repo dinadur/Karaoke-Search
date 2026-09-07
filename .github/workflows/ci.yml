@@ -43,6 +43,11 @@ jobs:
           node --check scripts/enrich-eras-musicbrainz.js
           node scripts/check-era-enrichment.js
           node scripts/test-era-enrichment.js
+          node --check scripts/lib/music-metadata.js
+          node --check scripts/enrich-getsongbpm.js
+          node --check scripts/check-audio-enrichment.js
+          node scripts/test-getsongbpm.js
+          if [ -f audio_enrichment.json ]; then node scripts/check-audio-enrichment.js; fi
 
       - name: Version consistency
         run: node scripts/check-versions.js

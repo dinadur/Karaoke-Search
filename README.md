@@ -77,3 +77,7 @@ The PNG app icons are exported from `app-icon.svg` by `node scripts/generate-ico
 Undo applies to the latest setlist operation and expires after another setlist edit, preventing an earlier snapshot from overwriting newer changes.
 
 See [FEATURE_RELEASE.md](FEATURE_RELEASE.md) for feature behavior, data provenance, and enrichment maintenance. `node scripts/personal.js` checks the new flows in the selected browser; `node scripts/check-era-enrichment.js` validates sidecar evidence. Repertoire data stays in this browser and is excluded from shared setlists; clearing browser data removes it.
+
+## Music metadata enrichment
+
+See [METADATA_ENRICHMENT.md](METADATA_ENRICHMENT.md) for MusicBrainz progress, GetSongBPM registration, and resumable API import commands. API credentials stay in ignored `.env.local`; the public app never sends them. Importers preserve the original catalog and write source-attributed sidecar files.

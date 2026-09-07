@@ -1,0 +1,64 @@
+#!/usr/bin/env node
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { execFileSync, spawnSync } = require('node:child_process');
+const { matchResult } = require('./enrich-getsongbpm');
+const { catalogGroups } = require('./lib/music-metadata');
+const group = { artist: 'Alpha', title: 'Exact' };
+const song = { id: 'abc', title: 'Exact', artist: { name: 'Alpha' }, uri: 'https://getsongbpm.com/song/exact/abc', tempo: '120', key_of: 'Am', time_sig: '4/4', danceability: 0, acousticness: 40 };
+const matched = matchResult({ search: [song] }, group);
+assert.equal(matched.metadata.bpm, 120);
+assert.equal(matched.metadata.referenceKey, 'Am');
+assert.equal(matched.metadata.danceability, 0);
+assert.equal(matchResult({ search: [{ ...song, artist: { name: 'Cover Band' } }] }, group).status, 'unmatched');
+assert.equal(matchResult({ search: [{ ...song, title: 'Exact (live)' }] }, group).status, 'unmatched');
+assert.equal(matchResult({ search: [song, { ...song, tempo: 100, key_of: 'C' }] }, group).status, 'ambiguous');
+assert.equal(matchResult({ search: [song, { ...song, key_of: 'C' }] }, group).metadata.referenceKey, null);
+assert.equal(matchResult({ search: [{ ...song, tempo: '', key_of: '<script>' }] }, group).status, 'ambiguous');
+assert.equal(matchResult({ search: Array(100).fill(song) }, group).status, 'ambiguous');
+assert.equal(matchResult({ search: [{ ...song, uri: 'https://example.com/song/exact' }] }, group).status, 'ambiguous');
+assert.throws(() => matchResult({}, group));
+const grouped = catalogGroups([{ artist: 'Alpha', song: 'Exact' }, { artist: 'Alpha', song: 'Exact (karaoke)' }, { artist: 'Alpha', song: 'Exact (live)' }]);
+assert.equal(grouped.length, 2); assert.equal(grouped[0].songs.length, 2);
+const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'karaoke-bpm-test-'));
+try {
+    fs.mkdirSync(path.join(temp, 'scripts/lib'), { recursive: true });
+    for (const file of ['enrich-getsongbpm.js', 'check-audio-enrichment.js', 'lib/music-metadata.js']) fs.copyFileSync(path.join(__dirname, file), path.join(temp, 'scripts', file));
+    const script = path.join(temp, 'scripts/enrich-getsongbpm.js');
+    const input = path.join(temp, 'karaoke_songs_enriched.json');
+    fs.writeFileSync(input, JSON.stringify([{ artist: 'Alpha', song: 'Exact' }, { artist: 'Alpha', song: 'Exact (karaoke)' }]));
+    const mock = path.join(temp, 'mock.cjs');
+    fs.writeFileSync(mock, `const assert=require('node:assert/strict');
+        global.fetch=async(url,options)=>{
+            assert.equal(url.origin,'https://api.getsong.co'); assert.equal(url.searchParams.get('type'),'both');
+            assert.equal(url.searchParams.has('api_key'),false); assert.equal(options.headers['X-API-KEY'],'test-secret');
+            return new Response(JSON.stringify({search:[${JSON.stringify(song)}]}));
+        };`);
+    const env = { ...process.env, GETSONGBPM_API_KEY: 'test-secret' };
+    const run = () => execFileSync(process.execPath, ['--require', mock, script, '10'], { env, encoding: 'utf8' });
+    const first = run(); assert.match(first, /"requests":1/); assert.ok(!first.includes('test-secret'));
+    const output = path.join(temp, 'audio_enrichment.json');
+    assert.equal(JSON.parse(fs.readFileSync(output)).summary.matchedRows, 2);
+    execFileSync(process.execPath, [path.join(temp, 'scripts/check-audio-enrichment.js')]);
+    fs.unlinkSync(output);
+    fs.writeFileSync(mock, 'global.fetch=async()=>{throw new Error("No calls expected");};');
+    assert.match(run(), /"requests":0/);
+    assert.equal(JSON.parse(fs.readFileSync(output)).entries.length, 2, 'checkpoint recovers output');
+    fs.writeFileSync(input, JSON.stringify([{ artist: 'Alpha', song: 'Exact' }, { artist: 'Alpha', song: 'New' }]));
+    fs.writeFileSync(mock, 'global.setTimeout=(f)=>{f();}; global.fetch=async()=>new Response("",{status:429});');
+    assert.match(run(), /HTTP 429/);
+    assert.equal(JSON.parse(fs.readFileSync(output)).entries[0].song, 'Exact');
+    const progress = JSON.parse(fs.readFileSync(path.join(temp, 'metadata_cache/getsongbpm-progress.json')));
+    assert.equal(Object.keys(progress.results).length, 1, 'rate limiting never marks a query complete');
+    fs.writeFileSync(mock, 'global.setTimeout=(f)=>{f();}; global.fetch=async()=>{throw new Error("test-secret");};');
+    // Three different pending queries exercise bounded network failures.
+    fs.writeFileSync(input, JSON.stringify(['Exact', 'New', 'Next', 'Last'].map(song=>({artist:'Alpha',song}))));
+    const failed = run(); assert.match(failed, /"requests":3/); assert.ok(!failed.includes('test-secret'));
+    assert.match(failed, /Three service\/network failures/);
+    const noKey = spawnSync(process.execPath, [script], { env: { ...env, GETSONGBPM_API_KEY: '' }, encoding: 'utf8' });
+    assert.equal(noKey.status, 1); assert.match(noKey.stderr, /Set GETSONGBPM_API_KEY/);
+    assert.ok(!fs.existsSync(path.join(temp, 'metadata_cache/getsongbpm.lock')));
+    console.log('ok   GetSongBPM exact matching, conflicts, version grouping, private API header, checkpoint recovery, quota stop, and failure bounds');
+} finally { fs.rmSync(temp, { recursive: true, force: true }); }
