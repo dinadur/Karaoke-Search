@@ -280,6 +280,9 @@ function annotateEraSource(container, song) {
 
 async function applyAudioEnrichment(songs, enrichment) {
     if (!Array.isArray(songs) || !Array.isArray(enrichment?.entries)) return songs;
+    // Overlay only explicit import targets. Favorite/setlist IDs intentionally
+    // normalize artist/title variants and are too broad for source attribution.
+    const targetKey = (song) => JSON.stringify([song.artist, song.song, song.lookupArtist || '', song.lookupSong || '']);
     const byId = new Map();
     for (const entry of enrichment.entries) {
         if (!entry || typeof entry.song !== 'string' || typeof entry.artist !== 'string' || entry.source?.type !== 'getsongbpm' || !Array.isArray(entry.source.records)) continue;
@@ -288,11 +291,11 @@ async function applyAudioEnrichment(songs, enrichment) {
         const bpm = typeof entry.bpm === 'number' && entry.bpm >= 20 && entry.bpm <= 400 ? entry.bpm : null;
         const referenceKey = typeof entry.referenceKey === 'string' && /^[A-G](?:#|b|♯|♭)?m?$/.test(entry.referenceKey) ? entry.referenceKey : null;
         if (bpm === null && referenceKey === null) continue;
-        byId.set(getSongIdentity(entry), { bpm, referenceKey, audioSource: { url, type: 'getsongbpm' } });
+        byId.set(targetKey(entry), { bpm, referenceKey, audioSource: { url, type: 'getsongbpm' } });
     }
     return mapSongbookInChunks(songs, (song) => {
         if (!song || typeof song.song !== 'string' || typeof song.artist !== 'string') return song;
-        const match = byId.get(getSongIdentity(song));
+        const match = byId.get(targetKey(song));
         return match ? { ...song, ...match } : song;
     });
 }

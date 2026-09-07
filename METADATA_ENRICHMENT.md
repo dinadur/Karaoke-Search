@@ -1,10 +1,10 @@
-# Music metadata enrichment — 20260907-7
+# Music metadata enrichment — 20260907-8
 
 ## GetSongBPM import results
 
 The user-selected top 1,000 distinct song lookups have all completed: **558 matched, 429 unmatched, and 13 ambiguous**. Matches cover **573 catalog rows**, including equivalent catalog versions: **529 rows have BPM** and **568 have a reference key**. No guesses were assigned to unmatched or ambiguous results. The final scoped batch made 899 requests after 101 previously completed lookups and ended without service errors or rate limiting.
 
-The original catalog is unchanged. `audio_enrichment.json` contains the public metadata and source evidence; private credentials and resumable checkpoints are excluded from Git and deployment. Version `20260907-7` adds the metadata display and offline cache.
+The original catalog is unchanged. `audio_enrichment.json` contains the public metadata and source evidence; private credentials and resumable checkpoints are excluded from Git and deployment. Version `20260907-8` adds the metadata display and offline cache.
 
 ## MusicBrainz
 
@@ -51,3 +51,5 @@ The app loads the optional audio sidecar and shows sourced BPM and reference-key
 `node scripts/test-getsongbpm.js` exercises exact matching, wrong artists and live versions, ambiguous values, empty/invalid responses, result limits, duplicate catalog rows, API-key transport, checkpoint recovery, quota failures, bounded retries, and missing credentials without external calls. `scripts/check-audio-enrichment.js` validates real output identities, ranges, provenance, and counts. `scripts/audio.js` checks source links, reference-key display, narrow-screen accessibility, preferred-key preservation, and missing/invalid sidecar handling in Chromium, Firefox, and WebKit. Offline upgrade tests also compare audio metadata before and after the upgrade. CI runs the mocked tests; no live API calls or secrets are used there.
 
 Sources: [GetSongBPM API](https://getsongbpm.com/api), [MusicBrainz rate limits](https://musicbrainz.org/doc/MusicBrainz_API/Rate_Limiting).
+
+Production verification caught two additional catalog variants receiving data through normalized favorite/setlist identities. The audio overlay now matches exact original artist/title/lookup fields from the imported sidecar, and a regression test prevents normalized identity collisions from expanding coverage beyond validated targets.
