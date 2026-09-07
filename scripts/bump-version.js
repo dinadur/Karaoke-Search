@@ -13,6 +13,7 @@ const root = path.join(__dirname, "..");
 const jsPath = path.join(root, "karaoke_explorer.js");
 const htmlPath = path.join(root, "karaoke_explorer.html");
 const swPath = path.join(root, "sw.js");
+const manifestPath = path.join(root, "manifest.json");
 
 const js = fs.readFileSync(jsPath, "utf8");
 const current = js.match(/const APP_VERSION = "([^"]+)";/)?.[1];
@@ -35,6 +36,8 @@ fs.writeFileSync(jsPath, js.replace(
 
 const html = fs.readFileSync(htmlPath, "utf8");
 fs.writeFileSync(htmlPath, html.split(`v=${current}`).join(`v=${next}`));
+const manifest = fs.readFileSync(manifestPath, "utf8");
+fs.writeFileSync(manifestPath, manifest.split(`v=${current}`).join(`v=${next}`));
 
 const sw = fs.readFileSync(swPath, "utf8");
 fs.writeFileSync(swPath, sw.replace(

@@ -26,7 +26,7 @@ const types = { ".html": "text/html", ".js": "application/javascript", ".css": "
             const filename = path.resolve(root, pathname === "/" ? "karaoke_explorer.html" : `.${pathname}`);
             if (!filename.startsWith(`${root}${path.sep}`)) throw new Error("Invalid path");
             let body = await fs.readFile(filename);
-            if ([".html", ".js"].includes(path.extname(filename))) {
+            if ([".html", ".js", ".json"].includes(path.extname(filename))) {
                 body = Buffer.from(body.toString().replaceAll(current, release));
             }
             response.writeHead(200, { "Content-Type": types[path.extname(filename)] || "application/octet-stream", "Cache-Control": "no-store" });
@@ -82,7 +82,11 @@ const types = { ".html": "text/html", ".js": "application/javascript", ".css": "
         assert.equal(await page.locator(".setlist-title").count(), 1);
         assert.match(await page.locator(".singer-chip").textContent(), /Alex/);
         assert.deepEqual(await page.evaluate(() => ({ setlist: localStorage.getItem("karaokeSetlist"), favorites: [...state.favorites], repertoire: localStorage.getItem("karaokeRepertoireV1") })), saved);
-        for (const asset of ["manifest.json", "icon-192.png", "icon-512.png", "icon-maskable-512.png", "apple-touch-icon.png"]) {
+        const assets = await page.evaluate(async () => {
+            const manifest = await (await fetch("manifest.json")).json();
+            return ["manifest.json", ...manifest.icons.map((icon) => icon.src), document.querySelector('link[rel="apple-touch-icon"]').getAttribute("href")];
+        });
+        for (const asset of assets) {
             assert.equal(await page.evaluate(async (asset) => (await fetch(asset)).status, asset), 200, asset);
         }
         await page.fill("#searchInput", "bohemian rhapsody");

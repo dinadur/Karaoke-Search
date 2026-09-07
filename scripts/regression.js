@@ -262,15 +262,17 @@ const tests = [
     }],
     ["all manifest and touch icons are served at their declared dimensions", async (page) => {
         const manifest = await (await page.request.get(new URL("manifest.json", BASE).href)).json();
-        const icons = [...manifest.icons, { src: "apple-touch-icon.png", sizes: "180x180" }];
+        await page.goto(BASE);
+        const touchIcon = await page.locator('link[rel="apple-touch-icon"]').getAttribute("href");
+        const icons = [...manifest.icons, { src: touchIcon, sizes: "180x180" }];
         for (const icon of icons) {
             const response = await page.request.get(new URL(icon.src, BASE).href);
             assert.equal(response.status(), 200, icon.src);
-            if (icon.src.endsWith(".png")) {
+            if (new URL(icon.src, BASE).pathname.endsWith(".png")) {
                 const png = await response.body();
                 assert.equal(png.subarray(1, 4).toString(), "PNG");
                 assert.equal(`${png.readUInt32BE(16)}x${png.readUInt32BE(20)}`, icon.sizes);
-                assert.ok(fs.existsSync(path.join(__dirname, "..", icon.src)));
+                assert.ok(fs.existsSync(path.join(__dirname, "..", icon.src.split("?")[0])));
             }
         }
     }],

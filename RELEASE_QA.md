@@ -1,6 +1,6 @@
-# Release QA — 20260907-4
+# Release QA — 20260907-5
 
-Final pre-publication sweep completed on 2026-09-07. No release-blocking defects were found. This release includes the review fixes, usability and startup improvements, and personal songbook features documented in CODE_REVIEW.md, QA_REPORT.md, and FEATURE_RELEASE.md.
+Final pre-publication sweep completed on 2026-09-07. No release-blocking defects were found locally. Production verification subsequently found and fixed a cached icon response, described below. This release includes the review fixes, usability and startup improvements, and personal songbook features documented in CODE_REVIEW.md, QA_REPORT.md, and FEATURE_RELEASE.md.
 
 ## Verified before publication
 
@@ -16,3 +16,9 @@ The final sweep uses browser engines on Linux. Physical iOS/Android devices, scr
 ## Publication verification
 
 After pushing this candidate, verify GitHub CI, deployment status, production asset versions and bytes, live browser workflows, and the real service-worker transition from the previous production release. These checks must be confirmed against the deployed site before declaring publication complete.
+
+## Production transition and icon follow-up
+
+Version 20260907-4 deployed successfully from commit f31a332. Live smoke checks passed in Chromium, Firefox, and WebKit; Chromium accessibility checks passed. A persistent browser profile upgraded from the actual previous release 20260715-9, retained its singer/setlist/favorites, saved repertoire notes, and reloaded the new catalog and picker offline. Only the new cache remained.
+
+Byte comparisons matched deployed source and catalog assets, but Cloudflare returned an old cached 404 for the unversioned Apple touch icon (cache age 525,770 seconds). The versioned URL returned the correct PNG. Follow-up version 20260907-5 versions all PNG icon URLs in HTML, the manifest, and the service-worker cache. Version maintenance and regression/offline checks now cover those exact referenced URLs. The bare legacy icon URL may remain cached until CDN expiry; the app uses the fresh versioned URLs.

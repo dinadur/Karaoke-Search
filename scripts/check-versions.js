@@ -9,12 +9,18 @@ const root = path.join(__dirname, "..");
 const js = fs.readFileSync(path.join(root, "karaoke_explorer.js"), "utf8");
 const html = fs.readFileSync(path.join(root, "karaoke_explorer.html"), "utf8");
 const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
+const manifest = JSON.parse(fs.readFileSync(path.join(root, "manifest.json"), "utf8"));
 
 const appVersion = js.match(/const APP_VERSION = "([^"]+)";/)?.[1];
 const cacheVersion = sw.match(/const CACHE_VERSION = "([^"]+)";/)?.[1];
 const htmlVersions = [...html.matchAll(/\?v=([0-9-]+)/g)].map((match) => match[1]);
 
 const problems = [];
+for (const icon of manifest.icons.filter((icon) => icon.type === "image/png")) {
+    if (new URL(icon.src, "https://example.test/").searchParams.get("v") !== appVersion) {
+        problems.push(`manifest icon ${icon.src} must use APP_VERSION`);
+    }
+}
 if (!appVersion) {
     problems.push("APP_VERSION not found in karaoke_explorer.js");
 }

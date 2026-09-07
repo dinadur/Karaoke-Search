@@ -50,6 +50,7 @@ When editing JS, CSS, or data files, update all four version references together
 - `APP_VERSION` in `karaoke_explorer.js`
 - CSS query string in `karaoke_explorer.html`
 - JS query string in `karaoke_explorer.html`
+- PNG icon query strings in `manifest.json` and the Apple touch icon link in HTML. Keep the service-worker icon URLs versioned too, because the CDN can retain previous 404 responses.
 - `CACHE_VERSION` in `sw.js` (must equal `APP_VERSION`, or the service worker precache misses the URLs the page requests and offline mode breaks)
 
 This is used as a cache buster for Vercel, browsers, and the service worker cache.

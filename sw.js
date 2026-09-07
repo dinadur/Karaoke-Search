@@ -1,6 +1,6 @@
 // Bump CACHE_VERSION together with APP_VERSION in karaoke_explorer.js so a
 // deploy invalidates the previous offline cache.
-const CACHE_VERSION = "20260907-4";
+const CACHE_VERSION = "20260907-5";
 const CACHE_NAME = `karaoke-${CACHE_VERSION}`;
 
 const PRECACHE_URLS = [
@@ -17,10 +17,10 @@ const PRECACHE_URLS = [
     "/fonts/space-grotesk-latin-wght-normal.woff2",
     "/manifest.json",
     "/app-icon.svg",
-    "/icon-192.png",
-    "/icon-512.png",
-    "/icon-maskable-512.png",
-    "/apple-touch-icon.png",
+    `/icon-192.png?v=${CACHE_VERSION}`,
+    `/icon-512.png?v=${CACHE_VERSION}`,
+    `/icon-maskable-512.png?v=${CACHE_VERSION}`,
+    `/apple-touch-icon.png?v=${CACHE_VERSION}`,
 ];
 
 self.addEventListener("install", (event) => {
