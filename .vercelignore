@@ -4,6 +4,11 @@ metadata_cache/
 *.state.json
 *.ps1
 *.png
+!icon-192.png
+!icon-512.png
+!icon-maskable-512.png
+!apple-touch-icon.png
 *.log
 .env
 .env.*
+qa/

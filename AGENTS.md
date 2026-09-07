@@ -9,6 +9,7 @@ This repo is a static frontend for a karaoke songbook. It is deployed from `main
   - `karaoke_explorer.html`
   - `karaoke_explorer.css`
   - `karaoke_explorer.js`
+  - `personal-songbook.js`
 - Data/config files:
   - `karaoke_songs_enriched.json`
   - `tag_consolidation.json`
@@ -59,6 +60,16 @@ Use `node scripts/bump-version.js [version]` to update all four references at on
 
 `.github/workflows/ci.yml` runs on pushes to `main`/`claude/**` and PRs: syntax checks, the version-consistency check, and `scripts/smoke.js` (a Playwright smoke test against a local static server). Run the smoke test locally with a server on :8765 and `node scripts/smoke.js` (falls back to `playwright-core` + `CHROMIUM_PATH`).
 
+CI also runs `node scripts/regression.js` against a deterministic catalog for the review fixes: safe Undo invalidation, empty-result actions, legacy QR sharing, facet counts, modal keyboard behavior, and icon availability. Run it with the same server and Playwright setup. Raster icons are committed outputs of `node scripts/generate-icons.js`; preserve their exceptions in both ignore files.
+
+`scripts/accessibility.js` adds axe-core checks for representative states at 320–1440px. The regression suite also covers exact artist links, inline singer editing, mobile reflow, and data-load recovery. Audit screenshots and logs in `qa/` are local-only and excluded from Git and deployment.
+
+The browser suites accept `BROWSER=chromium|firefox|webkit`; CI runs all three engines. `scripts/offline.js` owns a private server and checks a two-version service-worker upgrade with saved data and subsequent offline loading (server disconnection in WebKit). `scripts/loading.js` checks live input during preparation with native scheduling and its timer fallback. `scripts/performance.js` measures startup at 4× CPU slowdown; run it alone to avoid CPU contention.
+
+Catalog preparation is asynchronous and time-sliced. Always await `useSongs()`, keep derived data local until the atomic state update, and preserve controls/query changes made while loading. `songbookLoadPending` prevents overlapping retry/import operations. The catalog itself remains unchanged.
+
+`personal-songbook.js` loads before the main script and provides `bindPersonalFeatures`, repertoire controls, the guided picker, and the optional era overlay. Keep it and `era_enrichment.json` in the service-worker precache. Personal notes are device-only and must not be added to QR or text sharing. Run `scripts/personal.js` when changing these flows. Era provenance is checked by `scripts/check-era-enrichment.js`; maintenance details are in `FEATURE_RELEASE.md`.
+
 ## Current App Behavior
 
 - Search scopes are `all` (songs & artists, default), `song`, and `artist`.
@@ -72,10 +83,13 @@ Use `node scripts/bump-version.js [version]` to update all four references at on
 - Random shows a preview card (Add / Spin again / dismiss) above results; it does not modify the setlist or the query.
 - Browse mode reads the full catalog by song title or artist letter.
 - Artist names and visible tag pills are clickable filters/searches; cards cap pills at 5 with a "+N" expander.
+- Clicking an artist selects that exact artist (`exact=1` in shared URLs); typing a query resumes partial search. Query result groups open by default and remember manual expansion during rerenders. Favorite toggles update in place when result membership is unchanged.
+- Add controls show an accessible "Added" state that follows setlist edits. Mobile search occupies its own toolbar row, and filter sheets scroll vertically. Primary controls and Undo use contrasting text colors in both themes.
 - Query, scope, sort, and filters sync to the URL via `history.replaceState`; URL params win over stored state on load.
 - Favorites and setlist are stored in `localStorage`.
 - UI state is stored in `localStorage` and restored on refresh.
 - Setlist supports add, remove (undo via snackbar), copy, share (Web Share API when available), clear (undo), drag reorder, and up/down reorder.
+- Pending Undo expires on a subsequent setlist edit. Mobile sheets contain keyboard focus and make the background inert; their snackbar moves inside the active sheet so Undo stays accessible.
 - Song titles are cleaned for display only (`getDisplaySongTitle`): karaoke bracket noise, empty/dangling brackets, and unclosed trailing brackets are stripped. Identity keys still use raw values.
 - Icons render from an inline SVG sprite in `karaoke_explorer.html` (no CDN). New icons must be added to the sprite as `<symbol id="icon-NAME">` and referenced via `<i data-lucide="NAME">` + `hydrateIcons()`.
 - Assets are cached immutably via `vercel.json` headers; the HTML, `sw.js`, and `manifest.json` revalidate. Bumping the version references (see Versioning) is the cache-busting mechanism, including for the catalog JSON.

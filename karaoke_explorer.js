@@ -1,4 +1,4 @@
-const APP_VERSION = "20260715-9";
+const APP_VERSION = "20260907-4";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const TAG_CONSOLIDATION_URL = `tag_consolidation.json?v=${APP_VERSION}`;
 const MOOD_CONSOLIDATION_URL = `mood_consolidation.json?v=${APP_VERSION}`;
@@ -9,7 +9,7 @@ const SEARCH_SCOPES = ["all", "song", "artist"];
 // Params that fully describe a shared view (init() runs before later consts,
 // so this must live with the top-level constants).
 const ROUTE_PARAMS = ["q", "scope", "sort", "mood", "genre", "decade", "holiday",
-    "duet", "popular", "favorites", "fuzzy", "mode", "by", "letter"];
+    "duet", "popular", "favorites", "fuzzy", "mode", "by", "letter", "exact"];
 
 const MULTI_FILTER_DEFS = [
     {
@@ -60,6 +60,8 @@ const RECENT_SEARCHES_STORAGE_KEY = "karaokeRecentSearches";
 const RECENT_SEARCHES_LIMIT = 8;
 const LINK_MENU_STORAGE = new WeakMap();
 const TAG_MENU_STORAGE = new WeakMap();
+const ADD_BUTTON_SONGS = new WeakMap();
+const FAVORITE_BUTTON_SONGS = new WeakMap();
 const SMALL_ARTIST_WORDS = new Set([
     "a",
     "an",
@@ -224,7 +226,11 @@ const GENRE_TAG_LABELS = {
 };
 const loadStatusTimers = [];
 let searchRenderTimer = 0;
+let songbookLoadPending = false;
 let draggedSetlistIndex = null;
+let activeSheet = null;
+let sheetSnackbarAnchor = null;
+const sheetInertElements = new Map();
 applyStoredTheme();
 
 const state = {
@@ -235,6 +241,7 @@ const state = {
     resultLimit: RESULT_BATCH_SIZE,
     query: "",
     searchScope: "all",
+    exactArtist: false,
     autoFuzzy: false,
     randomPick: null,
     snackbarTimer: 0,
@@ -268,6 +275,7 @@ const state = {
     browseBy: "song",
     browseLetter: "#",
     groupOpenMode: "auto",
+    groupOpenStates: new Map(),
     setlist: loadSetlist(),
     favorites: loadFavorites(),
     recentSearches: loadRecentSearches(),
@@ -330,6 +338,8 @@ const els = {
     closeSetlistButton: document.getElementById("closeSetlistButton"),
     mobileSetlistButton: document.getElementById("mobileSetlistButton"),
     dataDialog: document.getElementById("dataDialog"),
+    retryDataButton: document.getElementById("retryDataButton"),
+    dataError: document.getElementById("dataError"),
     fileInput: document.getElementById("fileInput"),
     qrSetlistButton: document.getElementById("qrSetlistButton"),
     qrDialog: document.getElementById("qrDialog"),
@@ -360,13 +370,25 @@ init();
 async function init() {
     buildMultiFilters();
     bindEvents();
+    bindPersonalFeatures();
     bindResultsSentinel();
     registerServiceWorker();
     renderThemeButton();
     applyInitialState();
+    await loadSongbook();
+}
+
+async function loadSongbook() {
+    if (songbookLoadPending) return;
+    songbookLoadPending = true;
+    els.retryDataButton.disabled = true;
+    els.fileInput.disabled = true;
+    els.dataError.textContent = "";
     startLoadStatus();
 
     try {
+        const eraPromise = fetch(`era_enrichment.json?v=${APP_VERSION}`)
+            .then((response) => response.ok ? response.json() : null).catch(() => null);
         const tagConsolidationPromise = loadTagConsolidation();
         const moodConsolidationPromise = loadMoodConsolidation();
         const response = await fetch(DATA_URL);
@@ -375,6 +397,7 @@ async function init() {
         }
 
         const text = await response.text();
+        stopLoadStatus();
         els.status.textContent = "Preparing songbook";
         await nextFrame();
 
@@ -384,15 +407,21 @@ async function init() {
 
         state.tagConsolidation = await tagConsolidationPromise;
         state.moodConsolidation = await moodConsolidationPromise;
-        useSongs(songs);
+        await useSongs(await applyEraEnrichment(songs, await eraPromise));
+        els.dataDialog.close();
     } catch (error) {
         console.error(error);
-        els.status.textContent = "Songbook JSON not loaded";
+        els.status.textContent = "Songbook unavailable";
+        els.resultCount.textContent = "Songbook unavailable";
         if (typeof els.dataDialog.showModal === "function") {
             els.dataDialog.showModal();
         }
     } finally {
         stopLoadStatus();
+        songbookLoadPending = false;
+        els.resultsList.removeAttribute("aria-busy");
+        els.retryDataButton.disabled = false;
+        els.fileInput.disabled = false;
     }
 }
 
@@ -406,6 +435,7 @@ function bindEvents() {
 
     els.searchInput.addEventListener("input", () => {
         state.query = els.searchInput.value.trim();
+        state.exactArtist = false;
         state.mode = "search";
         resetResultLimit();
         saveUiState();
@@ -421,6 +451,7 @@ function bindEvents() {
     for (const input of els.searchScopeInputs) {
         input.addEventListener("change", () => {
             state.searchScope = input.value;
+            state.exactArtist = false;
             state.mode = "search";
             resetResultLimit();
             updateSearchPlaceholder();
@@ -552,6 +583,14 @@ function bindEvents() {
     });
 
     document.addEventListener("keydown", (event) => {
+        // Native dialogs (e.g. QR above the setlist) own their keyboard events.
+        if (document.querySelector("dialog[open]")) {
+            return;
+        }
+        if (activeSheet && event.key === "Tab") {
+            trapSheetFocus(event);
+            return;
+        }
         if (event.key === "Escape") {
             closeSongLinkMenus();
             closeSongTagMenus();
@@ -561,7 +600,7 @@ function bindEvents() {
             return;
         }
 
-        if (event.key === "/" && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        if (!activeSheet && event.key === "/" && !event.ctrlKey && !event.metaKey && !event.altKey) {
             const target = event.target;
             const isTyping = target instanceof HTMLElement &&
                 (target.tagName === "INPUT" || target.tagName === "SELECT" || target.tagName === "TEXTAREA" || target.isContentEditable);
@@ -570,6 +609,19 @@ function bindEvents() {
                 els.searchInput.focus();
                 els.searchInput.select();
             }
+        }
+    });
+
+    document.addEventListener("focusin", (event) => {
+        if (activeSheet && !activeSheet.contains(event.target) &&
+            !document.querySelector("dialog[open]")) {
+            getSheetFocusTargets()[0]?.focus({ preventScroll: true });
+        }
+    });
+    window.matchMedia("(max-width: 720px)").addEventListener("change", (event) => {
+        if (!event.matches) {
+            closeFiltersSheet({ restoreFocus: false });
+            closeSetlistDrawer({ restoreFocus: false });
         }
     });
 
@@ -585,8 +637,10 @@ function bindEvents() {
 
         try {
             await navigator.share({ title: "Karaoke setlist", text });
-        } catch {
-            // Share sheet dismissed or unavailable; nothing to clean up.
+        } catch (error) {
+            if (error.name !== "AbortError") {
+                showSnackbar("Couldn't share the setlist. Try the QR or Copy button.");
+            }
         }
     });
 
@@ -606,6 +660,7 @@ function bindEvents() {
 
         try {
             await navigator.clipboard.writeText(text);
+            showSnackbar("Setlist copied");
             els.copySetlistButton.classList.add("copied");
             els.copySetlistButton.title = "Copied";
             setTimeout(() => {
@@ -614,6 +669,7 @@ function bindEvents() {
             }, 800);
         } catch {
             els.copySetlistButton.classList.add("copy-failed");
+            showSnackbar("Couldn't copy the setlist. Try sharing it with the QR button.");
             els.copySetlistButton.title = "Copy failed";
             setTimeout(() => {
                 els.copySetlistButton.classList.remove("copy-failed");
@@ -641,21 +697,71 @@ function bindEvents() {
         );
     });
 
+    els.retryDataButton.addEventListener("click", loadSongbook);
     els.fileInput.addEventListener("change", async () => {
         const file = els.fileInput.files[0];
-        if (!file) {
+        if (!file || songbookLoadPending) {
             return;
         }
 
-        const songs = JSON.parse(await file.text());
-        useSongs(songs);
-        els.dataDialog.close();
+        songbookLoadPending = true;
+        els.retryDataButton.disabled = true;
+        els.fileInput.disabled = true;
+        try {
+            const songs = JSON.parse(await file.text());
+            await useSongs(songs);
+            els.dataDialog.close();
+        } catch {
+            els.dataError.textContent = "This file isn't a valid songbook. Choose a songbook backup or try loading again.";
+        } finally {
+            songbookLoadPending = false;
+            els.retryDataButton.disabled = false;
+            els.fileInput.disabled = false;
+            els.fileInput.value = "";
+        }
     });
 }
 
-function useSongs(songs) {
-    const artistNames = buildCanonicalArtistNames(songs);
-    const preparedSongs = songs.map((song, index) => {
+// Bound CPU-heavy catalog passes so typing, painting, and keyboard controls
+// can run between batches, including browsers without the Scheduler API.
+function yieldSongbookWork() {
+    if (globalThis.scheduler?.postTask) {
+        // Background priority also lets ordinary timers and assistive/browser
+        // tooling run; boosted yield continuations can starve those tasks.
+        return globalThis.scheduler.postTask(() => {}, { priority: "background" });
+    }
+    return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+async function mapSongbookInChunks(items, transform) {
+    const result = new Array(items.length);
+    let sliceStart = performance.now();
+    for (let index = 0; index < items.length; index++) {
+        result[index] = transform(items[index], index);
+        if (index % 32 === 31 && performance.now() - sliceStart >= 8) {
+            await yieldSongbookWork();
+            sliceStart = performance.now();
+        }
+    }
+    // Also separate shorter passes from the next pass/first render.
+    await yieldSongbookWork();
+    return result;
+}
+
+async function useSongs(songs) {
+    if (!Array.isArray(songs) || !songs.length) {
+        throw new Error("Invalid songbook data");
+    }
+    await mapSongbookInChunks(songs, (song) => {
+        if (!song || typeof song.song !== "string" || typeof song.artist !== "string" ||
+            ["genres", "moods", "eras", "tags", "flags"].some((key) =>
+                song[key] !== undefined && (!Array.isArray(song[key]) ||
+                    song[key].some((value) => typeof value !== "string")))) {
+            throw new Error("Invalid songbook data");
+        }
+    });
+    const artistNames = await buildCanonicalArtistNames(songs);
+    const preparedSongs = await mapSongbookInChunks(songs, (song, index) => {
         const artistKey = getArtistKey(song);
         const displayArtist = artistNames.get(artistKey) || getPrimaryArtistName(song);
         const songSearchText = normalize(song.song);
@@ -683,9 +789,9 @@ function useSongs(songs) {
         };
     });
 
-    state.promotedGenreTags = getPromotedGenreTagMap(preparedSongs);
-    state.songs = preparedSongs.map((song) => {
-        const sourceGenres = getPromotedGenresForSong(song, state.promotedGenreTags);
+    const promotedGenreTags = await getPromotedGenreTagMap(preparedSongs);
+    const enrichedSongs = await mapSongbookInChunks(preparedSongs, (song) => {
+        const sourceGenres = getPromotedGenresForSong(song, promotedGenreTags);
         const allGenres = dedupeValues([...(song.genres || []), ...sourceGenres]);
         const enrichedSong = {
             ...song,
@@ -711,30 +817,39 @@ function useSongs(songs) {
 
         return preparedSong;
     });
-    state.taggedCount = state.songs.reduce(
+    const taggedCount = enrichedSongs.reduce(
         (count, song) => count + (song.status === "ok" ? 1 : 0), 0
     );
-    // "Popular" marks the top decile of songs that have a popularity score,
-    // so the badge stays meaningful as score coverage grows.
-    const scores = state.songs
+    // "Popular" marks the top decile of songs that have a popularity score.
+    const scores = enrichedSongs
         .map((song) => song.popularity || 0)
         .filter(Boolean)
         .sort((a, b) => a - b);
-    state.popularThreshold = scores.length
+    const popularThreshold = scores.length
         ? scores[Math.floor(scores.length * POPULAR_PILL_PERCENTILE)]
         : 0;
-    state.defaultRankedSongs = [...state.songs].sort((a, b) =>
+    await yieldSongbookWork();
+    const defaultRankedSongs = [...enrichedSongs].sort((a, b) =>
         (b.popularity || 0) - (a.popularity || 0) ||
         (b.confidence || 0) - (a.confidence || 0) ||
         compareArtistSort(a, b) ||
         compareSongSort(a, b)
     );
+    await yieldSongbookWork();
+    const availableMoods = getAvailableValues(getSongMoods, enrichedSongs);
+    const availableGenres = getAvailableValues(getSongGenres, enrichedSongs);
+    const availableDecades = getAvailableDecades(enrichedSongs);
+    const availableHolidays = getAvailableValues(getHolidayValues, enrichedSongs);
+    await yieldSongbookWork();
 
-    state.availableMoods = getAvailableValues(getSongMoods);
-    state.availableGenres = getAvailableValues(getSongGenres);
-    state.availableDecades = getAvailableDecades();
-    state.availableHolidays = getAvailableValues(getHolidayValues);
+    // Publish the complete catalog together; renders during preparation must
+    // never see partial songs or mismatched indexes.
+    Object.assign(state, {
+        promotedGenreTags, songs: enrichedSongs, taggedCount, popularThreshold,
+        defaultRankedSongs, availableMoods, availableGenres, availableDecades, availableHolidays,
+    });
     state.cachedDiscoverShelves = null;
+    if (els.resultsList.querySelector(".skeleton")) els.resultsList.replaceChildren();
     sanitizeFilterValues();
     renderFilterOptions();
     updateSearchPlaceholder();
@@ -742,6 +857,8 @@ function useSongs(songs) {
     renderSetlist();
     renderThemeButton();
     render();
+    personalEl("repertoireButton").disabled = false;
+    personalEl("chooseSongButton").disabled = false;
     offerSharedSetlistImport();
 }
 
@@ -771,6 +888,8 @@ function renderLoadingSkeleton() {
 
 function startLoadStatus() {
     els.status.textContent = "Loading songbook";
+    els.resultCount.textContent = "Loading songbook…";
+    els.resultsList.setAttribute("aria-busy", "true");
     renderLoadingSkeleton();
 
     for (const [delay, message] of [
@@ -914,12 +1033,20 @@ function normalizeMoodConsolidation(raw = {}) {
 }
 
 function render() {
+    if (!state.snackbarAction) hideSnackbar();
     cancelScheduledSearchRender();
     renderMode();
-    renderSearchFilters();
     renderActiveFilters();
 
+    if (songbookLoadPending && !state.songs.length) {
+        // Keep a visible loading state even if Browse is selected mid-load.
+        els.resultsList.hidden = false;
+        els.browseList.hidden = true;
+        return;
+    }
+
     if (state.mode === "browse") {
+        renderSearchFilters();
         els.searchNotice.hidden = true;
         els.randomPick.hidden = true;
         els.randomPick.innerHTML = "";
@@ -944,6 +1071,7 @@ function render() {
     }
 
     state.queryScopedSongs = ranked;
+    renderSearchFilters();
     const filtered = hasSongFilters() ? applySearchFilters(ranked) : ranked;
     const sorted = sortSongs(filtered);
     const isDiscover = isDiscoverView();
@@ -993,10 +1121,14 @@ function isDiscoverView() {
 }
 
 function pickRandomSong() {
-    const pool = state.mode === "search" && state.currentSongs.length
+    if (searchRenderTimer) render();
+    const pool = state.mode === "search"
         ? state.currentSongs
         : state.songs;
     if (!pool.length) {
+        state.randomPick = null;
+        renderRandomPick();
+        showSnackbar("No matching songs to pick");
         return;
     }
 
@@ -1088,11 +1220,13 @@ function bindResultsSentinel() {
 }
 
 function openFiltersSheet() {
+    closeSetlistDrawer({ restoreFocus: false });
     document.body.classList.add("filters-open");
     els.filtersToggleButton.setAttribute("aria-expanded", "true");
     els.searchFilters.setAttribute("role", "dialog");
     els.searchFilters.setAttribute("aria-modal", "true");
     updateSheetBackdrop();
+    activateSheet(els.searchFilters);
     els.closeFiltersButton.focus({ preventScroll: true });
 }
 
@@ -1105,19 +1239,22 @@ function closeFiltersSheet({ restoreFocus = true } = {}) {
     els.filtersToggleButton.setAttribute("aria-expanded", "false");
     els.searchFilters.removeAttribute("role");
     els.searchFilters.removeAttribute("aria-modal");
+    deactivateSheet(els.searchFilters);
     updateSheetBackdrop();
-    if (restoreFocus && els.filtersToggleButton.offsetParent) {
+    if (restoreFocus && els.filtersToggleButton.getClientRects().length) {
         els.filtersToggleButton.focus({ preventScroll: true });
     }
 }
 
 function openSetlistDrawer() {
+    closeFiltersSheet({ restoreFocus: false });
     const panel = els.setlist.closest(".setlist-panel");
     document.body.classList.add("setlist-open");
     panel.setAttribute("role", "dialog");
     panel.setAttribute("aria-modal", "true");
     panel.setAttribute("aria-label", "Setlist");
     updateSheetBackdrop();
+    activateSheet(panel);
     els.closeSetlistButton.focus({ preventScroll: true });
 }
 
@@ -1131,8 +1268,9 @@ function closeSetlistDrawer({ restoreFocus = true } = {}) {
     panel.removeAttribute("role");
     panel.removeAttribute("aria-modal");
     panel.removeAttribute("aria-label");
+    deactivateSheet(panel);
     updateSheetBackdrop();
-    if (restoreFocus && els.mobileSetlistButton.offsetParent) {
+    if (restoreFocus && els.mobileSetlistButton.getClientRects().length) {
         els.mobileSetlistButton.focus({ preventScroll: true });
     }
 }
@@ -1140,6 +1278,63 @@ function closeSetlistDrawer({ restoreFocus = true } = {}) {
 function updateSheetBackdrop() {
     els.sheetBackdrop.hidden = !document.body.classList.contains("filters-open") &&
         !document.body.classList.contains("setlist-open");
+}
+
+function activateSheet(sheet) {
+    if (activeSheet === sheet) return;
+    if (!state.snackbarAction) hideSnackbar();
+    activeSheet = sheet;
+    // Keep Undo available inside the modal's accessible/focusable subtree.
+    sheetSnackbarAnchor = document.createComment("snackbar home");
+    els.snackbar.before(sheetSnackbarAnchor);
+    sheet.appendChild(els.snackbar);
+    // Walk ancestors so a nested setlist can isolate the rest of the page
+    // without making its own containing main element inert.
+    for (let branch = sheet; branch && branch !== document.body; branch = branch.parentElement) {
+        for (const sibling of branch.parentElement.children) {
+            if (sibling === branch || sibling === els.sheetBackdrop ||
+                !(sibling instanceof HTMLElement) || sibling.tagName === "DIALOG") continue;
+            sheetInertElements.set(sibling, sibling.inert);
+            sibling.inert = true;
+        }
+    }
+}
+
+function deactivateSheet(sheet) {
+    if (activeSheet !== sheet) return;
+    activeSheet = null;
+    sheetSnackbarAnchor.replaceWith(els.snackbar);
+    sheetSnackbarAnchor = null;
+    for (const [element, wasInert] of sheetInertElements) {
+        element.inert = wasInert;
+    }
+    sheetInertElements.clear();
+}
+
+function getSheetFocusTargets() {
+    if (!activeSheet) return [];
+    return [...activeSheet.querySelectorAll(
+        'button, input, select, textarea, a[href], summary, [tabindex]'
+    )].filter((element) => !element.disabled && element.tabIndex >= 0 &&
+        !element.closest("[inert]") && element.getClientRects().length &&
+        getComputedStyle(element).visibility !== "hidden");
+}
+
+function trapSheetFocus(event) {
+    const targets = getSheetFocusTargets();
+    const first = targets[0];
+    const last = targets[targets.length - 1];
+    if (!first) {
+        event.preventDefault();
+        return;
+    }
+    if (event.shiftKey && (document.activeElement === first || !activeSheet.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus();
+    } else if (!event.shiftKey && (document.activeElement === last || !activeSheet.contains(document.activeElement))) {
+        event.preventDefault();
+        first.focus();
+    }
 }
 
 function countActiveFilters() {
@@ -1184,6 +1379,10 @@ function cancelScheduledSearchRender() {
 }
 
 function rankSongs(songs, query, { fuzzy = state.fuzzySearch } = {}) {
+    if (state.exactArtist && state.searchScope === "artist" && query) {
+        const key = normalizeArtistKey(query);
+        return songs.filter((song) => song.artistKey === key);
+    }
     const tokens = normalize(query).split(" ").filter(Boolean);
     if (!tokens.length) {
         return state.defaultRankedSongs.length ? state.defaultRankedSongs : songs;
@@ -1358,6 +1557,7 @@ function setSearchOrder(mode) {
 
 function resetResultLimit() {
     state.resultLimit = RESULT_BATCH_SIZE;
+    state.groupOpenStates.clear();
 }
 
 function clearSearchFilters({ resetFuzzy = true } = {}) {
@@ -1374,6 +1574,7 @@ function clearSearchFilters({ resetFuzzy = true } = {}) {
 }
 
 function clearSearchQuery({ resetScope = true } = {}) {
+    state.exactArtist = false;
     state.query = "";
     els.searchInput.value = "";
 
@@ -1440,6 +1641,7 @@ function createRecentSearchesRow() {
         chip.title = `Search “${query}” again`;
         chip.addEventListener("click", () => {
             state.query = query;
+            state.exactArtist = false;
             els.searchInput.value = query;
             state.mode = "search";
             resetResultLimit();
@@ -1740,6 +1942,7 @@ function renderEmptySearchState() {
             button.title = suggestion.detail || suggestion.label;
             button.addEventListener("click", () => {
                 state.query = suggestion.query;
+                state.exactArtist = false;
                 els.searchInput.value = suggestion.query;
                 state.searchScope = suggestion.scope;
                 state.fuzzySearch = false;
@@ -1860,9 +2063,8 @@ function renderGroupedSearchResults() {
 
     if (sortMode === "artist") {
         for (const group of groupByArtist(state.visibleSongs)) {
-            const section = createBrowseSection(group.artist, group.songs.length, false);
+            const section = createBrowseSection(group.artist, group.songs.length, shouldOpenGroup(group.songs.length));
             const body = section.querySelector(".browse-items");
-            section.open = shouldOpenGroup(group.songs.length);
 
             for (const song of group.songs) {
                 body.appendChild(createGroupedSongRow(song, false));
@@ -1873,9 +2075,8 @@ function renderGroupedSearchResults() {
     } else {
         const groups = groupBySongLetter(state.visibleSongs);
         for (const group of groups) {
-            const section = createBrowseSection(group.letter, group.songs.length, true);
+            const section = createBrowseSection(group.letter, group.songs.length, shouldOpenGroup(group.songs.length));
             const body = section.querySelector(".browse-items");
-            section.open = shouldOpenGroup(group.songs.length);
 
             for (const song of group.songs) {
                 body.appendChild(createGroupedSongRow(song, true));
@@ -1897,6 +2098,7 @@ function renderGroupActions() {
 }
 
 function setGroupedResultsOpen(open) {
+    state.groupOpenStates.clear();
     state.groupOpenMode = open ? "expanded" : "collapsed";
     const container = state.mode === "browse" ? els.browseList : els.resultsList;
     for (const section of container.querySelectorAll(".browse-section")) {
@@ -1914,7 +2116,7 @@ function shouldOpenGroup(count) {
         return false;
     }
 
-    return state.sortMode === "artist" && count <= 8;
+    return Boolean(state.query) || (state.sortMode === "artist" && count <= 8);
 }
 
 function createGroupedSongRow(song, showArtist) {
@@ -1999,11 +2201,11 @@ function renderSongBrowse(songs, fragment) {
 function renderArtistBrowse(songs, fragment) {
     const groups = groupByArtist(songs);
     for (const group of groups) {
-        const section = createBrowseSection(group.artist, group.songs.length, false);
-        const body = section.querySelector(".browse-items");
-        section.open = state.groupOpenMode === "expanded" ? true
+        const open = state.groupOpenMode === "expanded" ? true
             : state.groupOpenMode === "collapsed" ? false
             : groups.length <= 8;
+        const section = createBrowseSection(group.artist, group.songs.length, open);
+        const body = section.querySelector(".browse-items");
 
         for (const song of group.songs) {
             const row = document.createElement("div");
@@ -2024,9 +2226,20 @@ function renderArtistBrowse(songs, fragment) {
 function createBrowseSection(label, count, open) {
     const section = document.createElement("details");
     section.className = "browse-section";
-    section.open = open;
+    const key = JSON.stringify([state.mode, state.browseBy, state.sortMode, label]);
+    section.dataset.groupKey = key;
+    section.open = state.groupOpenStates.get(key) ?? open;
 
     const summary = document.createElement("summary");
+    summary.addEventListener("click", () => {
+        const container = state.mode === "browse" ? els.browseList : els.resultsList;
+        for (const other of container.querySelectorAll(".browse-section")) {
+            state.groupOpenStates.set(other.dataset.groupKey, other.open);
+        }
+        state.groupOpenStates.set(key, !section.open);
+        state.groupOpenMode = "auto";
+        renderGroupActions();
+    });
     const title = document.createElement("span");
     title.textContent = label || "Unknown";
 
@@ -2057,21 +2270,27 @@ function createBrowseRow(song) {
 function createRowTools(song) {
     const tools = document.createElement("div");
     tools.className = "row-tools";
-    tools.append(createFavoriteButton(song), createSongTags(song), createSongLinks(song), createMiniAddButton(song));
+    tools.append(createFavoriteButton(song), createRepertoireButton(song), createSongTags(song), createSongLinks(song), createMiniAddButton(song));
     return tools;
 }
 
 function createFavoriteButton(song) {
-    const active = isFavorite(song);
     const button = document.createElement("button");
     button.className = "icon-button favorite-button";
-    button.classList.toggle("is-active", active);
     button.type = "button";
-    button.title = active ? "Remove favorite" : "Add favorite";
-    button.setAttribute("aria-label", active ? "Remove favorite" : "Add favorite");
+    FAVORITE_BUTTON_SONGS.set(button, song);
+    updateFavoriteButton(button, song);
     button.innerHTML = '<i data-lucide="star" aria-hidden="true"></i>';
     button.addEventListener("click", () => toggleFavorite(song));
     return button;
+}
+
+function updateFavoriteButton(button, song) {
+    const active = isFavorite(song);
+    button.classList.toggle("is-active", active);
+    button.title = active ? "Remove favorite" : "Add favorite";
+    button.setAttribute("aria-label", `${button.title}: ${getDisplaySongTitle(song)}`);
+    button.setAttribute("aria-pressed", String(active));
 }
 
 function createMiniAddButton(song) {
@@ -2080,8 +2299,26 @@ function createMiniAddButton(song) {
     button.type = "button";
     button.title = "Add to setlist";
     button.textContent = "+";
+    ADD_BUTTON_SONGS.set(button, song);
+    updateAddButton(button, song);
     button.addEventListener("click", () => addToSetlist(song));
     return button;
+}
+
+function updateAddButton(button, song, queuedIds = new Set(state.setlist.map(getSongIdentity))) {
+    const queued = queuedIds.has(getSongIdentity(song));
+    button.textContent = queued ? "Added" : button.classList.contains("mini-add") ? "+" : "Add";
+    button.setAttribute("aria-disabled", String(queued));
+    button.title = queued ? "Already in your setlist" : "Add to setlist";
+    button.setAttribute("aria-label", `${button.title}: ${getDisplaySongTitle(song)}`);
+}
+
+function syncAddButtons() {
+    const queuedIds = new Set(state.setlist.map(getSongIdentity));
+    for (const button of document.querySelectorAll(".add-button, .mini-add")) {
+        const song = ADD_BUTTON_SONGS.get(button);
+        if (song) updateAddButton(button, song, queuedIds);
+    }
 }
 
 function getQueryTokens() {
@@ -2243,6 +2480,7 @@ function createSongCard(song) {
     appendPills(meta, getSongMoods(song), "mood", "mood");
     appendPills(meta, getSongGenres(song), "genre", "genre");
     appendPills(meta, song.eras, "era", "decade");
+    annotateEraSource(meta, song);
     appendPills(meta, getHolidayValues(song), "flag", "holiday");
     appendPills(meta, getDisplayFlags(song), "flag");
 
@@ -2257,12 +2495,14 @@ function createSongCard(song) {
 
     const cardTools = document.createElement("div");
     cardTools.className = "card-tools";
-    cardTools.append(createFavoriteButton(song), createSongLinks(song));
+    cardTools.append(createFavoriteButton(song), createRepertoireButton(song), createSongLinks(song));
 
     const button = document.createElement("button");
     button.className = "add-button";
     button.type = "button";
     button.textContent = "Add";
+    ADD_BUTTON_SONGS.set(button, song);
+    updateAddButton(button, song);
     button.addEventListener("click", () => addToSetlist(song));
 
     actions.append(cardTools, button);
@@ -2418,6 +2658,7 @@ function createSongTags(song) {
         const pills = document.createElement("div");
         pills.className = "tag-popout-pills";
         appendPills(pills, group.values, group.className, group.filterName, group.limit);
+        if (group.filterName === "decade") annotateEraSource(pills, song);
 
         section.append(label, pills);
         menu.appendChild(section);
@@ -2569,6 +2810,7 @@ function capPills(container, limit) {
 }
 
 function applyPillFilter(filterName, value) {
+    state.exactArtist = false;
     state.pushHistory = true;
     const def = MULTI_FILTER_DEFS.find((item) => item.param === filterName);
     if (def) {
@@ -2589,6 +2831,8 @@ function applyPillFilter(filterName, value) {
 }
 
 function applyArtistSearch(artistName) {
+    state.exactArtist = true;
+    state.favoriteOnly = false;
     state.pushHistory = true;
     for (const def of MULTI_FILTER_DEFS) {
         state.filters[def.key] = [];
@@ -2789,6 +3033,7 @@ function applyStoredUiState() {
     if (SEARCH_SCOPES.includes(stored.searchScope)) {
         state.searchScope = stored.searchScope;
     }
+    state.exactArtist = stored.exactArtist === true && state.searchScope === "artist";
 
     if (stored.searchScope === "song" && !stored.query) {
         state.searchScope = "all";
@@ -2867,6 +3112,9 @@ function applyInitialRoute() {
     if (query) {
         state.query = query;
     }
+    if (params.has("exact")) {
+        state.exactArtist = params.get("exact") === "1" && state.searchScope === "artist";
+    }
 
     if (["relevance", "popular", "artist", "song"].includes(sort)) {
         state.sortMode = sort;
@@ -2891,6 +3139,7 @@ function saveUiState() {
             browseBy: state.browseBy,
             browseLetter: state.browseLetter,
             searchScope: state.searchScope,
+            exactArtist: state.exactArtist,
             query: state.query,
             fuzzySearch: state.fuzzySearch,
             favoriteOnly: state.favoriteOnly,
@@ -2922,6 +3171,7 @@ function syncUrlState() {
         if (state.searchScope !== "all") {
             params.set("scope", state.searchScope);
         }
+        if (state.exactArtist && state.searchScope === "artist") params.set("exact", "1");
         if (state.sortMode !== "relevance") {
             params.set("sort", state.sortMode);
         }
@@ -2962,6 +3212,7 @@ function addToSetlist(song) {
         state.setlist.push(toSetlistEntry(song));
         saveSetlist();
         renderSetlist();
+        showSnackbar(`Added “${getDisplaySongTitle(song)}” to setlist`);
     }
 }
 
@@ -3010,7 +3261,16 @@ function toggleFavorite(song) {
     }
 
     saveFavorites();
-    render();
+    if (state.favoriteOnly || isDiscoverView()) {
+        render();
+    } else {
+        // Preserve open groups, scroll position, and keyboard focus when the
+        // result membership is unchanged by a favorite toggle.
+        for (const button of document.querySelectorAll(".favorite-button")) {
+            const item = FAVORITE_BUTTON_SONGS.get(button);
+            if (item) updateFavoriteButton(button, item);
+        }
+    }
 }
 
 function isFavorite(song) {
@@ -3106,6 +3366,11 @@ function shouldGroupSearchResults() {
 }
 
 function renderSetlist() {
+    syncAddButtons();
+    const focusedItem = document.activeElement?.closest(".setlist-item");
+    const focusedSongId = focusedItem?.dataset.songId;
+    const focusedIndex = Number(focusedItem?.dataset.index || 0);
+    const focusedTitle = document.activeElement?.title;
     els.setlist.innerHTML = "";
     els.setlistCount.textContent = getSetlistSummary();
     els.copySetlistButton.disabled = !state.setlist.length;
@@ -3134,6 +3399,7 @@ function renderSetlist() {
         empty.append(message, draft);
         els.setlist.appendChild(empty);
         hydrateIcons();
+        if (focusedItem) draft.focus({ preventScroll: true });
         return;
     }
 
@@ -3143,6 +3409,7 @@ function renderSetlist() {
         item.className = "setlist-item";
         item.draggable = true;
         item.dataset.index = String(index);
+        item.dataset.songId = getSongIdentity(song);
 
         item.addEventListener("dragstart", (event) => {
             draggedSetlistIndex = index;
@@ -3235,6 +3502,13 @@ function renderSetlist() {
 
     els.setlist.appendChild(fragment);
     hydrateIcons();
+    if (focusedItem) {
+        const items = [...els.setlist.querySelectorAll(".setlist-item")];
+        const item = items.find((entry) => entry.dataset.songId === focusedSongId) ||
+            items[Math.min(focusedIndex, items.length - 1)];
+        const buttons = [...(item?.querySelectorAll("button") || [])].filter((button) => !button.disabled);
+        (buttons.find((button) => button.title === focusedTitle) || buttons[0])?.focus({ preventScroll: true });
+    }
 }
 
 function createSingerControl(song, item) {
@@ -3269,11 +3543,16 @@ function createSingerControl(song, item) {
                 }
                 saveSetlist();
             }
-            renderSetlist();
+            const restoreFocus = document.activeElement === input;
+            const replacement = createSingerControl(song, item);
+            item.draggable = true;
+            wrap.replaceWith(replacement);
+            if (restoreFocus) replacement.querySelector("button").focus({ preventScroll: true });
         };
 
         input.addEventListener("keydown", (event) => {
             if (event.key === "Enter") {
+                event.preventDefault();
                 finish(true);
             } else if (event.key === "Escape") {
                 event.stopPropagation();
@@ -3340,7 +3619,9 @@ async function buildShareUrl() {
 async function encodeSetlistPayload() {
     try {
         const raw = state.setlist
-            .map((song) => song.id || getSongIdentity(song))
+            // Stored IDs may predate content-derived identity and contain a row
+            // index. Recompute from the retained song fields for shared links.
+            .map((song) => getSongIdentity(song))
             .join("\n");
         const bytes = new TextEncoder().encode(raw);
 
@@ -3453,8 +3734,8 @@ async function offerSharedSetlistImport() {
 const DRAFT_SETLIST_TARGET = 10;
 
 function getDraftPool() {
+    if (searchRenderTimer) render();
     const hasScope = state.mode === "search" &&
-        state.currentSongs.length &&
         (Boolean(normalize(state.query)) || hasSongFilters());
     if (hasScope) {
         return state.currentSongs;
@@ -3582,6 +3863,9 @@ function reorderSetlist(fromIndex, toIndex) {
 }
 
 function saveSetlist() {
+    // Any subsequent edit makes a prior snapshot-based Undo unsafe. Callers
+    // offering a new Undo install it after saving their own change.
+    if (state.snackbarAction) hideSnackbar();
     try {
         localStorage.setItem("karaokeSetlist", JSON.stringify(state.setlist));
     } catch {
@@ -3941,7 +4225,7 @@ function updateFacetedCounts(control) {
     // Count against the current query plus every OTHER filter, so the numbers
     // answer "what would picking this add to my current results?".
     const base = applySearchFilters(
-        state.queryScopedSongs.length ? state.queryScopedSongs : state.songs,
+        state.queryScopedSongs,
         def.key
     );
     const counts = new Map();
@@ -4126,10 +4410,10 @@ function hasSongFilters() {
         state.favoriteOnly;
 }
 
-function getAvailableDecades() {
+function getAvailableDecades(songs = state.songs) {
     const values = new Set();
 
-    for (const song of state.songs) {
+    for (const song of songs) {
         for (const era of song.eras || []) {
             if (era) {
                 values.add(era);
@@ -4140,10 +4424,10 @@ function getAvailableDecades() {
     return [...values].sort(compareDecade);
 }
 
-function getAvailableValues(getValues) {
+function getAvailableValues(getValues, songs = state.songs) {
     const values = new Set();
 
-    for (const song of state.songs) {
+    for (const song of songs) {
         for (const value of getValues(song) || []) {
             if (value) {
                 values.add(value);
@@ -4180,11 +4464,11 @@ function getTopValues(songs, getValues, limit) {
         .map(([key]) => labels.get(key));
 }
 
-function getPromotedGenreTagMap(songs) {
+async function getPromotedGenreTagMap(songs) {
     const counts = new Map();
     const labelsByKey = new Map();
 
-    for (const song of songs) {
+    await mapSongbookInChunks(songs, (song) => {
         const seen = new Set();
         for (const tag of song.tags || []) {
             const key = normalize(tag);
@@ -4202,7 +4486,7 @@ function getPromotedGenreTagMap(songs) {
             const labels = labelsByKey.get(key);
             labels.set(tag, (labels.get(tag) || 0) + 1);
         }
-    }
+    });
 
     const consolidatedGenres = state.tagConsolidation.genreTags;
     if (consolidatedGenres.size) {
@@ -4272,13 +4556,13 @@ function getPromotedGenresForSong(song, promotedGenreTags = state.promotedGenreT
     return dedupeValues(values);
 }
 
-function buildCanonicalArtistNames(songs) {
+async function buildCanonicalArtistNames(songs) {
     const variantsByKey = new Map();
 
-    for (const song of songs) {
+    await mapSongbookInChunks(songs, (song) => {
         const key = getArtistKey(song);
         if (!key) {
-            continue;
+            return;
         }
 
         if (!variantsByKey.has(key)) {
@@ -4289,7 +4573,7 @@ function buildCanonicalArtistNames(songs) {
         for (const name of getArtistNameCandidates(song)) {
             variants.set(name, (variants.get(name) || 0) + 1);
         }
-    }
+    });
 
     return new Map([...variantsByKey.entries()].map(([key, variants]) => [
         key,

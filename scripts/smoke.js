@@ -2,15 +2,15 @@
 // Headless smoke test for the songbook. Serves nothing itself — expects the
 // repo root at http://127.0.0.1:8765 (python3 -m http.server 8765).
 // Uses `playwright` when installed (CI) and falls back to `playwright-core`
-// with a preinstalled Chromium (local sandboxes, CHROMIUM_PATH to override).
+// with installed browsers (BROWSER selects an engine; CHROMIUM_PATH overrides Chromium).
 
-let chromium;
+let playwright;
+try { playwright = require("playwright"); } catch { playwright = require("playwright-core"); }
+const browserName = process.env.BROWSER || "chromium";
+if (!["chromium", "firefox", "webkit"].includes(browserName)) throw new Error("Unknown BROWSER");
 const launchOptions = { headless: true };
-try {
-    ({ chromium } = require("playwright"));
-} catch {
-    ({ chromium } = require("playwright-core"));
-    launchOptions.executablePath = process.env.CHROMIUM_PATH || "/opt/pw-browsers/chromium";
+if (browserName === "chromium" && process.env.CHROMIUM_PATH) {
+    launchOptions.executablePath = process.env.CHROMIUM_PATH;
 }
 
 const BASE = process.env.SMOKE_URL || "http://127.0.0.1:8765/karaoke_explorer.html";
@@ -26,7 +26,7 @@ function check(name, condition, detail = "") {
 }
 
 (async () => {
-    const browser = await chromium.launch(launchOptions);
+    const browser = await playwright[browserName].launch(launchOptions);
     const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
     const page = await context.newPage();
     const pageErrors = [];

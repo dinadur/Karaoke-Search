@@ -1,0 +1,1053 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-07",
+  "summary": {
+    "total": 36734,
+    "before": 15277,
+    "added": 40,
+    "after": 15317,
+    "conflictsSkipped": 15
+  },
+  "entries": [
+    {
+      "artist": "carpenters, The",
+      "song": "Have Yourself a Merry Little Christmas",
+      "lookupArtist": "The Carpenters",
+      "lookupSong": "",
+      "eras": [
+        "70s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-09-07",
+        "matching": "Normalized lookup title and artist; comma-reversed artist allowed only when that exact name also exists; karaoke source codes removed; all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "Carpenters, The",
+            "song": "Have Yourself a Merry Little Christmas",
+            "lookupArtist": "The Carpenters",
+            "lookupSong": "",
+            "eras": [
+              "70s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "murray, Anne",
+      "song": "Do You Hear What I Hear",
+      "lookupArtist": "Anne Murray",
+      "lookupSong": "",
+      "eras": [
+        "70s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-09-07",
+        "matching": "Normalized lookup title and artist; comma-reversed artist allowed only when that exact name also exists; karaoke source codes removed; all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "Murray, Anne",
+            "song": "Do You Hear What I Hear",
+            "lookupArtist": "Anne Murray",
+            "lookupSong": "",
+            "eras": [
+              "70s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "Sinatra, Frank",
+      "song": "Mistletoe and Holly",
+      "lookupArtist": "Frank Sinatra",
+      "lookupSong": "",
+      "eras": [
+        "50s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-09-07",
+        "matching": "Normalized lookup title and artist; comma-reversed artist allowed only when that exact name also exists; karaoke source codes removed; all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "Sinatra, Frank",
+            "song": "Mistletoe and Holly",
+            "lookupArtist": "Frank Sinatra",
+            "lookupSong": "",
+            "eras": [
+              "50s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "Stone, Doug",
+      "song": "All I Want for Christmas is You",
+      "lookupArtist": "Doug Stone",
+      "lookupSong": "",
+      "eras": [
+        "90s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-09-07",
+        "matching": "Normalized lookup title and artist; comma-reversed artist allowed only when that exact name also exists; karaoke source codes removed; all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "Stone, Doug",
+            "song": "All I Want for Christmas is You",
+            "lookupArtist": "Doug Stone",
+            "lookupSong": "",
+            "eras": [
+              "90s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "Van Shelton, Ricky",
+      "song": "Please Come Home for Christmas",
+      "lookupArtist": "Ricky Van Shelton",
+      "lookupSong": "",
+      "eras": [
+        "90s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-09-07",
+        "matching": "Normalized lookup title and artist; comma-reversed artist allowed only when that exact name also exists; karaoke source codes removed; all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "Van Shelton, Ricky",
+            "song": "Please Come Home for Christmas",
+            "lookupArtist": "Ricky Van Shelton",
+            "lookupSong": "",
+            "eras": [
+              "90s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "Williams, Andy",
+      "song": "Sweet Little Jesus Boy",
+      "lookupArtist": "Andy Williams",
+      "lookupSong": "",
+      "eras": [
+        "60s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-09-07",
+        "matching": "Normalized lookup title and artist; comma-reversed artist allowed only when that exact name also exists; karaoke source codes removed; all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "Williams, Andy",
+            "song": "Sweet Little Jesus Boy",
+            "lookupArtist": "Andy Williams",
+            "lookupSong": "",
+            "eras": [
+              "60s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "Ellie Goulding",
+      "song": "Burn",
+      "lookupArtist": "",
+      "lookupSong": "",
+      "eras": [
+        "2010s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-09-07",
+        "matching": "Normalized lookup title and artist; comma-reversed artist allowed only when that exact name also exists; karaoke source codes removed; all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "Goulding, Ellie",
+            "song": "Burn",
+            "lookupArtist": "Ellie Goulding",
+            "lookupSong": "Burn",
+            "eras": [
+              "2010s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "EU",
+      "song": "Da' Butt [karaoke]",
+      "lookupArtist": "",
+      "lookupSong": "Da' Butt",
+      "eras": [
+        "80s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-09-07",
+        "matching": "Normalized lookup title and artist; comma-reversed artist allowed only when that exact name also exists; karaoke source codes removed; all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "E.U.",
+            "song": "Da' Butt",
+            "lookupArtist": "",
+            "lookupSong": "",
+            "eras": [
+              "80s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "Destiny's Child",
+      "song": "Say My Name",
+      "lookupArtist": "Destiny's Child",
+      "lookupSong": "Say My Name",
+      "eras": [
+        "90s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-09-07",
+        "matching": "Normalized lookup title and artist; comma-reversed artist allowed only when that exact name also exists; karaoke source codes removed; all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "Destinys Child",
+            "song": "Say My Name",
+            "lookupArtist": "",
+            "lookupSong": "",
+            "eras": [
+              "90s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "Dylan, Bob",
+      "song": "Hurricane",
+      "lookupArtist": "Bob Dylan",
+      "lookupSong": "Hurricane",
+      "eras": [
+        "60s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-09-07",
+        "matching": "Normalized lookup title and artist; comma-reversed artist allowed only when that exact name also exists; karaoke source codes removed; all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "Bob Dylan",
+            "song": "Hurricane",
+            "lookupArtist": "",
+            "lookupSong": "",
+            "eras": [
+              "60s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "George, Barbara",
+      "song": "I Know",
+      "lookupArtist": "Barbara George",
+      "lookupSong": "I Know",
+      "eras": [
+        "60s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-09-07",
+        "matching": "Normalized lookup title and artist; comma-reversed artist allowed only when that exact name also exists; karaoke source codes removed; all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "Barbara George",
+            "song": "I Know",
+            "lookupArtist": "",
+            "lookupSong": "",
+            "eras": [
+              "60s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "Lauper, Cyndi",
+      "song": "Girls Just Wanna Have Fun",
+      "lookupArtist": "Cyndi Lauper",
+      "lookupSong": "Girls Just Wanna Have Fun",
+      "eras": [
+        "80s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-09-07",
+        "matching": "Normalized lookup title and artist; comma-reversed artist allowed only when that exact name also exists; karaoke source codes removed; all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "Cyndi Lauper",
+            "song": "Girls Just Wanna Have Fun",
+            "lookupArtist": "",
+            "lookupSong": "",
+            "eras": [
+              "80s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "Lauper, Cyndi",
+      "song": "I'm Gonna Be Strong",
+      "lookupArtist": "Cyndi Lauper",
+      "lookupSong": "I'm Gonna Be Strong",
+      "eras": [
+        "80s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-09-07",
+        "matching": "Normalized lookup title and artist; comma-reversed artist allowed only when that exact name also exists; karaoke source codes removed; all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "Cyndi Lauper",
+            "song": "I'm Gonna Be Strong",
+            "lookupArtist": "",
+            "lookupSong": "",
+            "eras": [
+              "80s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "Morissette, Alanis",
+      "song": "You Oughta Know",
+      "lookupArtist": "Alanis Morissette",
+      "lookupSong": "You Oughta Know",
+      "eras": [
+        "90s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-09-07",
+        "matching": "Normalized lookup title and artist; comma-reversed artist allowed only when that exact name also exists; karaoke source codes removed; all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "Alanis Morissette",
+            "song": "You Oughta Know",
+            "lookupArtist": "",
+            "lookupSong": "",
+            "eras": [
+              "90s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "OMD",
+      "song": "So In Love",
+      "lookupArtist": "OMD",
+      "lookupSong": "So In Love",
+      "eras": [
+        "80s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-09-07",
+        "matching": "Normalized lookup title and artist; comma-reversed artist allowed only when that exact name also exists; karaoke source codes removed; all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "O.M.D.",
+            "song": "So In Love",
+            "lookupArtist": "",
+            "lookupSong": "",
+            "eras": [
+              "80s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "Ocean, Billy",
+      "song": "Love Zone",
+      "lookupArtist": "Billy Ocean",
+      "lookupSong": "Love Zone",
+      "eras": [
+        "80s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-09-07",
+        "matching": "Normalized lookup title and artist; comma-reversed artist allowed only when that exact name also exists; karaoke source codes removed; all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "Billy Ocean",
+            "song": "Love Zone",
+            "lookupArtist": "",
+            "lookupSong": "",
+            "eras": [
+              "80s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "Paycheck, Johnny",
+      "song": "Old Violin",
+      "lookupArtist": "Johnny Paycheck",
+      "lookupSong": "Old Violin",
+      "eras": [
+        "70s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-09-07",
+        "matching": "Normalized lookup title and artist; comma-reversed artist allowed only when that exact name also exists; karaoke source codes removed; all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "Johnny Paycheck",
+            "song": "Old Violin",
+            "lookupArtist": "",
+            "lookupSong": "",
+            "eras": [
+              "70s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "Paycheck, Johnny",
+      "song": "Take this Job and Shove It",
+      "lookupArtist": "Johnny Paycheck",
+      "lookupSong": "Take this Job and Shove It",
+      "eras": [
+        "70s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-09-07",
+        "matching": "Normalized lookup title and artist; comma-reversed artist allowed only when that exact name also exists; karaoke source codes removed; all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "Johnny Paycheck",
+            "song": "Take This Job And Shove It",
+            "lookupArtist": "",
+            "lookupSong": "",
+            "eras": [
+              "70s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "Phair, Liz",
+      "song": "Supernova",
+      "lookupArtist": "Liz Phair",
+      "lookupSong": "Supernova",
+      "eras": [
+        "90s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-09-07",
+        "matching": "Normalized lookup title and artist; comma-reversed artist allowed only when that exact name also exists; karaoke source codes removed; all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "Liz Phair",
+            "song": "Supernova",
+            "lookupArtist": "",
+            "lookupSong": "",
+            "eras": [
+              "90s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "Poindexter, Buster",
+      "song": "Hot Hot Hot",
+      "lookupArtist": "Buster Poindexter",
+      "lookupSong": "Hot Hot Hot",
+      "eras": [
+        "80s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-09-07",
+        "matching": "Normalized lookup title and artist; comma-reversed artist allowed only when that exact name also exists; karaoke source codes removed; all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "Buster Poindexter",
+            "song": "Hot Hot Hot",
+            "lookupArtist": "",
+            "lookupSong": "",
+            "eras": [
+              "80s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "Redding, Otis",
+      "song": "Sittin' on the Dock of the Bay",
+      "lookupArtist": "Otis Redding",
+      "lookupSong": "Sittin' on the Dock of the Bay",
+      "eras": [
+        "60s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-09-07",
+        "matching": "Normalized lookup title and artist; comma-reversed artist allowed only when that exact name also exists; karaoke source codes removed; all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "Otis Redding",
+            "song": "Sittin' On The Dock Of The Bay",
+            "lookupArtist": "",
+            "lookupSong": "",
+            "eras": [
+              "60s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "Redding, Otis",
+      "song": "Try a Little Tenderness",
+      "lookupArtist": "Otis Redding",
+      "lookupSong": "Try a Little Tenderness",
+      "eras": [
+        "60s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-09-07",
+        "matching": "Normalized lookup title and artist; comma-reversed artist allowed only when that exact name also exists; karaoke source codes removed; all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "Otis Redding",
+            "song": "Try A Little Tenderness",
+            "lookupArtist": "",
+            "lookupSong": "",
+            "eras": [
+              "60s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "Richie, Lionel",
+      "song": "All Night Long",
+      "lookupArtist": "Lionel Richie",
+      "lookupSong": "All Night Long",
+      "eras": [
+        "80s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-09-07",
+        "matching": "Normalized lookup title and artist; comma-reversed artist allowed only when that exact name also exists; karaoke source codes removed; all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "Lionel Richie",
+            "song": "All Night Long",
+            "lookupArtist": "",
+            "lookupSong": "",
+            "eras": [
+              "80s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "Richie, Lionel",
+      "song": "Dancing on the Ceiling",
+      "lookupArtist": "Lionel Richie",
+      "lookupSong": "Dancing on the Ceiling",
+      "eras": [
+        "80s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-09-07",
+        "matching": "Normalized lookup title and artist; comma-reversed artist allowed only when that exact name also exists; karaoke source codes removed; all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "Lionel Richie",
+            "song": "Dancing On The Ceiling",
+            "lookupArtist": "",
+            "lookupSong": "",
+            "eras": [
+              "80s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "Richie, Lionel",
+      "song": "Hello",
+      "lookupArtist": "Lionel Richie",
+      "lookupSong": "Hello",
+      "eras": [
+        "80s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-09-07",
+        "matching": "Normalized lookup title and artist; comma-reversed artist allowed only when that exact name also exists; karaoke source codes removed; all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "Lionel Richie",
+            "song": "Hello",
+            "lookupArtist": "",
+            "lookupSong": "",
+            "eras": [
+              "80s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "Richie, Lionel",
+      "song": "My Tender Heart",
+      "lookupArtist": "Lionel Richie",
+      "lookupSong": "My Tender Heart",
+      "eras": [
+        "80s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-09-07",
+        "matching": "Normalized lookup title and artist; comma-reversed artist allowed only when that exact name also exists; karaoke source codes removed; all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "Lionel Richie",
+            "song": "My Tender Heart",
+            "lookupArtist": "",
+            "lookupSong": "",
+            "eras": [
+              "80s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "Richie, Lionel",
+      "song": "Penny Lover",
+      "lookupArtist": "Lionel Richie",
+      "lookupSong": "Penny Lover",
+      "eras": [
+        "80s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-09-07",
+        "matching": "Normalized lookup title and artist; comma-reversed artist allowed only when that exact name also exists; karaoke source codes removed; all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "Lionel Richie",
+            "song": "Penny Lover",
+            "lookupArtist": "",
+            "lookupSong": "",
+            "eras": [
+              "80s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "Richie, Lionel",
+      "song": "Say You, Say Me",
+      "lookupArtist": "Lionel Richie",
+      "lookupSong": "Say You, Say Me",
+      "eras": [
+        "80s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-09-07",
+        "matching": "Normalized lookup title and artist; comma-reversed artist allowed only when that exact name also exists; karaoke source codes removed; all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "Lionel Richie",
+            "song": "Say You Say Me",
+            "lookupArtist": "",
+            "lookupSong": "",
+            "eras": [
+              "80s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "Richie, Lionel",
+      "song": "Truly",
+      "lookupArtist": "Lionel Richie",
+      "lookupSong": "Truly",
+      "eras": [
+        "80s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-09-07",
+        "matching": "Normalized lookup title and artist; comma-reversed artist allowed only when that exact name also exists; karaoke source codes removed; all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "Lionel Richie",
+            "song": "Truly",
+            "lookupArtist": "",
+            "lookupSong": "",
+            "eras": [
+              "80s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "Rios, Miguel",
+      "song": "Himno a la Alegria",
+      "lookupArtist": "Miguel Rios",
+      "lookupSong": "Himno a la Alegria",
+      "eras": [
+        "70s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-09-07",
+        "matching": "Normalized lookup title and artist; comma-reversed artist allowed only when that exact name also exists; karaoke source codes removed; all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "Miguel Rios",
+            "song": "Himno a la Alegria",
+            "lookupArtist": "",
+            "lookupSong": "",
+            "eras": [
+              "70s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "Ronstadt, Linda",
+      "song": "It's so Easy",
+      "lookupArtist": "Linda Ronstadt",
+      "lookupSong": "It's so Easy",
+      "eras": [
+        "70s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-09-07",
+        "matching": "Normalized lookup title and artist; comma-reversed artist allowed only when that exact name also exists; karaoke source codes removed; all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "Linda Ronstadt",
+            "song": "It's So Easy",
+            "lookupArtist": "",
+            "lookupSong": "",
+            "eras": [
+              "70s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "Shannon, Del",
+      "song": "Runaway",
+      "lookupArtist": "Del Shannon",
+      "lookupSong": "Runaway",
+      "eras": [
+        "60s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-09-07",
+        "matching": "Normalized lookup title and artist; comma-reversed artist allowed only when that exact name also exists; karaoke source codes removed; all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "Del Shannon",
+            "song": "Runaway",
+            "lookupArtist": "",
+            "lookupSong": "",
+            "eras": [
+              "60s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "Sledge, Percy",
+      "song": "When a Man Loves a Woman",
+      "lookupArtist": "Percy Sledge",
+      "lookupSong": "When a Man Loves a Woman",
+      "eras": [
+        "60s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-09-07",
+        "matching": "Normalized lookup title and artist; comma-reversed artist allowed only when that exact name also exists; karaoke source codes removed; all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "Percy Sledge",
+            "song": "When A Man Loves A Woman",
+            "lookupArtist": "",
+            "lookupSong": "",
+            "eras": [
+              "60s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "Storm, Gale",
+      "song": "Dark Moon",
+      "lookupArtist": "Gale Storm",
+      "lookupSong": "Dark Moon",
+      "eras": [
+        "50s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-09-07",
+        "matching": "Normalized lookup title and artist; comma-reversed artist allowed only when that exact name also exists; karaoke source codes removed; all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "Gale Storm",
+            "song": "Dark Moon",
+            "lookupArtist": "",
+            "lookupSong": "",
+            "eras": [
+              "50s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "TLC",
+      "song": "Creep",
+      "lookupArtist": "TLC",
+      "lookupSong": "Creep",
+      "eras": [
+        "90s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-09-07",
+        "matching": "Normalized lookup title and artist; comma-reversed artist allowed only when that exact name also exists; karaoke source codes removed; all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "T.L.C.",
+            "song": "Creep",
+            "lookupArtist": "",
+            "lookupSong": "",
+            "eras": [
+              "90s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "TLC",
+      "song": "Girl Talk",
+      "lookupArtist": "TLC",
+      "lookupSong": "Girl Talk",
+      "eras": [
+        "90s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-09-07",
+        "matching": "Normalized lookup title and artist; comma-reversed artist allowed only when that exact name also exists; karaoke source codes removed; all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "T.L.C.",
+            "song": "Girl Talk",
+            "lookupArtist": "",
+            "lookupSong": "",
+            "eras": [
+              "90s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "TLC",
+      "song": "Unpretty",
+      "lookupArtist": "TLC",
+      "lookupSong": "Unpretty",
+      "eras": [
+        "90s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-09-07",
+        "matching": "Normalized lookup title and artist; comma-reversed artist allowed only when that exact name also exists; karaoke source codes removed; all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "T.L.C.",
+            "song": "Unpretty",
+            "lookupArtist": "",
+            "lookupSong": "",
+            "eras": [
+              "90s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "TLC",
+      "song": "Waterfalls",
+      "lookupArtist": "TLC",
+      "lookupSong": "Waterfalls",
+      "eras": [
+        "90s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-09-07",
+        "matching": "Normalized lookup title and artist; comma-reversed artist allowed only when that exact name also exists; karaoke source codes removed; all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "T.L.C.",
+            "song": "Waterfalls",
+            "lookupArtist": "",
+            "lookupSong": "",
+            "eras": [
+              "90s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "Vee, Bobby",
+      "song": "Take Good Care Of My Baby",
+      "lookupArtist": "Bobby Vee",
+      "lookupSong": "Take Good Care Of My Baby",
+      "eras": [
+        "60s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-09-07",
+        "matching": "Normalized lookup title and artist; comma-reversed artist allowed only when that exact name also exists; karaoke source codes removed; all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "Bobby Vee",
+            "song": "Take Good Care of My Baby",
+            "lookupArtist": "",
+            "lookupSong": "",
+            "eras": [
+              "60s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "Young MC",
+      "song": "Bust A Move",
+      "lookupArtist": "Young MC",
+      "lookupSong": "Bust A Move",
+      "eras": [
+        "80s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-09-07",
+        "matching": "Normalized lookup title and artist; comma-reversed artist allowed only when that exact name also exists; karaoke source codes removed; all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "M.C., Young",
+            "song": "Bust a Move",
+            "lookupArtist": "Young M.C.",
+            "lookupSong": "",
+            "eras": [
+              "80s"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

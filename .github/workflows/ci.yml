@@ -10,6 +10,12 @@ on:
 jobs:
   checks:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    env:
+      BROWSER: ${{ matrix.browser }}
     steps:
       - uses: actions/checkout@v4
 
@@ -25,17 +31,37 @@ jobs:
           node --check scripts/bump-version.js
           node --check scripts/check-versions.js
           node --check scripts/smoke.js
+          node --check scripts/regression.js
+          node --check scripts/generate-icons.js
+          node --check scripts/accessibility.js
+          node --check scripts/loading.js
+          node --check scripts/performance.js
+          node --check scripts/offline.js
+          node --check personal-songbook.js
+          node --check scripts/personal.js
+          node --check scripts/enrich-eras.js
+          node --check scripts/enrich-eras-musicbrainz.js
+          node scripts/check-era-enrichment.js
+          node scripts/test-era-enrichment.js
 
       - name: Version consistency
         run: node scripts/check-versions.js
 
       - name: Install Playwright
         run: |
-          npm install --no-save playwright
-          npx playwright install --with-deps chromium
+          npm install --no-save playwright axe-core
+          npx playwright install --with-deps "$BROWSER"
 
-      - name: Smoke test
+      - name: Browser checks
         run: |
           python3 -m http.server 8765 --bind 127.0.0.1 &
           sleep 1
           node scripts/smoke.js
+          node scripts/regression.js
+          node scripts/accessibility.js
+          node scripts/personal.js
+          node scripts/offline.js
+
+      - name: Input during catalog loading
+        if: matrix.browser == 'chromium'
+        run: node scripts/loading.js
