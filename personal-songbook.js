@@ -277,3 +277,39 @@ function annotateEraSource(container, song) {
         pill.setAttribute("aria-label", `${pill.textContent}. ${explanation}`);
     }
 }
+
+async function applyAudioEnrichment(songs, enrichment) {
+    if (!Array.isArray(songs) || !Array.isArray(enrichment?.entries)) return songs;
+    const byId = new Map();
+    for (const entry of enrichment.entries) {
+        if (!entry || typeof entry.song !== 'string' || typeof entry.artist !== 'string' || entry.source?.type !== 'getsongbpm' || !Array.isArray(entry.source.records)) continue;
+        const url = entry.source.records?.find((record) => typeof record?.url === 'string' && /^https:\/\/getsongbpm\.com\/song\//.test(record.url))?.url;
+        if (!url) continue;
+        const bpm = typeof entry.bpm === 'number' && entry.bpm >= 20 && entry.bpm <= 400 ? entry.bpm : null;
+        const referenceKey = typeof entry.referenceKey === 'string' && /^[A-G](?:#|b|♯|♭)?m?$/.test(entry.referenceKey) ? entry.referenceKey : null;
+        if (bpm === null && referenceKey === null) continue;
+        byId.set(getSongIdentity(entry), { bpm, referenceKey, audioSource: { url, type: 'getsongbpm' } });
+    }
+    return mapSongbookInChunks(songs, (song) => {
+        if (!song || typeof song.song !== 'string' || typeof song.artist !== 'string') return song;
+        const match = byId.get(getSongIdentity(song));
+        return match ? { ...song, ...match } : song;
+    });
+}
+
+function appendAudioMetadata(container, song) {
+    if (!song.audioSource) return;
+    const description = 'Reference recording from GetSongBPM. Karaoke arrangements may use a different tempo or key.';
+    const values = [song.bpm !== null && song.bpm !== undefined ? `${song.bpm} BPM` : '', song.referenceKey ? `Ref. key ${song.referenceKey}` : ''].filter(Boolean);
+    for (const value of values) {
+        const link = document.createElement('a');
+        link.className = 'pill audio-metadata is-clickable';
+        link.textContent = value;
+        link.href = song.audioSource.url;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.title = description;
+        link.setAttribute('aria-label', `${value}. ${description} Opens in a new tab.`);
+        container.appendChild(link);
+    }
+}

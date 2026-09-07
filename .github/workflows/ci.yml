@@ -47,6 +47,7 @@ jobs:
           node --check scripts/enrich-getsongbpm.js
           node --check scripts/check-audio-enrichment.js
           node scripts/test-getsongbpm.js
+          node --check scripts/audio.js
           if [ -f audio_enrichment.json ]; then node scripts/check-audio-enrichment.js; fi
 
       - name: Version consistency
@@ -65,6 +66,7 @@ jobs:
           node scripts/regression.js
           node scripts/accessibility.js
           node scripts/personal.js
+          node scripts/audio.js
           node scripts/offline.js
 
       - name: Input during catalog loading

@@ -1,4 +1,4 @@
-const APP_VERSION = "20260907-6";
+const APP_VERSION = "20260907-7";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const TAG_CONSOLIDATION_URL = `tag_consolidation.json?v=${APP_VERSION}`;
 const MOOD_CONSOLIDATION_URL = `mood_consolidation.json?v=${APP_VERSION}`;
@@ -389,6 +389,8 @@ async function loadSongbook() {
     try {
         const eraPromise = fetch(`era_enrichment.json?v=${APP_VERSION}`)
             .then((response) => response.ok ? response.json() : null).catch(() => null);
+        const audioPromise = fetch(`audio_enrichment.json?v=${APP_VERSION}`)
+            .then((response) => response.ok ? response.json() : null).catch(() => null);
         const tagConsolidationPromise = loadTagConsolidation();
         const moodConsolidationPromise = loadMoodConsolidation();
         const response = await fetch(DATA_URL);
@@ -407,7 +409,7 @@ async function loadSongbook() {
 
         state.tagConsolidation = await tagConsolidationPromise;
         state.moodConsolidation = await moodConsolidationPromise;
-        await useSongs(await applyEraEnrichment(songs, await eraPromise));
+        await useSongs(await applyAudioEnrichment(await applyEraEnrichment(songs, await eraPromise), await audioPromise));
         els.dataDialog.close();
     } catch (error) {
         console.error(error);
@@ -2477,6 +2479,7 @@ function createSongCard(song) {
         popular.title = "Among the most-streamed songs in this songbook";
         meta.appendChild(popular);
     }
+    appendAudioMetadata(meta, song);
     appendPills(meta, getSongMoods(song), "mood", "mood");
     appendPills(meta, getSongGenres(song), "genre", "genre");
     appendPills(meta, song.eras, "era", "decade");
@@ -2633,12 +2636,13 @@ function createSongTags(song) {
     container.className = "song-popout song-tags";
 
     const groups = getSongTagGroups(song);
+    const hasTags = groups.length || song.audioSource;
     const button = document.createElement("button");
     button.className = "icon-button link-popout-button tag-popout-button";
     button.type = "button";
-    button.title = groups.length ? "Song tags" : "No tags";
-    button.disabled = !groups.length;
-    button.setAttribute("aria-label", groups.length ? "Song tags" : "No tags");
+    button.title = hasTags ? "Song tags" : "No tags";
+    button.disabled = !hasTags;
+    button.setAttribute("aria-label", hasTags ? "Song tags" : "No tags");
     button.setAttribute("aria-haspopup", "true");
     button.setAttribute("aria-expanded", "false");
     button.innerHTML = '<i data-lucide="tags" aria-hidden="true"></i>';
@@ -2646,6 +2650,21 @@ function createSongTags(song) {
     const menu = document.createElement("div");
     menu.className = "song-tags-popout";
     menu.hidden = true;
+
+    if (song.audioSource) {
+        const section = document.createElement("section");
+        section.className = "tag-popout-group";
+        const label = document.createElement("div");
+        label.className = "tag-popout-label";
+        label.textContent = "Reference recording · GetSongBPM";
+        const pills = document.createElement("div");
+        pills.className = "tag-popout-pills";
+        appendAudioMetadata(pills, song);
+        const note = document.createElement("p");
+        note.textContent = "Karaoke arrangements may use a different tempo or key.";
+        section.append(label, pills, note);
+        menu.appendChild(section);
+    }
 
     for (const group of groups) {
         const section = document.createElement("section");

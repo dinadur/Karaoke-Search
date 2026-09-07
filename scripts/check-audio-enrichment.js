@@ -2,12 +2,13 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { identity } = require('./lib/music-metadata');
+const { identity, normalize, catalogGroups } = require('./lib/music-metadata');
 const root = path.join(__dirname, '..');
 const songs = JSON.parse(fs.readFileSync(path.join(root, 'karaoke_songs_enriched.json')));
 const data = JSON.parse(fs.readFileSync(path.join(root, 'audio_enrichment.json')));
 const known = new Set(songs.map(identity));
 const seen = new Set();
+const queries = new Map(catalogGroups(songs).flatMap(group => group.songs.map(song => [identity(song), group])));
 assert.equal(data.schemaVersion, 1);
 for (const entry of data.entries) {
     const id = identity(entry);
@@ -23,6 +24,8 @@ for (const entry of data.entries) {
     for (const record of entry.source.records) {
         assert.ok(typeof record.id === 'string' && record.id.length > 0);
         assert.ok(typeof record.title === 'string' && typeof record.artist === 'string');
+        assert.equal(normalize(record.title), normalize(queries.get(id).title));
+        assert.equal(normalize(record.artist), normalize(queries.get(id).artist));
         const url = new URL(record.url);
         assert.ok(url.protocol === 'https:' && url.hostname === 'getsongbpm.com' && url.pathname.startsWith('/song/'));
     }

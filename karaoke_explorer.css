@@ -2689,3 +2689,11 @@ dialog::backdrop {
     color: var(--brand);
     text-underline-offset: 3px;
 }
+
+.pill.audio-metadata {
+    color: var(--genre-ink);
+    background: var(--genre-bg);
+    min-height: 24px;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}

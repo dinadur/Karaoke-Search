@@ -20,6 +20,8 @@ assert.equal(matchResult({ search: [{ ...song, tempo: '', key_of: '<script>' }] 
 assert.equal(matchResult({ search: Array(100).fill(song) }, group).status, 'ambiguous');
 assert.equal(matchResult({ search: [{ ...song, uri: 'https://example.com/song/exact' }] }, group).status, 'ambiguous');
 assert.throws(() => matchResult({}, group));
+assert.equal(matchResult({ search: { error: 'no result' } }, group).status, 'unmatched');
+assert.throws(() => matchResult({ search: { error: 'invalid API key' } }, group));
 const grouped = catalogGroups([{ artist: 'Alpha', song: 'Exact' }, { artist: 'Alpha', song: 'Exact (karaoke)' }, { artist: 'Alpha', song: 'Exact (live)' }]);
 assert.equal(grouped.length, 2); assert.equal(grouped[0].songs.length, 2);
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'karaoke-bpm-test-'));
@@ -57,6 +59,9 @@ try {
     fs.writeFileSync(input, JSON.stringify(['Exact', 'New', 'Next', 'Last'].map(song=>({artist:'Alpha',song}))));
     const failed = run(); assert.match(failed, /"requests":3/); assert.ok(!failed.includes('test-secret'));
     assert.match(failed, /Three service\/network failures/);
+    fs.writeFileSync(mock, 'global.setTimeout=(f)=>{f();}; global.fetch=async()=>new Response(JSON.stringify({search:{error:"no result"}}));');
+    const scoped = execFileSync(process.execPath, ['--require', mock, script, '10', '--top=2'], { env, encoding: 'utf8' });
+    assert.match(scoped, /"requests":1/); assert.match(scoped, /"queryGroups":2/);
     const noKey = spawnSync(process.execPath, [script], { env: { ...env, GETSONGBPM_API_KEY: '' }, encoding: 'utf8' });
     assert.equal(noKey.status, 1); assert.match(noKey.stderr, /Set GETSONGBPM_API_KEY/);
     assert.ok(!fs.existsSync(path.join(temp, 'metadata_cache/getsongbpm.lock')));

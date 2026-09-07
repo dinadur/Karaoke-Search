@@ -56,6 +56,7 @@ const types = { ".html": "text/html", ".js": "application/javascript", ".css": "
         await page.locator(".repertoire-song-button").first().click();
         await page.fill("#repertoireNotes", "Private offline rehearsal note");
         await page.click('#songNotesForm button[type="submit"]');
+        const savedAudio = await page.evaluate(() => state.songs.filter((song) => song.audioSource).map((song) => [getSongIdentity(song), song.bpm, song.referenceKey]));
         const saved = await page.evaluate(() => ({ setlist: localStorage.getItem("karaokeSetlist"), favorites: [...state.favorites], repertoire: localStorage.getItem("karaokeRepertoireV1") }));
         await page.evaluate(async () => {
             await navigator.serviceWorker.ready;
@@ -79,6 +80,7 @@ const types = { ".html": "text/html", ".js": "application/javascript", ".css": "
         await page.waitForFunction(() => state.songs.length && !document.querySelector(".skeleton"));
         assert.equal(await page.evaluate(() => APP_VERSION), current);
         assert.ok(await page.evaluate(() => state.songs.length > 30000));
+        assert.deepEqual(await page.evaluate(() => state.songs.filter((song) => song.audioSource).map((song) => [getSongIdentity(song), song.bpm, song.referenceKey])), savedAudio);
         assert.equal(await page.locator(".setlist-title").count(), 1);
         assert.match(await page.locator(".singer-chip").textContent(), /Alex/);
         assert.deepEqual(await page.evaluate(() => ({ setlist: localStorage.getItem("karaokeSetlist"), favorites: [...state.favorites], repertoire: localStorage.getItem("karaokeRepertoireV1") })), saved);

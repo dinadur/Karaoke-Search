@@ -10,6 +10,8 @@ const INTERVAL = 1500; // At most 2,400 requests/hour from this importer.
 const validKey = (value) => typeof value === 'string' && /^[A-G](?:#|b|♯|♭)?m?$/.test(value) ? value : null;
 const number = (value, min, max) => ['number', 'string'].includes(typeof value) && String(value).trim() !== '' && Number.isFinite(Number(value)) && Number(value) >= min && Number(value) <= max ? Number(value) : null;
 function matchResult(result, group) {
+    // The live API returns this object (not an empty array) for no matches.
+    if (result.search?.error === 'no result') return { status: 'unmatched' };
     if (!Array.isArray(result.search)) throw new Error('Invalid search response');
     // A full result page may omit conflicting versions; do not infer consensus.
     if (result.search.length >= 100) return { status: 'ambiguous' };
@@ -39,7 +41,11 @@ async function main() {
     const apiKey = process.env.GETSONGBPM_API_KEY;
     if (!apiKey) throw new Error('Set GETSONGBPM_API_KEY in an ignored .env.local file, then use node --env-file=.env.local');
     const songs = JSON.parse(fs.readFileSync(path.join(root, 'karaoke_songs_enriched.json')));
-    const groups = catalogGroups(songs);
+    const allGroups = catalogGroups(songs);
+    const topArgument = process.argv.slice(3).find((argument) => argument.startsWith('--top='));
+    const top = topArgument ? Number(topArgument.slice(6)) : allGroups.length;
+    if (!Number.isInteger(top) || top < 1) throw new Error('--top must be a positive integer');
+    const groups = allGroups.slice(0, top);
     const cacheDir = path.join(root, 'metadata_cache'); fs.mkdirSync(cacheDir, { recursive: true });
     const checkpointPath = path.join(cacheDir, 'getsongbpm-progress.json');
     const lockPath = path.join(cacheDir, 'getsongbpm.lock');
@@ -67,6 +73,11 @@ async function main() {
                 if (result.error) { stoppedReason = 'API returned an error; check activation and quota'; break; }
                 checkpoint.results[group.key] = { ...matchResult(result, group), checkedAt: new Date().toISOString() };
                 atomicJson(checkpointPath, checkpoint); failures = 0;
+                if (requests % 25 === 0) {
+                    const completed = groups.filter((item) => checkpoint.results[item.key]);
+                    console.log(JSON.stringify({ progress: true, requests, completed: completed.length, target: groups.length,
+                        matched: completed.filter((item) => checkpoint.results[item.key].status === 'matched').length }));
+                }
             } catch {
                 // Never log provider bodies or headers: they could echo the API key.
                 failures++;
