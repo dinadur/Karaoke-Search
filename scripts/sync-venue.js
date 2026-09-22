@@ -15,6 +15,12 @@ const clean = value => String(value ?? '').replace(/\bwvocals?\b/gi, ' ')
     .replace(/\bw\s*\/?\s*vocals?\b/gi, ' ').replace(/[\[(]\s*karaoke\s*[\])]/gi, ' ')
     .replace(/\bkaraoke\b/gi, ' ').replace(/\s+/g, ' ').trim();
 const artistKey = value => normalize(clean(value).replace(/[’'!?.]/g, ''));
+// Earlier catalog repairs moved the venue's Christmas category prefix out of
+// artist names. Treat that source label as an alias, not a new performer.
+const sourceArtistNames = value => {
+    const raw = String(value ?? '');
+    return [...new Set([raw, raw.replace(/^christmas\s*-\s*/i, '')])];
+};
 
 // Keep in step with getSongIdentity in the app; test-sync-venue checks parity
 // against the real frontend functions and every catalog row.
@@ -24,7 +30,8 @@ function appIdentity(song) {
 }
 
 function pairKeys(song) {
-    const artists = new Set([song.artist, song.lookupArtist].filter(value => value !== undefined).map(artistKey));
+    const artists = new Set([song.artist, song.lookupArtist].filter(value => value !== undefined)
+        .flatMap(sourceArtistNames).map(artistKey));
     const titles = new Set([song.song, song.lookupSong].filter(Boolean).map(normalize));
     return [...artists].flatMap(artist => [...titles].map(title => JSON.stringify([artist, title])));
 }
@@ -86,9 +93,11 @@ function planSync(songs, rows, { minCoverage = 0.95, maxAdditions = 500 } = {}) 
             if (!known.has(key)) known.set(key, new Set());
             known.get(key).add(index);
         }
-        const key = artistKey(song.artist);
-        if (!aliases.has(key)) aliases.set(key, new Map());
-        if (song.lookupArtist) aliases.get(key).set(artistKey(song.lookupArtist), clean(song.lookupArtist));
+        for (const name of sourceArtistNames(song.artist)) {
+            const key = artistKey(name);
+            if (!aliases.has(key)) aliases.set(key, new Map());
+            if (song.lookupArtist) aliases.get(key).set(artistKey(song.lookupArtist), clean(song.lookupArtist));
+        }
     }
     const matched = new Set(), additions = [], skipped = [];
     // Sort new rows so server ordering never changes the resulting patch.
@@ -102,8 +111,9 @@ function planSync(songs, rows, { minCoverage = 0.95, maxAdditions = 500 } = {}) 
             for (const index of known.get(key)) matched.add(index);
         }
         if (exists) continue;
-        const names = aliases.get(artistKey(row.artist));
-        const lookupArtist = names?.size === 1 ? [...names.values()][0] : clean(row.artist);
+        const sourceArtist = sourceArtistNames(row.artist).at(-1);
+        const names = aliases.get(artistKey(sourceArtist));
+        const lookupArtist = names?.size === 1 ? [...names.values()][0] : clean(sourceArtist);
         const candidate = { artist: row.artist, song: row.song, lookupArtist,
             status: 'pending', confidence: 0, genres: [], moods: [], eras: [], flags: [], tags: [] };
         const id = appIdentity(candidate);

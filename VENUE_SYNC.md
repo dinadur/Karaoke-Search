@@ -16,7 +16,8 @@ permission to publish validated additions to `main`.
    digits, and common punctuation. This is search enumeration, not a full export:
    a future listing containing only other characters may need another query.
 2. Match venue rows against existing raw and lookup artist/title names, folding
-   accents and karaoke/Wvocal aliases. Check new IDs against the app's identity
+   accents, karaoke/Wvocal aliases and the venue's `Christmas -` category prefix
+   (already removed by earlier catalog repairs). Check new IDs against the app's identity
    rules. Existing records and their saved-song identities stay unchanged.
 3. Append genuinely new rows as `pending`, without inventing genre, era, BPM,
    key, or popularity metadata. Existing enrichment processes can fill them later.

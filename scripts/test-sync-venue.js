@@ -50,6 +50,12 @@ delete process.env.GITHUB_STEP_SUMMARY;
     assert.equal(collisions.additions.length, 0);
     assert.equal(collisions.skipped.length, 1);
     assert.equal(collisions.coverage, 1);
+    const christmas = planSync([song('Presley, Elvis', 'Silver Bells', { lookupArtist: 'Elvis Presley' })],
+        [{ artist: 'Christmas - Presley, Elvis', song: 'Silver Bells' },
+            { artist: 'Christmas- Presley, Elvis', song: 'Another Christmas Song' }]);
+    assert.equal(christmas.additions.length, 1);
+    assert.equal(christmas.additions[0].lookupArtist, 'Elvis Presley');
+    assert.equal(christmas.coverage, 1);
     console.log('ok   aliases, accents, Wvocal, embedded titles, idempotency, missing rows and incomplete-fetch guards');
 
     assert.deepEqual(parseResponse([{ Artist: 88, Song: 1979 }]), [{ artist: '88', song: '1979' }]);
