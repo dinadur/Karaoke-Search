@@ -1,0 +1,112 @@
+name: Weekly songbook update
+
+on:
+  schedule:
+    - cron: '17 9 * * 1' # Mondays, 09:17 UTC
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Check the venue without publishing changes'
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/weekly-songbook.yml'
+      - 'scripts/sync-venue.js'
+      - 'scripts/test-sync-venue.js'
+
+concurrency:
+  group: weekly-songbook-update
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Test the importer
+        run: node scripts/test-sync-venue.js
+
+      - name: Fetch new venue songs
+        id: sync
+        env:
+          DRY_RUN: ${{ inputs.dry_run || false }}
+        run: |
+          if [ "$DRY_RUN" = "true" ]; then
+            node scripts/sync-venue.js
+          else
+            node scripts/sync-venue.js --write
+          fi
+
+      - name: Validate updated catalog
+        if: steps.sync.outputs.added != '0' && !inputs.dry_run
+        run: |
+          node --check karaoke_explorer.js
+          node --check sw.js
+          node scripts/check-versions.js
+          node scripts/check-era-enrichment.js
+          node scripts/check-audio-enrichment.js
+          git diff --check
+
+      - name: Install browser checks
+        if: steps.sync.outputs.added != '0' && !inputs.dry_run
+        run: |
+          npm install --no-save playwright axe-core
+          npx playwright install --with-deps chromium
+
+      - name: Verify updated songbook in browser
+        if: steps.sync.outputs.added != '0' && !inputs.dry_run
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 > /tmp/karaoke-http.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8765/karaoke_explorer.html > /dev/null; then break; fi
+            sleep 1
+          done
+          node scripts/smoke.js
+          node scripts/regression.js
+          node scripts/personal.js
+          node scripts/audio.js
+          node scripts/offline.js
+
+      - name: Publish validated additions
+        if: steps.sync.outputs.added != '0' && !inputs.dry_run
+        env:
+          ADDED: ${{ steps.sync.outputs.added }}
+        run: |
+          git fetch origin main
+          if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
+            echo 'Main changed during validation; rerun on the latest catalog.'
+            exit 1
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add karaoke_songs_enriched.json audio_enrichment.json era_enrichment.json \
+            karaoke_explorer.js karaoke_explorer.html manifest.json sw.js
+          git diff --cached --quiet && exit 0
+          git commit -m "Sync venue songbook: ${ADDED} new songs"
+          git push origin HEAD:main
+
+      - name: Save sync report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: venue-sync-report
+          path: metadata_cache/venue-sync-report.json
+          if-no-files-found: ignore
+          retention-days: 30

@@ -12,3 +12,5 @@ metadata_cache/
 .env
 .env.*
 qa/
+scripts/sync-venue.js
+scripts/test-sync-venue.js

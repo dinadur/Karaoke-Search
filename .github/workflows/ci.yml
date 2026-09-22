@@ -48,6 +48,8 @@ jobs:
           node --check scripts/check-audio-enrichment.js
           node scripts/test-getsongbpm.js
           node --check scripts/audio.js
+          node --check scripts/sync-venue.js
+          node scripts/test-sync-venue.js
           if [ -f audio_enrichment.json ]; then node scripts/check-audio-enrichment.js; fi
 
       - name: Version consistency

@@ -34,6 +34,8 @@ Live site: https://karaokesearch.uk
 
 The public repo intentionally excludes scraping scripts, raw CSV exports, API caches, logs, environment files, and Vercel local state.
 
+The requested weekly venue updater is the maintained exception: GitHub Actions checks the [venue songbook](https://karaoke-search.onrender.com/) on Mondays at 09:17 UTC and publishes validated new songs. See [VENUE_SYNC.md](VENUE_SYNC.md) for matching, validation, reports, and manual runs.
+
 ## Files
 
 - `karaoke_explorer.html` is the app entry point.
