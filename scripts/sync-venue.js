@@ -6,7 +6,10 @@ const { execFileSync } = require('node:child_process');
 const { identity: metadataIdentity, atomicJson } = require('./lib/music-metadata');
 
 const SOURCE = 'https://karaoke-search.onrender.com';
-const QUERIES = [...'abcdefghijklmnopqrstuvwxyz0123456789', '&', '-', '.', "'", '#'];
+// The venue's search supports regex: '.' matches every nonempty listing,
+// including non-Latin names. Verified against a 41-query enumeration. Coverage
+// validation below stops publication if the endpoint changes or truncates it.
+const QUERIES = ['.'];
 const INTERVAL = 1500;
 const RETRY_DELAYS = [15000, 30000, 60000]; // Allow the Render service to wake.
 const normalize = value => String(value ?? '').toLowerCase().normalize('NFD')

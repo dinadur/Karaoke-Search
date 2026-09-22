@@ -9,12 +9,14 @@ permission to publish validated additions to `main`.
 
 ## What a run does
 
-1. Query the venue's public `/search?query=...&filter=` endpoint sequentially,
-   with at least 1.5 seconds between requests. Retry transient failures up to three
+1. Fetch `/search?query=.&filter=` from the venue. Its current search endpoint
+   supports regular expressions: `.` returns every nonempty listing, including
+   non-Latin names. This was verified against a 41-query enumeration (38,024
+   distinct listings on September 22, 2026). A normal run needs just one request.
+   Retry transient failures up to three
    times, waiting 15, 30 and 60 seconds to allow the Render service to wake;
-   stop immediately on a rate limit. The 41 search terms cover ASCII letters,
-   digits, and common punctuation. This is search enumeration, not a full export:
-   a future listing containing only other characters may need another query.
+   stop immediately on a rate limit. The coverage check rejects a truncated result
+   or an API behavior change that stops returning the full catalog.
 2. Match venue rows against existing raw and lookup artist/title names, folding
    accents, karaoke/Wvocal aliases and the venue's `Christmas -` category prefix
    (already removed by earlier catalog repairs). Check new IDs against the app's identity
@@ -54,7 +56,8 @@ node scripts/sync-venue.js --write  # append, refresh counts, bump and validate
 Use a clean checkout. Reports and the exclusive run lock live under ignored
 `metadata_cache/`. If a terminated local process leaves `venue-sync.lock`, confirm
 no updater is still running before removing it. The scheduled job has its own
-concurrency lock and starts with a fresh checkout each time.
+concurrency lock and starts with a fresh checkout each time. A push changing the
+updater cancels an obsolete run; manual and scheduled runs otherwise queue.
 
 The deterministic test uses actual catalog copies to verify dry runs, append-only
 updates, sidecar validation, version bumps, idempotency, rollback and locking. It

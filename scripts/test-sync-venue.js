@@ -60,6 +60,12 @@ delete process.env.GITHUB_STEP_SUMMARY;
 
     assert.deepEqual(parseResponse([{ Artist: 88, Song: 1979 }]), [{ artist: '88', song: '1979' }]);
     assert.deepEqual(parseResponse({ suggestions: ['Not an actual song'] }), []);
+    const fullQueries = [];
+    await fetchVenueSongs({ fetchImpl: async url => {
+        fullQueries.push(url.searchParams.get('query'));
+        return respond([{ Artist: 'Artist', Song: 'Title' }]);
+    } });
+    assert.deepEqual(fullQueries, ['.']);
     for (const input of [{ error: 'offline' }, null, [{ Artist: null, Song: 'Bad' }], [{ Artist: 'A', Song: '' }]]) {
         assert.throws(() => parseResponse(input));
     }

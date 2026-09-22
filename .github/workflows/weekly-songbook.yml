@@ -18,7 +18,8 @@ on:
 
 concurrency:
   group: weekly-songbook-update
-  cancel-in-progress: false
+  # Superseded importer code should not hold up the corrected run.
+  cancel-in-progress: ${{ github.event_name == 'push' }}
 
 permissions:
   contents: read
