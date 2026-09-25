@@ -64,7 +64,7 @@ node scripts/check-versions.js
 git diff --check
 ```
 
-With a local server running and Playwright installed, run `node scripts/smoke.js` and `node scripts/regression.js`. The regression suite covers setlist Undo and editing, empty-result actions, legacy QR sharing, exact artist links, facet counts, mobile layout/focus, load recovery, and icon assets. The browser suites accept `BROWSER=chromium`, `BROWSER=firefox`, or `BROWSER=webkit` (default: Chromium), and support `playwright-core` with `CHROMIUM_PATH` for a custom Chromium binary.
+With a local server running and Playwright installed, run `node scripts/smoke.js` and `node scripts/regression.js`. The regression suite covers setlist Undo and editing, empty-result actions, legacy QR sharing, exact artist links and leaving them, facet counts, mobile layout/focus, load recovery, icon assets, and the fixes from [UX_REVIEW.md](UX_REVIEW.md). The browser suites accept `BROWSER=chromium`, `BROWSER=firefox`, or `BROWSER=webkit` (default: Chromium), and support `playwright-core` with `CHROMIUM_PATH` for a custom Chromium binary.
 
 With `axe-core` installed too, `node scripts/accessibility.js` checks representative light/dark screens and five viewport widths. CI runs the smoke, regression, accessibility, and offline suites in all three browser engines. Automated checks supplement manual keyboard and visual QA; they do not certify accessibility.
 

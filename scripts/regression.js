@@ -110,8 +110,164 @@ const tests = [
         await page.reload();
         await page.waitForSelector("#resultsList .browse-row");
         assert.deepEqual(await page.locator("#resultsList .browse-artist").allTextContents(), ["Alpha"]);
+        // Typing starts a new partial search across songs and artists, releasing
+        // the artist link's Artist scope and title order.
         await search(page, "Alpha");
-        assert.equal(await page.locator("#resultsList .browse-row").count(), 2);
+        assert.deepEqual(await page.locator("#resultsList .song-artist").allTextContents(), ["Alpha", "Alphaville"]);
+        assert.deepEqual(await page.evaluate(() => [state.searchScope, state.sortMode]), ["all", "relevance"]);
+    }],
+    ["leaving an artist view searches songs again and returns to Discover", async (page) => {
+        await search(page, "First Tune");
+        await page.locator(".song-artist").first().click();
+        assert.deepEqual(await page.locator(".active-filter-chip").allTextContents(), ["Artist: Alpha"]);
+        // A title word typed after an artist link must not search artist names only.
+        await search(page, "Tune");
+        assert.equal(await page.locator("#resultsList .song-card").count(), 4);
+        // A plain query repeats the search box, so it gets no chip.
+        assert.equal(await page.locator(".active-filter-chip").count(), 0);
+        await search(page, "First Tune");
+        await page.locator(".song-artist").first().click();
+        await page.click("#clearButton");
+        assert.equal(await page.evaluate(() => isDiscoverView()), true);
+        assert.ok(await page.locator(".shelf").count());
+        // Choosing a scope also leaves the view; its title order must not linger.
+        await search(page, "First Tune");
+        await page.locator(".song-artist").first().click();
+        await page.click("#filtersToggleButton");
+        await page.locator("#searchScope label", { hasText: "Song title" }).click();
+        assert.equal(await page.locator('#searchScope input[value="song"]').isChecked(), true);
+        await page.click("#applyFiltersButton");
+        assert.deepEqual(await page.evaluate(() => [state.searchScope, state.sortMode]), ["song", "relevance"]);
+        await page.click("#clearButton");
+        assert.equal(await page.evaluate(() => isDiscoverView()), true);
+        // An order picked inside the artist view belongs to that view too.
+        await search(page, "First Tune");
+        await page.locator(".song-artist").first().click();
+        await page.click("#filtersToggleButton");
+        await page.click("#orderPopularButton");
+        await page.click("#applyFiltersButton");
+        await page.click("#clearButton");
+        assert.equal(await page.evaluate(() => isDiscoverView()), true);
+        // Earlier versions stored the artist view's title order without its query.
+        await page.evaluate(() => localStorage.setItem("karaokeUiState",
+            JSON.stringify({ mode: "search", query: "", sortMode: "song", filters: {} })));
+        await page.goto(BASE);
+        await page.waitForFunction(() => state.songs.length && !document.querySelector(".skeleton"));
+        assert.equal(await page.evaluate(() => isDiscoverView()), true);
+        // A title order chosen since then is kept.
+        await page.evaluate(() => localStorage.setItem("karaokeUiState",
+            JSON.stringify({ version: UI_STATE_VERSION, mode: "search", query: "", sortMode: "song", filters: {} })));
+        await page.goto(BASE);
+        await page.waitForFunction(() => state.songs.length && !document.querySelector(".skeleton"));
+        assert.equal(await page.evaluate(() => state.sortMode), "song");
+    }],
+    ["the chip row returns to Discover once no search remains", async (page) => {
+        const filterByDecadesSortedByTitle = async () => {
+            await page.click("#filtersToggleButton");
+            await page.click('.multi-filter[data-filter="decade"] .multi-filter-button');
+            for (const decade of ["70s", "80s"]) {
+                await page.locator('.multi-filter[data-filter="decade"] .multi-option').filter({ hasText: decade }).click();
+            }
+            await page.click("#orderSongButton");
+            await page.click("#applyFiltersButton");
+        };
+        await filterByDecadesSortedByTitle();
+        await page.click(".active-filter-clear");
+        assert.equal(await page.evaluate(() => isDiscoverView()), true);
+        // With a search still in the box, the chosen order stays.
+        await search(page, "Tune");
+        await filterByDecadesSortedByTitle();
+        await page.click(".active-filter-clear");
+        assert.deepEqual(await page.evaluate(() => [state.query, state.sortMode]), ["Tune", "song"]);
+    }],
+    ["near matches are offered only when they can add results", async (page) => {
+        await page.route("**/karaoke_songs_enriched.json?*", (route) => route.fulfill({
+            json: [...catalog, { ...catalog[1], song: "Fist Fight", artist: "Epsilon" }],
+        }));
+        await page.reload();
+        await page.waitForFunction(() => state.songs.length && !document.querySelector(".skeleton"));
+        // Near matches already ran automatically and found nothing.
+        await search(page, "zzzzzzzzzzzzzzzzzz");
+        assert.deepEqual(await page.locator(".empty-action").allTextContents(), ["Clear search"]);
+        assert.match(await page.locator(".search-empty strong").textContent(), /No matches for “zzz/);
+        // The 80s filter hides the exact match, but a near match passes it.
+        await search(page, "First");
+        await page.click("#filtersToggleButton");
+        await page.click('.multi-filter[data-filter="decade"] .multi-filter-button');
+        await page.locator('.multi-filter[data-filter="decade"] .multi-option').filter({ hasText: "80s" }).click();
+        await page.click("#applyFiltersButton");
+        // The query found a song; the filter removed it.
+        assert.equal(await page.locator(".search-empty strong").textContent(), "No “First” songs match these filters");
+        const offer = page.locator(".empty-action", { hasText: "Include near matches" });
+        assert.equal(await offer.textContent(), "Include near matches (1)");
+        await offer.click();
+        assert.deepEqual(await page.locator("#resultsList .song-title").allTextContents(), ["Fist Fight"]);
+        assert.ok((await page.locator(".active-filter-chip").allTextContents()).includes("Near matches"));
+    }],
+    ["Browse hides the search query and Search restores it", async (page) => {
+        await search(page, "Beta");
+        await page.click("#browseModeButton");
+        assert.equal(await page.inputValue("#searchInput"), "");
+        assert.ok(await page.locator("#browseList .browse-row").count());
+        // On its own row, the letter strip fits on one line at desktop width.
+        assert.ok((await page.locator("#letterStrip").boundingBox()).height < 60);
+        await page.click("#searchModeButton");
+        assert.equal(await page.inputValue("#searchInput"), "Beta");
+        assert.deepEqual(await page.locator("#resultsList .song-title").allTextContents(), ["Second Tune"]);
+        // Typing while browsing starts a new search.
+        await page.click("#browseModeButton");
+        await search(page, "Gamma");
+        assert.deepEqual(await page.locator("#resultsList .song-title").allTextContents(), ["Third Tune"]);
+    }],
+    ["setlist rows are numbered, the rail fits the screen, and swaps can be undone", async (page) => {
+        const songs = Array.from({ length: 30 }, (_, index) => ({
+            ...catalog[0], song: `Song ${index + 1}`, artist: `Singer ${index + 1}`,
+        }));
+        await page.route("**/karaoke_songs_enriched.json?*", (route) => route.fulfill({ json: songs }));
+        await page.evaluate((entries) => localStorage.setItem("karaokeSetlist", JSON.stringify(entries)), songs.slice(0, 24));
+        await page.reload();
+        await page.waitForFunction(() => state.songs.length && !document.querySelector(".skeleton"));
+        await plan(page);
+        assert.deepEqual((await page.locator(".setlist-number").allTextContents()).slice(0, 3), ["1", "2", "3"]);
+        // Once the sticky rail engages, every entry must be reachable inside it.
+        await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+        const rail = await page.evaluate(() => {
+            const list = document.getElementById("setlist");
+            return {
+                bottom: document.querySelector(".setlist-panel").getBoundingClientRect().bottom,
+                viewport: innerHeight,
+                scrolls: list.scrollHeight > list.clientHeight,
+            };
+        });
+        assert.ok(rail.bottom <= rail.viewport, `rail ends at ${rail.bottom} in a ${rail.viewport}px viewport`);
+        assert.equal(rail.scrolls, true);
+        const swap = page.locator('.setlist-item [title="Swap for another match"]').first();
+        assert.equal(await swap.getAttribute("aria-label"), "Swap Song 1 for another matching song");
+        await swap.click();
+        assert.notEqual(await page.locator(".setlist-title").first().textContent(), "Song 1");
+        assert.match(await page.locator("#snackbarText").textContent(), /^Swapped in/);
+        await page.click("#snackbarAction");
+        assert.equal(await page.locator(".setlist-title").first().textContent(), "Song 1");
+    }],
+    ["mobile Browse keeps letters docked and starts each letter at its top", async (page) => {
+        const songs = Array.from({ length: 120 }, (_, index) => ({
+            ...catalog[0], song: `${index % 2 ? "Maybe" : "Always"} ${index}`, artist: `Singer ${index}`,
+        }));
+        await page.route("**/karaoke_songs_enriched.json?*", (route) => route.fulfill({ json: songs }));
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.reload();
+        await page.waitForFunction(() => state.songs.length && !document.querySelector(".skeleton"));
+        await page.click("#browseModeButton");
+        await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+        const [toolbarBottom, stripTop] = await page.evaluate(() => [
+            document.querySelector(".toolbar").getBoundingClientRect().bottom,
+            document.querySelector(".letter-strip").getBoundingClientRect().top,
+        ]);
+        assert.ok(Math.abs(toolbarBottom - stripTop) <= 1, `strip top ${stripTop}, search bar bottom ${toolbarBottom}`);
+        await page.locator('.letter-button[data-letter="M"]').click();
+        await page.waitForFunction(() => Math.abs(document.querySelector("#browseList .browse-row").getBoundingClientRect().top -
+            document.querySelector(".letter-strip").getBoundingClientRect().bottom) < 160, null, { timeout: 5000 });
+        assert.match(await page.locator("#browseList .browse-title").first().textContent(), /^Maybe/);
     }],
     ["narrow mobile filters scroll vertically and keep actions reachable", async (page) => {
         for (const width of [320, 390]) {
@@ -120,6 +276,18 @@ const tests = [
             await page.click('.multi-filter[data-filter="decade"] .multi-filter-button');
             assert.equal(await page.locator("#searchFilters").evaluate((sheet) => sheet.scrollWidth <= sheet.clientWidth + 1), true);
             await page.locator('.multi-filter[data-filter="decade"] .multi-option').filter({ hasText: "80s" }).click();
+            const sheet = await page.locator("#searchFilters").evaluate((element) => {
+                const right = element.getBoundingClientRect().right;
+                const chips = element.querySelectorAll(".search-scope span, .filter-checks span, .search-order button");
+                element.scrollTop = element.scrollHeight;
+                return {
+                    clipped: [...chips].filter((chip) => chip.getBoundingClientRect().right > right).map((chip) => chip.textContent),
+                    // Content must not scroll into view below the sticky footer.
+                    footerGap: element.getBoundingClientRect().bottom - element.querySelector(".sheet-foot").getBoundingClientRect().bottom,
+                };
+            });
+            assert.deepEqual(sheet.clipped, []);
+            assert.ok(Math.abs(sheet.footerGap) <= 1, `footer ends ${sheet.footerGap}px above the sheet edge`);
             await page.click("#applyFiltersButton");
             assert.equal(await page.locator("body.filters-open").count(), 0);
             assert.equal(await page.locator("#searchInput").evaluate((input) => input.clientWidth > 130), true);
@@ -176,7 +344,7 @@ const tests = [
             await menu(page, "#randomButton");
             assert.equal(await page.locator("#randomPick").isVisible(), false);
             await page.click("#draftSetlistButton");
-            await page.locator('[aria-label="Swap for another matching song"]').click();
+            await page.locator('.setlist-item [title="Swap for another match"]').click();
             assert.deepEqual(await page.locator(".setlist-title").allTextContents(), ["First Tune"]);
         }
     }],
