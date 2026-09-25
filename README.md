@@ -23,6 +23,7 @@ Live site: https://karaokesearch.uk
 - Setlist singer assignments — tag who's singing what, included when copying/sharing.
 - Installable PWA that works fully offline after the first visit.
 - Search-match highlighting, gradient cover tiles per artist, and skeleton loading states.
+- A light layer of stage effects: songs fly into the setlist, saves sparkle, random picks spin like a slot reel, Draft throws confetti, and the theme switch spreads from the button. All of it respects reduced motion. See [STAGE_EFFECTS.md](STAGE_EFFECTS.md).
 - No external runtime dependencies: icons ship as an inline SVG sprite.
 
 ## Data
@@ -42,6 +43,7 @@ The requested weekly venue updater is the maintained exception: GitHub Actions c
 - `karaoke_explorer.css` contains the interface styles.
 - `karaoke_explorer.js` contains all browser-side search, browse, filter, grouping, favorites, and setlist logic.
 - `personal-songbook.js` contains the repertoire, guided picker, and era-overlay logic.
+- `stage-effects.js` contains the decorative effects (`window.StageFx`).
 - `vercel.json` rewrites `/` to `karaoke_explorer.html`.
 
 There is no build step. The app is plain HTML/CSS/JavaScript served as static files.
@@ -65,6 +67,8 @@ git diff --check
 ```
 
 With a local server running and Playwright installed, run `node scripts/smoke.js` and `node scripts/regression.js`. The regression suite covers setlist Undo and editing, empty-result actions, legacy QR sharing, exact artist links and leaving them, facet counts, mobile layout/focus, load recovery, icon assets, and the fixes from [UX_REVIEW.md](UX_REVIEW.md). The browser suites accept `BROWSER=chromium`, `BROWSER=firefox`, or `BROWSER=webkit` (default: Chromium), and support `playwright-core` with `CHROMIUM_PATH` for a custom Chromium binary.
+
+`node scripts/effects.js` checks that the stage effects play only when motion is allowed, clean up after themselves, and never intercept input.
 
 With `axe-core` installed too, `node scripts/accessibility.js` checks representative light/dark screens and five viewport widths. CI runs the smoke, regression, accessibility, and offline suites in all three browser engines. Automated checks supplement manual keyboard and visual QA; they do not certify accessibility.
 
