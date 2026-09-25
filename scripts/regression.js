@@ -278,6 +278,12 @@ const tests = [
         await page.keyboard.press("Escape");
         assert.equal((await view()).dialog, true);
         assert.equal(await page.evaluate(() => document.activeElement.classList.contains("tag-popout-button")), true);
+        // Safari does not focus a clicked button; Escape still closes only the tags.
+        await page.locator("#repertoireList .tag-popout-button").click();
+        await page.evaluate(() => document.activeElement.blur());
+        await page.keyboard.press("Escape");
+        const { dialog, openTags } = await view();
+        assert.deepEqual({ dialog, openTags }, { dialog: true, openTags: 0 });
         await page.locator("#repertoireList .tag-popout-button").click();
         await page.locator("#repertoireList .song-tags-popout button.pill", { hasText: "70s" }).click();
         assert.deepEqual(await view(), { exact: false, query: "", decades: ["70s"], focus: "resultsTitle", openTags: 0, drawer: false, dialog: false });

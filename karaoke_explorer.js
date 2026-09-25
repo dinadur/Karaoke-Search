@@ -585,6 +585,17 @@ function bindEvents() {
     // (or page) they belong to moves.
     document.addEventListener("scroll", closeFloatingSongTagMenus, { capture: true, passive: true });
     window.addEventListener("resize", () => closeFloatingSongTagMenus());
+    // Escape closes open tags first, leaving the dialog or sheet around them
+    // open. It listens on the document because Safari does not focus a clicked
+    // button, so focus may be outside the tags.
+    document.addEventListener("keydown", (event) => {
+        const open = event.key === "Escape" && document.querySelector(".song-tags.is-open");
+        if (!open) return;
+        event.preventDefault();
+        event.stopPropagation();
+        closeSongTagMenus();
+        TAG_MENU_STORAGE.get(open)?.button.focus({ preventScroll: true });
+    }, true);
     // Tags opened while a sheet slides in move with it; once it stops, place
     // them against the viewport again.
     document.addEventListener("animationend", (event) => {
@@ -2788,14 +2799,6 @@ function createSongTags(song) {
     button.addEventListener("click", (event) => {
         event.stopPropagation();
         toggleSongTagMenu(container);
-    });
-    // Escape closes only the tags, not the dialog or sheet around them.
-    container.addEventListener("keydown", (event) => {
-        if (event.key !== "Escape" || !container.classList.contains("is-open")) return;
-        event.preventDefault();
-        event.stopPropagation();
-        closeSongTagMenus();
-        button.focus({ preventScroll: true });
     });
 
     container.append(button, menu);
