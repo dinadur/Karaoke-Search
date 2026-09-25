@@ -190,6 +190,20 @@ const tests = [
         await seen(page, "fx-flight", "fx-bump");
         await settled(page);
         assert.equal((await page.locator("#mobileSetlistButton").textContent()).trim(), "Setlist (1)");
+
+        // Drafting grows the drawer and moves its Draft button up; the burst
+        // starts where the button is now, not where it was tapped.
+        await page.click("#mobileSetlistButton");
+        const before = await page.locator("#draftSetlistButton").boundingBox();
+        await page.click("#draftSetlistButton");
+        const [origin, center] = await page.evaluate(() => {
+            const piece = document.querySelector(".fx-confetti");
+            const rect = document.getElementById("draftSetlistButton").getBoundingClientRect();
+            return [[parseFloat(piece.style.left), parseFloat(piece.style.top)], [rect.left + rect.width / 2, rect.top + rect.height / 2]];
+        });
+        assert.ok(center[1] < before.y, "the Draft button moves as the drawer fills");
+        assert.ok(Math.abs(origin[0] - center[0]) < 2 && Math.abs(origin[1] - center[1]) < 2, `burst at ${origin}, button at ${center}`);
+        await settled(page);
     }],
 ];
 

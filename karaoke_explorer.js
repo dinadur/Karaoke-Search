@@ -1,4 +1,4 @@
-const APP_VERSION = "20260925-4";
+const APP_VERSION = "20260925-5";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const TAG_CONSOLIDATION_URL = `tag_consolidation.json?v=${APP_VERSION}`;
 const MOOD_CONSOLIDATION_URL = `mood_consolidation.json?v=${APP_VERSION}`;
@@ -3886,8 +3886,9 @@ function getDraftPool() {
 }
 
 function draftSetlist(event) {
+    const source = event?.currentTarget;
     // The empty-list button disappears on render, so measure it first.
-    const origin = event?.currentTarget?.getBoundingClientRect?.();
+    const startRect = source?.getBoundingClientRect?.();
     const missing = DRAFT_SETLIST_TARGET - state.setlist.length;
     if (missing <= 0) {
         showSnackbar(`Setlist already has ${state.setlist.length} songs`);
@@ -3915,7 +3916,8 @@ function draftSetlist(event) {
     }
     saveSetlist();
     renderSetlist();
-    window.StageFx?.confetti(origin);
+    // The phone drawer grows as it fills, moving its Draft button.
+    window.StageFx?.confetti(source?.isConnected ? source.getBoundingClientRect() : startRect);
     window.StageFx?.cascade([...els.setlist.children].slice(previous.length));
     showSnackbar(
         `Drafted ${additions.length} ${additions.length === 1 ? "song" : "songs"}`,
