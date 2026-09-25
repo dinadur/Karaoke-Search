@@ -197,14 +197,13 @@ function personalSongRow(song, description, savedLibrary = false) {
     row.className = "personal-song-row";
     const title = document.createElement("h3");
     title.textContent = getDisplaySongTitle(song);
-    const artist = document.createElement("p");
-    artist.textContent = getDisplayArtist(song);
+    const artist = createArtistSearchControl(song, "personal-artist", { highlight: false });
     const reason = document.createElement("p");
     reason.className = "personal-reason";
     reason.textContent = description;
     const actions = document.createElement("div");
     actions.className = "personal-row-actions";
-    actions.append(savedLibrary ? createRepertoireButton(song) : createFavoriteButton(song), createMiniAddButton(song));
+    actions.append(createSongTags(song), savedLibrary ? createRepertoireButton(song) : createFavoriteButton(song), createMiniAddButton(song));
     row.append(title, artist, reason, actions);
     return row;
 }
@@ -230,6 +229,7 @@ function renderRepertoire() {
         }
         list.appendChild(row);
     }
+    hydrateIcons(list);
     personalEl("repertoireSummary").textContent = entries.length
         ? `${Math.min(entries.length, repertoireLimit)} of ${entries.length} saved songs`
         : Object.keys(repertoire).length ? "No saved songs match. Try another search or choose All saved songs."

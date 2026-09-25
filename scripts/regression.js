@@ -249,6 +249,55 @@ const tests = [
         await page.click("#snackbarAction");
         assert.equal(await page.locator(".setlist-title").first().textContent(), "Song 1");
     }],
+    ["setlist and saved-song artists and tags lead back to search", async (page) => {
+        const view = () => page.evaluate(() => ({
+            exact: state.exactArtist, query: state.query, decades: state.filters.decades,
+            focus: document.activeElement.id, openTags: document.querySelectorAll(".song-tags.is-open").length,
+            drawer: document.body.classList.contains("setlist-open"), dialog: Boolean(document.querySelector("dialog[open]")),
+        }));
+        await add(page, "First Tune");
+        await page.locator("#resultsList .favorite-button").first().click();
+        await search(page, "Second");
+
+        // The setlist artist opens that artist's songs, as on song cards.
+        await page.locator("#setlist button.setlist-artist").click();
+        assert.deepEqual(await view(), { exact: true, query: "Alpha", decades: [], focus: "resultsTitle", openTags: 0, drawer: false, dialog: false });
+        assert.deepEqual(await page.locator("#resultsList .browse-artist").allTextContents(), ["Alpha"]);
+        // Its tags open from a button beside the title; a tag filters like a card pill.
+        await page.locator("#setlist .tag-popout-button").click();
+        await page.locator("#setlist .song-tags-popout button.pill", { hasText: "70s" }).click();
+        assert.deepEqual(await view(), { exact: false, query: "", decades: ["70s"], focus: "resultsTitle", openTags: 0, drawer: false, dialog: false });
+
+        // Saved songs: the dialog closes on the way back to the results, and
+        // Escape inside the tags closes only the tags.
+        await menu(page, "#repertoireButton");
+        await page.locator("#repertoireList button.personal-artist").click();
+        assert.deepEqual(await view(), { exact: true, query: "Alpha", decades: [], focus: "resultsTitle", openTags: 0, drawer: false, dialog: false });
+        await menu(page, "#repertoireButton");
+        await page.locator("#repertoireList .tag-popout-button").click();
+        await page.keyboard.press("Escape");
+        assert.equal((await view()).dialog, true);
+        assert.equal(await page.evaluate(() => document.activeElement.classList.contains("tag-popout-button")), true);
+        await page.locator("#repertoireList .tag-popout-button").click();
+        await page.locator("#repertoireList .song-tags-popout button.pill", { hasText: "70s" }).click();
+        assert.deepEqual(await view(), { exact: false, query: "", decades: ["70s"], focus: "resultsTitle", openTags: 0, drawer: false, dialog: false });
+
+        // Phones: the setlist drawer closes too, and the floating tags close when the list scrolls.
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.click("#mobileSetlistButton");
+        await page.locator("#setlist .tag-popout-button").click();
+        assert.equal(await page.locator(".song-tags.is-open.is-floating").count(), 1);
+        await page.evaluate(() => document.getElementById("setlist").dispatchEvent(new Event("scroll")));
+        assert.equal(await page.locator(".song-tags.is-open").count(), 0);
+        await page.locator("#setlist button.setlist-artist").click();
+        assert.deepEqual(await view(), { exact: true, query: "Alpha", decades: [], focus: "resultsTitle", openTags: 0, drawer: false, dialog: false });
+
+        // An entry the catalog no longer has keeps its artist link but has no tags to show.
+        await page.evaluate(() => { state.setlist.push({ song: "Lost Tune", artist: "Omega" }); renderSetlist(); });
+        const lost = page.locator(".setlist-item", { hasText: "Lost Tune" });
+        assert.equal(await lost.locator("button.setlist-artist").textContent(), "Omega");
+        assert.equal(await lost.locator(".tag-popout-button").count(), 0);
+    }],
     ["mobile Browse keeps letters docked and starts each letter at its top", async (page) => {
         const songs = Array.from({ length: 120 }, (_, index) => ({
             ...catalog[0], song: `${index % 2 ? "Maybe" : "Always"} ${index}`, artist: `Singer ${index}`,

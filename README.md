@@ -11,7 +11,7 @@ Live site: https://karaokesearch.uk
 - Browse mode for reading the full catalog alphabetically by song title or artist.
 - Filters for mood, genre, decade, holiday, duet, explicit, and favorites — inline on desktop, a bottom sheet behind a "Filters (n)" toggle on mobile.
 - Random song preview with Add / Spin again, drawing from the current filtered results.
-- Clickable artist names and tags to jump into focused searches.
+- Clickable artist names and tags to jump into focused searches, from song cards, the setlist, and saved songs.
 - Grouped results when sorting by song title or artist, with expand/collapse controls; long result sets load progressively as you scroll.
 - Local setlist with add, remove (with undo), copy, share, clear (with undo), drag reorder, and up/down reorder controls.
 - Local favorites saved in the browser.

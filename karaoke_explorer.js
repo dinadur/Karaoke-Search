@@ -1,4 +1,4 @@
-const APP_VERSION = "20260925-7";
+const APP_VERSION = "20260925-8";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const TAG_CONSOLIDATION_URL = `tag_consolidation.json?v=${APP_VERSION}`;
 const MOOD_CONSOLIDATION_URL = `mood_consolidation.json?v=${APP_VERSION}`;
@@ -577,6 +577,14 @@ function bindEvents() {
 
     els.closeFiltersButton.addEventListener("click", () => closeFiltersSheet());
     els.applyFiltersButton.addEventListener("click", () => closeFiltersSheet());
+
+    for (const list of [els.setlist, document.getElementById("repertoireList"), document.getElementById("pickerResults")]) {
+        list.addEventListener("click", returnToResults);
+    }
+    // Floating tag popouts stay where they opened, so close them when the list
+    // (or page) they belong to moves.
+    document.addEventListener("scroll", closeFloatingSongTagMenus, { capture: true, passive: true });
+    window.addEventListener("resize", () => closeFloatingSongTagMenus());
 
     els.sheetBackdrop.addEventListener("click", () => {
         closeFiltersSheet({ restoreFocus: false });
@@ -2644,12 +2652,12 @@ function getVersionMarkers(song) {
     return [...new Set(markers.map((marker) => marker.toUpperCase()))];
 }
 
-function createArtistSearchControl(song, className) {
+function createArtistSearchControl(song, className, { highlight = true } = {}) {
     const artistName = getDisplayArtist(song);
     const artist = document.createElement(artistName ? "button" : "div");
     artist.className = className;
     if (artistName) {
-        setHighlightedText(artist, artistName, getQueryTokens());
+        setHighlightedText(artist, artistName, highlight ? getQueryTokens() : []);
     } else {
         artist.textContent = "Unknown artist";
     }
@@ -2775,6 +2783,14 @@ function createSongTags(song) {
         event.stopPropagation();
         toggleSongTagMenu(container);
     });
+    // Escape closes only the tags, not the dialog or sheet around them.
+    container.addEventListener("keydown", (event) => {
+        if (event.key !== "Escape" || !container.classList.contains("is-open")) return;
+        event.preventDefault();
+        event.stopPropagation();
+        closeSongTagMenus();
+        button.focus({ preventScroll: true });
+    });
 
     container.append(button, menu);
     return container;
@@ -2790,7 +2806,40 @@ function toggleSongTagMenu(container) {
         container.classList.add("is-open");
         controls.button.setAttribute("aria-expanded", "true");
         controls.menu.hidden = false;
+        placeSongPopout(container, controls.menu);
     }
+}
+
+// Popouts open upward from their button. Inside a scrolling list or dialog
+// (the setlist, saved songs) that would cut them off, so there they float in
+// the viewport where there is room, and close when anything scrolls.
+function placeSongPopout(container, menu) {
+    Object.assign(menu.style, { top: "", left: "", maxHeight: "" });
+    const floating = hasScrollingAncestor(container);
+    container.classList.toggle("is-floating", floating);
+    if (!floating) return;
+
+    const button = TAG_MENU_STORAGE.get(container).button.getBoundingClientRect();
+    const gap = 7;
+    const margin = 8;
+    const below = window.innerHeight - button.bottom - gap - margin;
+    const above = button.top - gap - margin;
+    const openBelow = below >= Math.min(menu.offsetHeight, 240) || below >= above;
+    menu.style.maxHeight = `${Math.min(360, Math.max(120, openBelow ? below : above))}px`;
+    menu.style.top = `${openBelow ? button.bottom + gap : button.top - gap - menu.offsetHeight}px`;
+    menu.style.left = `${Math.max(margin, Math.min(button.right - menu.offsetWidth, window.innerWidth - menu.offsetWidth - margin))}px`;
+}
+
+function hasScrollingAncestor(element) {
+    for (let node = element.parentElement; node && node !== document.body; node = node.parentElement) {
+        if (getComputedStyle(node).overflowY !== "visible") return true;
+    }
+    return false;
+}
+
+function closeFloatingSongTagMenus(event) {
+    if (event?.target?.closest?.(".song-tags-popout")) return;
+    if (document.querySelector(".song-tags.is-open.is-floating")) closeSongTagMenus();
 }
 
 function closeSongTagMenus() {
@@ -3562,9 +3611,7 @@ function renderSetlist() {
         title.className = "setlist-title";
         title.textContent = displayTitle;
 
-        const artist = document.createElement("span");
-        artist.className = "setlist-artist";
-        artist.textContent = getDisplayArtist(song) || "Unknown artist";
+        const artist = createArtistSearchControl(song, "setlist-artist", { highlight: false });
 
         const controls = document.createElement("div");
         controls.className = "setlist-controls";
@@ -3624,9 +3671,18 @@ function renderSetlist() {
         footer.className = "setlist-row";
         footer.append(createSingerControl(song, item), controls);
 
+        const heading = document.createElement("div");
+        heading.className = "setlist-heading";
+        heading.append(title, artist);
+        const head = document.createElement("div");
+        head.className = "setlist-head";
+        head.appendChild(heading);
+        const catalogSong = getCatalogSong(song);
+        if (catalogSong) head.appendChild(createSongTags(catalogSong));
+
         const body = document.createElement("div");
         body.className = "setlist-body";
-        body.append(title, artist, footer);
+        body.append(head, footer);
         item.append(number, body);
         fragment.appendChild(item);
     });
@@ -3637,9 +3693,34 @@ function renderSetlist() {
         const items = [...els.setlist.querySelectorAll(".setlist-item")];
         const item = items.find((entry) => entry.dataset.songId === focusedSongId) ||
             items[Math.min(focusedIndex, items.length - 1)];
-        const buttons = [...(item?.querySelectorAll("button") || [])].filter((button) => !button.disabled);
-        (buttons.find((button) => button.title === focusedTitle) || buttons[0])?.focus({ preventScroll: true });
+        const buttons = [...(item?.querySelectorAll("button") || [])]
+            .filter((button) => !button.disabled && !button.closest("[hidden]"));
+        (buttons.find((button) => button.title === focusedTitle) ||
+            item?.querySelector(".setlist-row button:not(:disabled)"))?.focus({ preventScroll: true });
     }
+}
+
+// Setlist entries are trimmed copies (see toSetlistEntry); their tags come from
+// the catalog song with the same identity.
+let catalogIndex = { songs: null, byId: new Map() };
+function getCatalogSong(entry) {
+    if (catalogIndex.songs !== state.songs) {
+        catalogIndex = { songs: state.songs, byId: new Map(state.songs.map((song) => [song.id, song])) };
+    }
+    return catalogIndex.byId.get(entry.id) || catalogIndex.byId.get(getSongIdentity(entry)) || null;
+}
+
+// Artist and tag links in the setlist or a songs dialog lead to search results,
+// as they do on song cards: close whatever covers the results and move there.
+function returnToResults(event) {
+    // Filter tags are buttons; the GetSongBPM pills are links to another site.
+    if (!event.target.closest("button.setlist-artist, button.personal-artist, button.pill.is-clickable")) {
+        return;
+    }
+    closeSongTagMenus();
+    event.target.closest("dialog[open]")?.close();
+    closeSetlistDrawer({ restoreFocus: false });
+    els.resultsTitle.focus({ preventScroll: true });
 }
 
 function createSingerControl(song, item) {
