@@ -37,17 +37,13 @@ function recordEffects() {
             }
         }
     }).observe(document, { subtree: true, childList: true, attributes: true, attributeFilter: ["class"] });
-    window.activeTransitions = 0;
+    // View transitions route clicks to the page itself while they run, so
+    // no effect may start one.
     const start = document.startViewTransition;
-    window.supportsViewTransitions = typeof start === "function";
-    if (supportsViewTransitions) {
+    if (typeof start === "function") {
         document.startViewTransition = function (...args) {
             viewTransitions++;
-            activeTransitions++;
-            const transition = start.apply(this, args);
-            const done = () => activeTransitions--;
-            transition.finished.then(done, done);
-            return transition;
+            return start.apply(this, args);
         };
     }
 }
@@ -73,8 +69,14 @@ const tests = [
         await ready(page);
         assert.equal(await page.locator("#status").evaluate((node) => getComputedStyle(node).animationName), "none");
 
+        // The stage lights come up once the songbook is in use.
+        assert.equal(await page.evaluate(() => document.documentElement.classList.contains("songbook-ready")), true);
+        assert.equal(await page.evaluate(() => getComputedStyle(document.body, "::before").animationName), "fx-lights-up");
+
         await search(page, "Tune");
         await seen(page, "fx-sing");
+        // Cards rebuilt by a later render keep a steady highlight.
+        assert.equal(await page.evaluate(() => { render(); return document.querySelectorAll("#resultsList .fx-sing").length; }), 0);
         await settled(page);
         // After the fill, a highlight is the ordinary static highlight.
         assert.equal(await page.locator("#resultsList mark").first()
@@ -107,17 +109,17 @@ const tests = [
         await seen(page, "fx-confetti");
         assert.equal(await page.locator(".setlist-item").count(), 10);
 
+        // The theme changes with the click itself; the bloom only decorates it.
         await menu(page, "#themeButton");
-        await page.waitForFunction(() => document.documentElement.dataset.theme === "dark");
-        assert.equal(await page.evaluate(() => localStorage.getItem("karaokeTheme")), "dark");
-        if (await page.evaluate(() => supportsViewTransitions)) {
-            assert.equal(await page.evaluate(() => viewTransitions), 1);
-        }
+        assert.deepEqual(await page.evaluate(() => [document.documentElement.dataset.theme, localStorage.getItem("karaokeTheme"),
+            document.getElementById("themeButton").getAttribute("aria-label")]), ["dark", "dark", "Switch to light mode"]);
+        await seen(page, "fx-bloom");
         // Keyboard activation has no pointer position and still switches.
         await page.click("#moreToolsButton");
         await page.focus("#themeButton");
         await page.keyboard.press("Enter");
-        await page.waitForFunction(() => document.documentElement.dataset.theme === "light");
+        assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), "light");
+        assert.equal(await page.evaluate(() => viewTransitions), 0);
 
         await settled(page);
         // Everything an effect hid or moved is back in place.
@@ -157,18 +159,53 @@ const tests = [
         await page.mouse.click(box.x + 20, box.y + box.height / 2);
         assert.equal(await page.evaluate(() => document.activeElement.id), "searchInput");
 
-        // ...and as soon as the new theme has spread across the page (browsers
-        // send clicks to the page itself while a view transition runs).
+        // ...and while the theme bloom plays.
         await menu(page, "#themeButton");
-        await page.waitForFunction(() => document.documentElement.dataset.theme === "dark" && !activeTransitions,
-            null, { timeout: 2000 });
         await page.mouse.click(box.x + 20, box.y + box.height / 2);
+        assert.equal(await page.evaluate(() => document.activeElement.id), "searchInput");
         await page.keyboard.press("End");
         await page.keyboard.type(" B");
         await page.waitForFunction(() => state.query === "Tune B" && !searchRenderTimer);
         assert.equal(await page.locator("#resultsList .song-title").first().textContent(), "Tune B");
         await settled(page);
         assert.equal(await page.locator(".setlist-item").count(), 5);
+    }],
+    ["a random pick added mid-spin flies its own cover, not a decoy", motion, async (page) => {
+        await ready(page);
+        await plan(page);
+        await search(page, "Tune");
+        await menu(page, "#randomButton");
+        await page.locator("#randomPick .add-button").click();
+        const [flyer, expected, spinning] = await page.evaluate(() => {
+            const tile = document.querySelector(".fx-flyer");
+            return [
+                { initials: tile.textContent.trim(), reel: Boolean(tile.querySelector(".fx-reel")), spinning: tile.classList.contains("fx-spinning") },
+                getArtistInitials(getDisplayArtist(state.randomPick)),
+                Boolean(document.querySelector("#randomPick .fx-reel")),
+            ];
+        });
+        assert.ok(spinning, "the add happened while the reel was still spinning");
+        assert.deepEqual(flyer, { initials: expected, reel: false, spinning: false });
+        await settled(page);
+    }],
+    ["failed or missing loads leave nothing busy and no celebration", motion, async (page) => {
+        await ready(page);
+        const quiet = () => page.evaluate(() => ({
+            busy: document.getElementById("resultsList").getAttribute("aria-busy"),
+            ready: document.documentElement.classList.contains("songbook-ready"),
+            lyric: getComputedStyle(document.getElementById("status")).animationName,
+            lights: getComputedStyle(document.body, "::before").animationName,
+        }));
+        // The catalog request fails: the error dialog, not the "ready" moment.
+        await page.route("**/karaoke_songs_enriched.json?*", (route) => route.fulfill({ status: 500, body: "" }));
+        await page.reload();
+        await page.waitForSelector("#dataDialog[open]");
+        assert.deepEqual(await quiet(), { busy: null, ready: false, lyric: "none", lights: "none" });
+        // The main script never starts: the page must not claim to be busy.
+        await page.route("**/karaoke_explorer.js?*", (route) => route.fulfill({ contentType: "application/javascript", body: "" }));
+        await page.reload();
+        await page.waitForLoadState("load");
+        assert.deepEqual(await quiet(), { busy: null, ready: false, lyric: "none", lights: "none" });
     }],
     ["sparks show above modal dialogs, and dialog adds skip the flight", motion, async (page) => {
         await ready(page);

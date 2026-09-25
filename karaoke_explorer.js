@@ -1,4 +1,4 @@
-const APP_VERSION = "20260925-6";
+const APP_VERSION = "20260925-7";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const TAG_CONSOLIDATION_URL = `tag_consolidation.json?v=${APP_VERSION}`;
 const MOOD_CONSOLIDATION_URL = `mood_consolidation.json?v=${APP_VERSION}`;
@@ -232,7 +232,6 @@ let draggedSetlistIndex = null;
 let activeSheet = null;
 let renderedMode = "";
 let lastSungQuery = "";
-let randomSpinDecoys = null;
 let sheetSnackbarAnchor = null;
 const sheetInertElements = new Map();
 applyStoredTheme();
@@ -435,14 +434,11 @@ function bindEvents() {
     els.homeButton.addEventListener("click", goToDiscover);
 
     els.themeButton.addEventListener("click", (event) => {
-        const nextTheme = getTheme() === "dark" ? "light" : "dark";
+        setTheme(getTheme() === "dark" ? "light" : "dark");
         // Keyboard clicks have no pointer position; the menu button stays visible.
-        const origin = event.detail ? { x: event.clientX, y: event.clientY } : getElementCenter(document.getElementById("moreToolsButton"));
-        if (window.StageFx) {
-            window.StageFx.switchTheme(() => setTheme(nextTheme), origin);
-        } else {
-            setTheme(nextTheme);
-        }
+        window.StageFx?.themeChanged(event.detail
+            ? { x: event.clientX, y: event.clientY }
+            : getElementCenter(document.getElementById("moreToolsButton")));
     });
 
     els.searchInput.addEventListener("input", () => {
@@ -871,6 +867,8 @@ async function useSongs(songs) {
     renderSetlist();
     renderThemeButton();
     render();
+    // Styling hook for the "songbook ready" moment; never set by a failed load.
+    document.documentElement.classList.add("songbook-ready");
     personalEl("repertoireButton").disabled = false;
     personalEl("chooseSongButton").disabled = false;
     offerSharedSetlistImport();
@@ -1154,9 +1152,9 @@ function pickRandomSong() {
 
     state.randomPick = pool[Math.floor(Math.random() * pool.length)];
     state.mode = "search";
-    randomSpinDecoys = Array.from({ length: Math.min(7, pool.length - 1) },
-        () => pool[Math.floor(Math.random() * pool.length)]);
     render();
+    window.StageFx?.spin(els.randomPick.querySelector(".song-card"),
+        Array.from({ length: Math.min(7, pool.length - 1) }, () => pool[Math.floor(Math.random() * pool.length)]));
     scrollResultsIntoView();
 }
 
@@ -1193,12 +1191,7 @@ function renderRandomPick() {
     });
 
     head.append(label, spin, dismiss);
-    const card = createSongCard(song);
-    els.randomPick.append(head, card);
-    if (randomSpinDecoys) {
-        window.StageFx?.spin(card, randomSpinDecoys);
-        randomSpinDecoys = null;
-    }
+    els.randomPick.append(head, createSongCard(song));
 }
 
 function renderSearchNotice() {

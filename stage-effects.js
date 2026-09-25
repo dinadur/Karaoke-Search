@@ -135,8 +135,14 @@ window.StageFx = (() => {
         flight.style.left = `${origin.x - size / 2}px`;
         flight.style.top = `${origin.y - size / 2}px`;
         const flyer = start === tile ? tile.cloneNode(true) : document.createElement("span");
+        if (start === tile) {
+            // A random pick added mid-spin still carries its reel.
+            flyer.querySelector(".fx-reel")?.remove();
+            flyer.classList.remove("fx-spinning");
+        } else {
+            flyer.textContent = "♪";
+        }
         flyer.classList.add("fx-flyer");
-        if (start !== tile) flyer.textContent = "♪";
         flyer.style.width = `${size}px`;
         flyer.style.height = `${size}px`;
         flight.appendChild(flyer);
@@ -253,31 +259,30 @@ window.StageFx = (() => {
         ], { duration: 320, delay: 90 + index * 55, easing: "cubic-bezier(.2, .8, .3, 1)", fill: "backwards" }));
     }
 
-    // Theme: the new lighting spreads from where the switch was used. Browsers
-    // route clicks to the page itself while a view transition runs, so it
-    // stays short.
-    function switchTheme(apply, point) {
-        if (!motionOK() || typeof document.startViewTransition !== "function") {
-            apply();
-            return;
-        }
-
+    // Theme: after the switch, a bloom of stage light spreads from where it was
+    // used. It is an overlay that ignores the pointer, so unlike a view
+    // transition it never holds up clicks or the theme change itself.
+    function themeChanged(point) {
+        if (!motionOK()) return;
+        const layer = createLayer();
         const x = point?.x ?? window.innerWidth / 2;
         const y = point?.y ?? 0;
-        let transition;
-        try {
-            transition = document.startViewTransition(apply);
-        } catch {
-            apply();
-            return;
-        }
-        transition.ready.then(() => {
-            const radius = Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y));
-            document.documentElement.animate(
-                { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${radius}px at ${x}px ${y}px)`] },
-                { duration: 480, easing: "cubic-bezier(.4, 0, .2, 1)", pseudoElement: "::view-transition-new(root)" }
-            );
-        }).catch(() => {});
+        const reach = Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y));
+        const size = 480;
+        const bloom = document.createElement("span");
+        bloom.className = "fx-bloom";
+        bloom.style.left = `${x - size / 2}px`;
+        bloom.style.top = `${y - size / 2}px`;
+        bloom.style.width = `${size}px`;
+        bloom.style.height = `${size}px`;
+        layer.appendChild(bloom);
+        const scale = (reach * 2.2) / size;
+        const animation = bloom.animate([
+            { transform: "scale(0.1)", opacity: 0.95 },
+            { transform: `scale(${scale * 0.6})`, opacity: 0.7, offset: 0.45 },
+            { transform: `scale(${scale})`, opacity: 0 },
+        ], { duration: 700, easing: "cubic-bezier(.2, .7, .3, 1)", fill: "forwards" });
+        removeWhenDone(layer, [animation], 1300);
     }
 
     // New search results: highlighted matches fill in like karaoke lyrics.
@@ -325,13 +330,7 @@ window.StageFx = (() => {
         confetti: safely(confetti),
         cascade: safely(cascade),
         roll: safely(roll),
-        switchTheme: (apply, point) => {
-            try {
-                switchTheme(apply, point);
-            } catch {
-                apply();
-            }
-        },
+        themeChanged: safely(themeChanged),
         sing: safely(sing),
     };
 })();

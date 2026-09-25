@@ -23,7 +23,7 @@ Live site: https://karaokesearch.uk
 - Setlist singer assignments — tag who's singing what, included when copying/sharing.
 - Installable PWA that works fully offline after the first visit.
 - Search-match highlighting, gradient cover tiles per artist, and skeleton loading states.
-- A light layer of stage effects: songs fly into the setlist, saves sparkle, random picks spin like a slot reel, Draft throws confetti, and the theme switch spreads from the button. All of it respects reduced motion. See [STAGE_EFFECTS.md](STAGE_EFFECTS.md).
+- A light layer of stage effects: songs fly into the setlist, saves sparkle, random picks spin like a slot reel, Draft throws confetti, and switching theme sends a bloom of stage light from the button. All of it respects reduced motion and never blocks input. See [STAGE_EFFECTS.md](STAGE_EFFECTS.md).
 - No external runtime dependencies: icons ship as an inline SVG sprite.
 
 ## Data

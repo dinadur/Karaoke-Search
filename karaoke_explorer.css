@@ -43,6 +43,8 @@
     --spotlight: rgba(98, 71, 201, 0.11);
     --sheen: rgba(255, 255, 255, 0.9);
     --title-accent-end: #b63b2b;
+    --bloom-core: rgba(255, 236, 210, 0.7);
+    --bloom-edge: rgba(199, 71, 53, 0.16);
 }
 
 :root[data-theme="dark"] {
@@ -82,6 +84,8 @@
     --spotlight: rgba(167, 149, 255, 0.15);
     --sheen: rgba(255, 255, 255, 0.85);
     --title-accent-end: var(--accent);
+    --bloom-core: rgba(167, 149, 255, 0.4);
+    --bloom-edge: rgba(98, 71, 201, 0.18);
 }
 
 * {
@@ -2990,10 +2994,10 @@ body::before {
     border-radius: 0;
 }
 
-::view-transition-old(root),
-::view-transition-new(root) {
-    animation: none;
-    mix-blend-mode: normal;
+.fx-bloom {
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--bloom-core) 0%, var(--bloom-edge) 38%, transparent 70%);
+    will-change: transform, opacity;
 }
 
 /* On phones the sticky search bar has a solid background, so the glow fades
@@ -3008,18 +3012,18 @@ body::before {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-    /* The stage lights come up when the songbook is ready, so no decorative
-       animation competes with preparing the catalog. */
-    body:has(#resultsList[aria-busy="true"])::before {
+    /* The stage lights come up once a songbook is in use (never after a failed
+       load), so no decorative animation competes with preparing the catalog. */
+    :root:not(.songbook-ready) body::before {
         opacity: 0;
     }
 
-    body:not(:has(#resultsList[aria-busy="true"]))::before {
+    .songbook-ready body::before {
         transform-origin: top;
         animation: fx-lights-up 1.6s cubic-bezier(0.2, 0.7, 0.2, 1) both;
     }
 
-    body:not(:has(#resultsList[aria-busy="true"])) .title-accent {
+    .songbook-ready .title-accent {
         animation: fx-sheen 1.6s 0.35s cubic-bezier(0.45, 0, 0.2, 1) both;
     }
 
