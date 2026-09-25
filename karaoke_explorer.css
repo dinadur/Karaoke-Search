@@ -1793,6 +1793,13 @@ button.browse-artist:focus-visible {
     gap: 5px;
 }
 
+.tag-popout-group p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.4;
+}
+
 .version-group {
     border-top: 1px solid var(--line);
     padding-top: 10px;
@@ -1897,6 +1904,62 @@ button.browse-artist:focus-visible {
     color: var(--muted);
     font-size: 13px;
     overflow-wrap: anywhere;
+}
+
+/* The title block shares its line with the tags button; the artist links to
+   that artist's songs, as on song cards and in saved songs. */
+.setlist-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.setlist-heading {
+    display: grid;
+    flex: 1 1 auto;
+    gap: 3px;
+    min-width: 0;
+}
+
+.setlist-head .link-popout-button {
+    width: 30px;
+    min-height: 30px;
+    border-radius: 7px;
+}
+
+button.setlist-artist,
+button.personal-artist {
+    width: fit-content;
+    max-width: 100%;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    color: var(--muted);
+    text-align: left;
+    overflow-wrap: anywhere;
+}
+
+button.setlist-artist:hover,
+button.personal-artist:hover {
+    color: var(--brand);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+button.setlist-artist:focus-visible,
+button.personal-artist:focus-visible {
+    outline: 3px solid var(--focus-ring);
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+/* Inside a scrolling list or dialog the tags float in the viewport; script
+   places them where there is room (see placeSongPopout). */
+.song-popout.is-floating .song-tags-popout {
+    position: fixed;
+    right: auto;
+    bottom: auto;
+    transform: none;
 }
 
 /* A content-independent size keeps the controls in place when the singer
@@ -2664,6 +2727,7 @@ dialog::backdrop {
     }
 
     .setlist-icon-button,
+    .setlist-head .icon-button,
     .row-tools .icon-button,
     .row-tools .mini-add {
         min-width: 44px;
@@ -2772,7 +2836,9 @@ dialog::backdrop {
 .personal-song-row p { margin: 5px 0; color: var(--muted); line-height: 1.5; overflow-wrap: anywhere; }
 .personal-song-row .personal-reason { font-size: 13px; color: var(--ink); }
 .personal-row-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
-.personal-row-actions > button { min-width: 44px; min-height: 44px; }
+.personal-row-actions > button,
+.personal-row-actions .tag-popout-button { min-width: 44px; min-height: 44px; }
+.personal-artist { display: block; margin: 5px 0; color: var(--muted); line-height: 1.5; }
 .repertoire-note { white-space: pre-wrap; }
 #repertoireMore { margin-top: 16px; }
 @media (max-width: 720px) {
