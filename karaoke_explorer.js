@@ -1,4 +1,4 @@
-const APP_VERSION = "20260907-9";
+const APP_VERSION = "20260925-1";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const TAG_CONSOLIDATION_URL = `tag_consolidation.json?v=${APP_VERSION}`;
 const MOOD_CONSOLIDATION_URL = `mood_consolidation.json?v=${APP_VERSION}`;
@@ -229,6 +229,7 @@ let searchRenderTimer = 0;
 let songbookLoadPending = false;
 let draggedSetlistIndex = null;
 let activeSheet = null;
+let renderedMode = "";
 let sheetSnackbarAnchor = null;
 const sheetInertElements = new Map();
 applyStoredTheme();
@@ -258,7 +259,6 @@ const state = {
     defaultRankedSongs: [],
     queryScopedSongs: [],
     popularThreshold: 0,
-    taggedCount: 0,
     cachedDiscoverShelves: null,
     promotedGenreTags: new Map(),
     tagConsolidation: createEmptyTagConsolidation(),
@@ -323,6 +323,7 @@ const els = {
     showMoreResultsButton: document.getElementById("showMoreResultsButton"),
     showAllResultsButton: document.getElementById("showAllResultsButton"),
     browseList: document.getElementById("browseList"),
+    resultsTitle: document.getElementById("resultsTitle"),
     resultCount: document.getElementById("resultCount"),
     resultContext: document.getElementById("resultContext"),
     setlist: document.getElementById("setlist"),
@@ -436,8 +437,8 @@ function bindEvents() {
     });
 
     els.searchInput.addEventListener("input", () => {
+        leaveArtistView();
         state.query = els.searchInput.value.trim();
-        state.exactArtist = false;
         state.mode = "search";
         resetResultLimit();
         saveUiState();
@@ -495,6 +496,8 @@ function bindEvents() {
         state.mode = "search";
         resetResultLimit();
         render();
+        // The button hides once nothing is left to clear; keep focus in the sheet.
+        els.applyFiltersButton.focus({ preventScroll: true });
     });
 
     els.orderRelevanceButton.addEventListener("click", () => setSearchOrder("relevance"));
@@ -819,9 +822,6 @@ async function useSongs(songs) {
 
         return preparedSong;
     });
-    const taggedCount = enrichedSongs.reduce(
-        (count, song) => count + (song.status === "ok" ? 1 : 0), 0
-    );
     // "Popular" marks the top decile of songs that have a popularity score.
     const scores = enrichedSongs
         .map((song) => song.popularity || 0)
@@ -847,7 +847,7 @@ async function useSongs(songs) {
     // Publish the complete catalog together; renders during preparation must
     // never see partial songs or mismatched indexes.
     Object.assign(state, {
-        promotedGenreTags, songs: enrichedSongs, taggedCount, popularThreshold,
+        promotedGenreTags, songs: enrichedSongs, popularThreshold,
         defaultRankedSongs, availableMoods, availableGenres, availableDecades, availableHolidays,
     });
     migrateSavedSongs();
@@ -1350,6 +1350,7 @@ function countActiveFilters() {
 
 function renderMode() {
     const isBrowse = state.mode === "browse";
+    syncSearchInputToMode();
     setToggleState(els.searchModeButton, !isBrowse);
     setToggleState(els.browseModeButton, isBrowse);
     els.browseTools.hidden = !isBrowse;
@@ -1364,6 +1365,21 @@ function renderMode() {
     els.resultActions.hidden = true;
     els.groupActions.hidden = true;
     els.browseList.hidden = !isBrowse;
+}
+
+// The search box belongs to Search. Browse ignores the query, so its box starts
+// empty; switching back to Search shows the remembered query again. Syncing
+// only on mode changes never rewrites text while someone is typing.
+function syncSearchInputToMode() {
+    if (renderedMode === state.mode) {
+        return;
+    }
+
+    renderedMode = state.mode;
+    const value = state.mode === "browse" ? "" : state.query;
+    if (els.searchInput.value.trim() !== value) {
+        els.searchInput.value = value;
+    }
 }
 
 function scheduleSearchRender() {
@@ -1577,7 +1593,7 @@ function clearSearchFilters({ resetFuzzy = true } = {}) {
 }
 
 function clearSearchQuery({ resetScope = true } = {}) {
-    state.exactArtist = false;
+    leaveArtistView();
     state.query = "";
     els.searchInput.value = "";
 
@@ -1586,6 +1602,24 @@ function clearSearchQuery({ resetScope = true } = {}) {
         syncSearchScopeInput();
         updateSearchPlaceholder();
     }
+}
+
+// An artist link shows one artist A-Z by quietly choosing the Artist scope and
+// title order. Leaving that view restores those defaults, so the next search
+// covers song titles again and an empty query returns to Discover.
+function leaveArtistView() {
+    if (!state.exactArtist) {
+        return;
+    }
+
+    state.exactArtist = false;
+    state.searchScope = "all";
+    if (state.sortMode === "song") {
+        state.sortMode = "relevance";
+    }
+    state.groupOpenMode = "auto";
+    syncSearchScopeInput();
+    updateSearchPlaceholder();
 }
 
 function renderDiscover() {
@@ -1925,7 +1959,7 @@ function renderEmptySearchState() {
     empty.className = "empty-state search-empty";
 
     const title = document.createElement("strong");
-    title.textContent = "No matches";
+    title.textContent = state.query ? `No matches for “${state.query}”` : "No songs match these filters";
     empty.appendChild(title);
 
     const suggestions = getEmptySearchSuggestions();
@@ -1965,8 +1999,9 @@ function renderEmptySearchState() {
     const actions = document.createElement("div");
     actions.className = "empty-actions";
 
-    if (state.query && !state.fuzzySearch) {
-        actions.appendChild(createEmptyAction("Enable fuzzy", () => {
+    const nearMatches = countFilteredNearMatches();
+    if (nearMatches) {
+        actions.appendChild(createEmptyAction(`Include near matches (${nearMatches.toLocaleString()})`, () => {
             state.fuzzySearch = true;
             resetResultLimit();
             render();
@@ -1995,6 +2030,17 @@ function renderEmptySearchState() {
     }
 
     els.resultsList.appendChild(empty);
+}
+
+// Near matches already run automatically when a query has no exact matches,
+// so offering them only helps when filters removed every exact match.
+function countFilteredNearMatches() {
+    if (!state.query || state.fuzzySearch || state.autoFuzzy ||
+        !state.queryScopedSongs.length || !hasSongFilters()) {
+        return 0;
+    }
+
+    return applySearchFilters(rankSongs(state.songs, state.query, { fuzzy: true })).length;
 }
 
 function createEmptyAction(label, onClick) {
@@ -2180,6 +2226,11 @@ function renderBrowseControls() {
         button.addEventListener("click", () => {
             state.browseLetter = letter;
             render();
+            // Start the new letter at its top, not the previous list's depth.
+            const panel = els.browseList.closest(".results-panel");
+            if (panel.getBoundingClientRect().top < parseFloat(getComputedStyle(panel).scrollMarginTop)) {
+                scrollResultsIntoView();
+            }
         });
         els.letterStrip.appendChild(button);
     }
@@ -2588,7 +2639,7 @@ function createSongLinks(song) {
     button.className = "icon-button link-popout-button";
     button.type = "button";
     button.title = "Music links";
-    button.setAttribute("aria-label", "Music links");
+    button.setAttribute("aria-label", `Music links for ${getDisplaySongTitle(song)}`);
     button.setAttribute("aria-haspopup", "true");
     button.setAttribute("aria-expanded", "false");
     button.innerHTML = '<i data-lucide="headphones" aria-hidden="true"></i>';
@@ -2645,7 +2696,7 @@ function createSongTags(song) {
     button.type = "button";
     button.title = hasTags ? "Song tags" : "No tags";
     button.disabled = !hasTags;
-    button.setAttribute("aria-label", hasTags ? "Song tags" : "No tags");
+    button.setAttribute("aria-label", `${hasTags ? "Tags" : "No tags"} for ${getDisplaySongTitle(song)}`);
     button.setAttribute("aria-haspopup", "true");
     button.setAttribute("aria-expanded", "false");
     button.innerHTML = '<i data-lucide="tags" aria-hidden="true"></i>';
@@ -2896,21 +2947,27 @@ function scrollResultsIntoView() {
 
 function renderStatus(totalMatches) {
     const total = state.songs.length.toLocaleString();
-    const tagged = (state.taggedCount || 0).toLocaleString();
+    const songCount = `${totalMatches.toLocaleString()} ${totalMatches === 1 ? "song" : "songs"}`;
 
-    els.status.textContent = `${tagged} tagged / ${total} songs`;
+    els.status.textContent = `${total} songs`;
 
     if (state.mode === "browse") {
-        els.resultCount.textContent = state.browseLetter;
-    } else if (isDiscoverView()) {
+        els.resultsTitle.textContent = state.browseBy === "artist" ? "Artists A–Z" : "Songs A–Z";
+        const letter = state.browseLetter === "#" ? "Numbers & symbols" : state.browseLetter;
+        els.resultCount.textContent = `${letter} · ${songCount}`;
+        return;
+    }
+
+    els.applyFiltersButton.textContent = `Show ${songCount}`;
+    if (isDiscoverView()) {
+        els.resultsTitle.textContent = "Discover";
         els.resultCount.textContent = `Fresh picks from ${total} songs`;
-        els.applyFiltersButton.textContent =
-            `Show ${totalMatches.toLocaleString()} ${totalMatches === 1 ? "song" : "songs"}`;
     } else {
-        const shown = state.visibleSongs.length.toLocaleString();
-        els.resultCount.textContent = `${shown} shown from ${totalMatches.toLocaleString()} matches`;
-        els.applyFiltersButton.textContent =
-            `Show ${totalMatches.toLocaleString()} ${totalMatches === 1 ? "song" : "songs"}`;
+        const shown = state.visibleSongs.length;
+        els.resultsTitle.textContent = "Songs";
+        els.resultCount.textContent = shown < totalMatches
+            ? `Showing ${shown.toLocaleString()} of ${totalMatches.toLocaleString()} matches`
+            : `${totalMatches.toLocaleString()} ${totalMatches === 1 ? "match" : "matches"}`;
     }
 }
 
@@ -3095,6 +3152,12 @@ function applyStoredUiState() {
         state.filters.duet = Boolean(stored.filters.duet);
         state.filters.popular = Boolean(stored.filters.popular);
     }
+
+    // Earlier versions kept an artist link's title order after its query was
+    // cleared, so every later visit opened on the whole catalog A-Z.
+    if (state.sortMode === "song" && !state.query && !hasSongFilters()) {
+        state.sortMode = "relevance";
+    }
 }
 
 function applyInitialRoute() {
@@ -3238,6 +3301,8 @@ function addToSetlist(song) {
         state.setlist.push(toSetlistEntry(song));
         saveSetlist();
         renderSetlist();
+        // The desktop rail scrolls internally; show the entry just added.
+        els.setlist.scrollTop = els.setlist.scrollHeight;
         showSnackbar(`Added “${getDisplaySongTitle(song)}” to setlist`);
     }
 }
@@ -3451,9 +3516,14 @@ function renderSetlist() {
             item.classList.remove("is-dragging", "is-drop-target");
         });
 
+        const displayTitle = getDisplaySongTitle(song);
+        const number = document.createElement("span");
+        number.className = "setlist-number";
+        number.textContent = String(index + 1);
+
         const title = document.createElement("span");
         title.className = "setlist-title";
-        title.textContent = getDisplaySongTitle(song);
+        title.textContent = displayTitle;
 
         const artist = document.createElement("span");
         artist.className = "setlist-artist";
@@ -3471,6 +3541,7 @@ function renderSetlist() {
         up.className = "setlist-icon-button";
         up.type = "button";
         up.title = "Move up";
+        up.setAttribute("aria-label", `Move ${displayTitle} up`);
         up.disabled = index === 0;
         up.innerHTML = '<i data-lucide="chevron-up" aria-hidden="true"></i>';
         up.addEventListener("click", () => moveSetlistItem(index, -1));
@@ -3479,6 +3550,7 @@ function renderSetlist() {
         down.className = "setlist-icon-button";
         down.type = "button";
         down.title = "Move down";
+        down.setAttribute("aria-label", `Move ${displayTitle} down`);
         down.disabled = index === state.setlist.length - 1;
         down.innerHTML = '<i data-lucide="chevron-down" aria-hidden="true"></i>';
         down.addEventListener("click", () => moveSetlistItem(index, 1));
@@ -3495,6 +3567,7 @@ function renderSetlist() {
         remove.className = "setlist-icon-button remove-button";
         remove.type = "button";
         remove.title = "Remove";
+        remove.setAttribute("aria-label", `Remove ${displayTitle}`);
         remove.innerHTML = '<i data-lucide="x" aria-hidden="true"></i>';
         remove.addEventListener("click", () => {
             const [removed] = state.setlist.splice(index, 1);
@@ -3508,7 +3581,16 @@ function renderSetlist() {
         });
 
         controls.append(handle, up, down, reroll, remove);
-        item.append(title, artist, createSingerControl(song, item), controls);
+
+        // Controls share the singer row so the title and artist get the full width.
+        const footer = document.createElement("div");
+        footer.className = "setlist-row";
+        footer.append(createSingerControl(song, item), controls);
+
+        const body = document.createElement("div");
+        body.className = "setlist-body";
+        body.append(title, artist, footer);
+        item.append(number, body);
         fragment.appendChild(item);
     });
 
@@ -3812,10 +3894,16 @@ function rerollSetlistSong(index) {
         return;
     }
 
+    const previous = [...state.setlist];
     const next = toSetlistEntry(replacement, current.singer ? { singer: current.singer } : {});
     state.setlist.splice(index, 1, next);
     saveSetlist();
     renderSetlist();
+    showSnackbar(`Swapped in “${getDisplaySongTitle(replacement)}”`, () => {
+        state.setlist = previous;
+        saveSetlist();
+        renderSetlist();
+    });
 }
 
 function buildSetlistText() {
@@ -4298,14 +4386,15 @@ function renderActiveFilters() {
     }
 
     const scopeChipLabels = {
-        all: "Search",
         song: "Song",
         artist: "Artist",
     };
     const chips = [];
-    if (state.query) {
+    // The search box already shows the query; a chip only adds a narrower scope.
+    const hasQueryChip = Boolean(state.query && scopeChipLabels[state.searchScope]);
+    if (hasQueryChip) {
         chips.push({
-            label: `${scopeChipLabels[state.searchScope] || "Search"}: ${state.query}`,
+            label: `${scopeChipLabels[state.searchScope]}: ${state.query}`,
             onClear: () => clearSearchQuery({ resetScope: false }),
         });
     }
@@ -4350,7 +4439,7 @@ function renderActiveFilters() {
 
     if (state.fuzzySearch) {
         chips.push({
-            label: "Fuzzy",
+            label: "Near matches",
             onClear: () => {
                 state.fuzzySearch = false;
             },
@@ -4362,15 +4451,18 @@ function renderActiveFilters() {
     }
 
     if (chips.length > 1) {
+        // Clear exactly what the chips show; a chip-less query stays in the box.
         const clearAll = document.createElement("button");
         clearAll.className = "active-filter-clear";
         clearAll.type = "button";
-        clearAll.textContent = "Clear all";
+        clearAll.textContent = hasQueryChip ? "Clear all" : "Clear filters";
         clearAll.addEventListener("click", () => {
-            clearSearchQuery();
+            if (hasQueryChip) {
+                clearSearchQuery();
+                state.sortMode = "relevance";
+                state.groupOpenMode = "auto";
+            }
             clearSearchFilters();
-            state.sortMode = "relevance";
-            state.groupOpenMode = "auto";
             resetResultLimit();
             render();
             els.searchInput.focus();

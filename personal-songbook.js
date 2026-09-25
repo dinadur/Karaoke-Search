@@ -305,6 +305,7 @@ function renderPickerResults() {
         ? `${chosen.length} ${chosen.length === 1 ? "suggestion" : "suggestions"} for you. Choose Find my five again for another selection.`
         : "No songs match these choices. Try Either, save songs for familiar picks, or close this picker and broaden your search.";
     for (const { song, reasons } of chosen) list.appendChild(personalSongRow(song, reasons.join(" · ")));
+    hydrateIcons(list);
     personalEl("pickerSummary").scrollIntoView({ block: "start", behavior: "instant" });
 }
 

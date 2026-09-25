@@ -63,7 +63,7 @@ Use `node scripts/bump-version.js [version]` to update all four references at on
 
 CI also runs `node scripts/regression.js` against a deterministic catalog for the review fixes: safe Undo invalidation, empty-result actions, legacy QR sharing, facet counts, modal keyboard behavior, and icon availability. Run it with the same server and Playwright setup. Raster icons are committed outputs of `node scripts/generate-icons.js`; preserve their exceptions in both ignore files.
 
-`scripts/accessibility.js` adds axe-core checks for representative states at 320–1440px. The regression suite also covers exact artist links, inline singer editing, mobile reflow, and data-load recovery. Audit screenshots and logs in `qa/` are local-only and excluded from Git and deployment.
+`scripts/accessibility.js` adds axe-core checks for representative states at 320–1440px. The regression suite also covers exact artist links and leaving them, inline singer editing, mobile reflow, data-load recovery, near-match offers, the Browse query display, setlist numbering/rail height/swap Undo, the docked mobile letter strip, and filter-sheet layout (see `UX_REVIEW.md`). Audit screenshots and logs in `qa/` are local-only and excluded from Git and deployment.
 
 The browser suites accept `BROWSER=chromium|firefox|webkit`; CI runs all three engines. `scripts/offline.js` owns a private server and checks a two-version service-worker upgrade with saved data and subsequent offline loading (server disconnection in WebKit). `scripts/loading.js` checks live input during preparation with native scheduling and its timer fallback. `scripts/performance.js` measures startup at 4× CPU slowdown; run it alone to avoid CPU contention.
 
@@ -74,22 +74,22 @@ Catalog preparation is asynchronous and time-sliced. Always await `useSongs()`, 
 ## Current App Behavior
 
 - Search scopes are `all` (songs & artists, default), `song`, and `artist`.
-- Mood, genre, decade, and holiday filters are all multi-select (OR within a category, AND across categories). State lives in `state.filters.{moods,genres,decades,holidays}` arrays, URL params are comma-separated, and the UI is a shared toggle-chip popover component (`MULTI_FILTER_DEFS` + `buildMultiFilters`) with per-option song counts, inline inside the mobile sheet. There is no Explicit filter (songs still show Explicit pills).
+- Mood, genre, decade, and holiday filters are all multi-select (OR within a category, AND across categories). State lives in `state.filters.{moods,genres,decades,holidays}` arrays, URL params are comma-separated, and the UI is a shared toggle-chip popover component (`MULTI_FILTER_DEFS` + `buildMultiFilters`) with per-option song counts that open inline in the filter sheet. There is no Explicit filter (songs still show Explicit pills).
 - Headings and song titles use self-hosted Space Grotesk (`fonts/`, OFL license alongside); body text is the system stack.
 - The palette is violet/coral ("stage light"): `--brand` is the primary accent variable (renamed from `--teal`).
-- Fuzzy search is off by default; if an exact query has zero matches, a fuzzy pass runs automatically and a notice labels the results.
+- Fuzzy search is off by default; if an exact query has zero matches, a fuzzy pass runs automatically and a notice labels the results. Empty results offer "Include near matches (n)" only when filters hid the exact matches and near matches would pass them.
 - With no query, no filters, and relevance order, the app shows a "discover" landing view of sampled shelves (cached per session) instead of the full ranked list.
-- Filters include mood, genre, decade, holiday, duet, explicit, and favorites. On mobile they live in a bottom sheet behind a "Filters (n)" toggle.
+- Filters include mood, genre, decade, holiday, popular, duet, and saved songs, plus search scope, near matches, and sort order. They live in a focus-managed sheet behind a "Filters (n)" toggle (bottom sheet on mobile, centered modal on desktop) with labeled rows and a sticky Clear filters / Show songs footer. Active-filter chips show filters and scoped queries ("Artist: …"); a plain query appears only in the search box.
 - Results can sort by relevance, song title, or artist; song/artist sorts group into expandable sections. Further batches load automatically via an IntersectionObserver sentinel.
 - Random shows a preview card (Add / Spin again / dismiss) above results; it does not modify the setlist or the query.
-- Browse mode reads the full catalog by song title or artist letter.
+- Browse mode reads the full catalog by song title or artist letter. It shows an empty search box; the Search tab keeps and restores its query. On phones the letter strip docks under the sticky search bar, and a new letter starts at its top.
 - Artist names and visible tag pills are clickable filters/searches; cards cap pills at 5 with a "+N" expander.
-- Clicking an artist selects that exact artist (`exact=1` in shared URLs); typing a query resumes partial search. Query result groups open by default and remember manual expansion during rerenders. Favorite toggles update in place when result membership is unchanged.
+- Clicking an artist selects that exact artist (`exact=1` in shared URLs) with Artist scope and title order; typing or clearing the query leaves that view (`leaveArtistView`) and restores the default scope and relevance order. Query result groups open by default and remember manual expansion during rerenders. Favorite toggles update in place when result membership is unchanged.
 - Add controls show an accessible "Added" state that follows setlist edits. Mobile search occupies its own toolbar row, and filter sheets scroll vertically. Primary controls and Undo use contrasting text colors in both themes.
 - Query, scope, sort, and filters sync to the URL via `history.replaceState`; URL params win over stored state on load.
 - Favorites and setlist are stored in `localStorage`.
 - UI state is stored in `localStorage` and restored on refresh.
-- Setlist supports add, remove (undo via snackbar), copy, share (Web Share API when available), clear (undo), drag reorder, and up/down reorder.
+- Setlist supports add, remove (undo via snackbar), copy, share (Web Share API when available), clear (undo), swap (undo), drag reorder, and up/down reorder. Entries are numbered. The desktop rail fits the viewport and its list scrolls internally; the mobile drawer labels its actions.
 - Pending Undo expires on a subsequent setlist edit. Mobile sheets contain keyboard focus and make the background inert; their snackbar moves inside the active sheet so Undo stays accessible.
 - Song titles are cleaned for display only (`getDisplaySongTitle`): karaoke bracket noise, empty/dangling brackets, and unclosed trailing brackets are stripped. Identity keys still use raw values.
 - Icons render from an inline SVG sprite in `karaoke_explorer.html` (no CDN). New icons must be added to the sprite as `<symbol id="icon-NAME">` and referenced via `<i data-lucide="NAME">` + `hydrateIcons()`.

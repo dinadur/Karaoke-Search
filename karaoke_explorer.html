@@ -7,13 +7,13 @@
     <meta name="theme-color" content="#f5f4fa" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#14121d" media="(prefers-color-scheme: dark)">
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%A4%3C/text%3E%3C/svg%3E">
-    <link rel="apple-touch-icon" href="apple-touch-icon.png?v=20260907-9">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png?v=20260925-1">
     <link rel="manifest" href="manifest.json">
     <link rel="preload" href="fonts/space-grotesk-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="karaoke_explorer.css?v=20260907-9">
-    <script defer src="qrcode.js?v=20260907-9"></script>
-    <script defer src="personal-songbook.js?v=20260907-9"></script>
-    <script defer src="karaoke_explorer.js?v=20260907-9"></script>
+    <link rel="stylesheet" href="karaoke_explorer.css?v=20260925-1">
+    <script defer src="qrcode.js?v=20260925-1"></script>
+    <script defer src="personal-songbook.js?v=20260925-1"></script>
+    <script defer src="karaoke_explorer.js?v=20260925-1"></script>
 </head>
 <body>
     <svg xmlns="http://www.w3.org/2000/svg" class="icon-sprite" aria-hidden="true" focusable="false">
@@ -67,7 +67,7 @@
             </div>
         </section>
 
-        <p class="search-hint">Find a song or artist. Tap the star to save a song for later.</p>
+        <p class="search-hint">Search by song or artist. Save songs to find them later.</p>
 
         <section class="control-row" aria-label="View mode">
             <div class="mode-tabs" role="group" aria-label="View mode">
@@ -105,51 +105,58 @@
                     <i data-lucide="x" aria-hidden="true"></i>
                 </button>
             </div>
-            <div class="search-scope" id="searchScope" role="radiogroup" aria-label="Search in">
-                <label>
-                    <input type="radio" name="searchScope" value="all" checked>
-                    <span>Songs &amp; artists</span>
-                </label>
-                <label>
-                    <input type="radio" name="searchScope" value="song">
-                    <span>Song title</span>
-                </label>
-                <label>
-                    <input type="radio" name="searchScope" value="artist">
-                    <span>Artist</span>
-                </label>
+            <div class="filter-row">
+                <span class="filter-label" id="searchScopeLabel">Search in</span>
+                <div class="filter-control">
+                    <div class="search-scope" id="searchScope" role="radiogroup" aria-labelledby="searchScopeLabel">
+                        <label>
+                            <input type="radio" name="searchScope" value="all" checked>
+                            <span>Songs &amp; artists</span>
+                        </label>
+                        <label>
+                            <input type="radio" name="searchScope" value="song">
+                            <span>Song title</span>
+                        </label>
+                        <label>
+                            <input type="radio" name="searchScope" value="artist">
+                            <span>Artist</span>
+                        </label>
+                    </div>
+                    <label class="fuzzy-toggle"><input id="fuzzySearch" type="checkbox"><span>Include near matches</span></label>
+                </div>
             </div>
             <div class="select-filter multi-filter" data-filter="mood"></div>
             <div class="select-filter multi-filter" data-filter="genre"></div>
             <div class="select-filter multi-filter" data-filter="decade"></div>
             <div class="select-filter multi-filter" data-filter="holiday"></div>
-            <div class="filter-checks" aria-label="More filters">
-                <label title="Only the most-sung songs">
-                    <input id="popularFilter" type="checkbox">
-                    <span>Popular</span>
-                </label>
-                <label>
-                    <input id="duetFilter" type="checkbox">
-                    <span>Duet</span>
-                </label>
-                <label>
-                    <input id="favoriteFilter" type="checkbox">
-                    <span>Saved songs</span>
-                </label>
-                <button id="clearFiltersButton" class="filter-clear" type="button" title="Clear filters" hidden>
-                    <i data-lucide="x" aria-hidden="true"></i>
-                    <span>Clear</span>
-                </button>
+            <div class="filter-row">
+                <span class="filter-label" id="showOnlyLabel">Show only</span>
+                <div class="filter-control filter-checks" role="group" aria-labelledby="showOnlyLabel">
+                    <label title="Only the most-sung songs">
+                        <input id="popularFilter" type="checkbox">
+                        <span>Popular</span>
+                    </label>
+                    <label>
+                        <input id="duetFilter" type="checkbox">
+                        <span>Duet</span>
+                    </label>
+                    <label>
+                        <input id="favoriteFilter" type="checkbox">
+                        <span>Saved songs</span>
+                    </label>
+                </div>
             </div>
-            <label class="fuzzy-toggle"><input id="fuzzySearch" type="checkbox"><span>Include near matches</span></label>
-            <div class="search-order" role="group" aria-label="Order search results">
-                <span class="filter-label">Order</span>
-                <button id="orderRelevanceButton" class="choice-button is-active" type="button">Relevance</button>
-                <button id="orderPopularButton" class="choice-button" type="button" title="Most-sung songs first">Popular</button>
-                <button id="orderSongButton" class="choice-button" type="button">Song title</button>
-                <button id="orderArtistButton" class="choice-button" type="button">Artist</button>
+            <div class="filter-row search-order">
+                <span class="filter-label" id="searchOrderLabel">Sort by</span>
+                <div class="filter-control" role="group" aria-labelledby="searchOrderLabel">
+                    <button id="orderRelevanceButton" class="choice-button is-active" type="button">Relevance</button>
+                    <button id="orderPopularButton" class="choice-button" type="button" title="Most-sung songs first">Popular</button>
+                    <button id="orderSongButton" class="choice-button" type="button">Song title</button>
+                    <button id="orderArtistButton" class="choice-button" type="button">Artist</button>
+                </div>
             </div>
             <div class="sheet-foot">
+                <button id="clearFiltersButton" class="command subtle-command" type="button" hidden>Clear filters</button>
                 <button id="applyFiltersButton" class="command apply-filters" type="button">Show songs</button>
             </div>
         </section>
@@ -203,18 +210,23 @@
                     </div>
                     <button id="draftSetlistButton" class="icon-button" type="button" title="Draft songs from current results" aria-label="Draft songs from current results">
                         <i data-lucide="dices" aria-hidden="true"></i>
+                        <span class="button-label">Draft</span>
                     </button>
                     <button id="shareSetlistButton" class="icon-button" type="button" title="Share setlist" aria-label="Share setlist" hidden>
                         <i data-lucide="share-2" aria-hidden="true"></i>
+                        <span class="button-label">Share</span>
                     </button>
                     <button id="qrSetlistButton" class="icon-button" type="button" title="Show QR code" aria-label="Show QR code for sharing">
                         <i data-lucide="qr-code" aria-hidden="true"></i>
+                        <span class="button-label">QR code</span>
                     </button>
-                    <button id="copySetlistButton" class="icon-button" type="button" title="Copy setlist">
+                    <button id="copySetlistButton" class="icon-button" type="button" title="Copy setlist" aria-label="Copy setlist">
                         <i data-lucide="copy" aria-hidden="true"></i>
+                        <span class="button-label">Copy</span>
                     </button>
                     <button id="clearSetlistButton" class="icon-button" type="button" title="Clear setlist" aria-label="Clear setlist">
                         <i data-lucide="trash-2" aria-hidden="true"></i>
+                        <span class="button-label">Clear</span>
                     </button>
                     <button id="closeSetlistButton" class="icon-button close-setlist" type="button" title="Close setlist" aria-label="Close setlist">
                         <i data-lucide="x" aria-hidden="true"></i>

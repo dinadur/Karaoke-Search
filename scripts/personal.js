@@ -62,6 +62,7 @@ const tests = [
         await page.check('[name="energy"][value="energetic"]');
         await page.click('#chooseSongForm button[type="submit"]');
         assert.deepEqual(await page.locator("#pickerResults h3").allTextContents(), ["Tune 0"]);
+        assert.equal(await page.locator("#pickerResults i[data-lucide]").count(), 0, "Suggestion icons render");
         assert.match(await page.locator("#pickerResults").textContent(), /saved songs.*duet.*Energetic/s);
         await page.locator("#pickerResults .mini-add").click();
         await page.click('#chooseSongForm button[type="submit"]');

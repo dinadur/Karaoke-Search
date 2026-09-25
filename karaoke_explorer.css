@@ -280,7 +280,6 @@ h2 {
 .fuzzy-toggle {
     position: relative;
     flex: 0 0 auto;
-    margin-left: 10px;
     cursor: pointer;
 }
 
@@ -290,29 +289,46 @@ h2 {
     pointer-events: none;
 }
 
-.fuzzy-toggle span {
+/* Every toggle in the filter sheet shares one chip style. */
+.search-scope span,
+.fuzzy-toggle span,
+.filter-checks label span,
+.search-order .choice-button {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-height: 30px;
+    min-height: 36px;
     border: 1px solid var(--line);
     border-radius: 999px;
-    padding: 0 10px;
+    padding: 0 13px;
     color: var(--chip-ink);
-    background: var(--panel-strong);
-    font-size: 13px;
+    background: var(--panel);
+    font-size: 14px;
     font-weight: 700;
     white-space: nowrap;
 }
 
+.search-scope label:hover span,
 .fuzzy-toggle:hover span,
-.fuzzy-toggle input:checked + span {
+.filter-checks label:hover span,
+.search-order .choice-button:hover {
     border-color: var(--brand);
-    background: var(--active-bg);
-    color: var(--active-ink);
+    background: var(--hover-bg);
 }
 
-.fuzzy-toggle input:focus-visible + span {
+.search-scope input:checked + span,
+.fuzzy-toggle input:checked + span,
+.filter-checks input:checked + span,
+.search-order .choice-button.is-active {
+    border-color: var(--brand);
+    color: var(--active-ink);
+    background: var(--active-bg);
+}
+
+/* The real inputs are invisible, so their chips carry the focus ring. */
+.search-scope input:focus-visible + span,
+.fuzzy-toggle input:focus-visible + span,
+.filter-checks input:focus-visible + span {
     outline: 3px solid var(--focus-ring);
     outline-offset: 2px;
 }
@@ -448,11 +464,21 @@ select:hover {
 }
 
 .sheet-foot {
-    display: none;
+    position: sticky;
+    bottom: 0;
+    display: flex;
+    gap: 8px;
+    border-top: 1px solid var(--line);
+    background: var(--panel);
+}
+
+.sheet-foot .command {
+    min-height: 44px;
+    white-space: nowrap;
 }
 
 .apply-filters {
-    width: 100%;
+    flex: 1 1 auto;
     border: 0;
     color: var(--accent-ink);
     background: var(--accent);
@@ -536,26 +562,6 @@ select:hover {
     pointer-events: none;
 }
 
-.search-scope span {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 36px;
-    border: 1px solid transparent;
-    border-radius: 999px;
-    padding: 0 13px;
-    background: var(--soft-bg);
-    color: var(--chip-ink);
-    font-weight: 700;
-    white-space: nowrap;
-}
-
-.search-scope label:hover span,
-.search-scope input:checked + span {
-    border-color: var(--brand);
-    background: var(--active-bg);
-}
-
 .search-filters {
     display: flex;
     flex-wrap: wrap;
@@ -620,8 +626,7 @@ select:hover {
 }
 
 .select-filter,
-.filter-checks,
-.search-order {
+.filter-checks {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -790,43 +795,63 @@ select:hover {
     pointer-events: none;
 }
 
-.filter-checks label span {
-    display: inline-flex;
+/* Filter sheet rows share a label column so every control lines up. */
+.search-filters .filter-row,
+.search-filters .multi-filter {
+    display: grid;
+    grid-template-columns: 80px minmax(0, 1fr);
+    align-items: start;
+    gap: 8px 10px;
+}
+
+.search-filters .multi-filter {
     align-items: center;
-    justify-content: center;
-    min-height: 34px;
-    border: 1px solid var(--line);
-    border-radius: 999px;
-    padding: 0 12px;
-    background: var(--panel);
-    color: var(--chip-ink);
-    font-weight: 700;
+}
+
+.search-filters .filter-label {
     white-space: nowrap;
 }
 
-.filter-checks label:hover span,
-.filter-checks input:checked + span {
-    border-color: var(--brand);
-    background: var(--active-bg);
-    color: var(--active-ink);
+.search-filters .filter-row > .filter-label {
+    padding-top: 10px;
 }
 
-.search-order {
-    gap: 4px;
-    min-height: 42px;
-    padding: 4px;
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    background: var(--panel);
+.filter-control {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-width: 0;
 }
 
-.search-order .filter-label {
-    margin: 0 4px 0 6px;
+.filter-control .search-scope {
+    flex: 1 1 100%;
 }
 
-.search-order .choice-button {
-    min-height: 34px;
-    padding: 0 11px;
+.search-filters .multi-filter-button {
+    justify-content: space-between;
+    width: 100%;
+    min-height: 40px;
+}
+
+/* Option lists open in place, pushing later rows down instead of covering them. */
+.search-filters .multi-popover {
+    position: static;
+    grid-column: 2;
+    width: auto;
+    max-height: 40vh;
+    box-shadow: none;
+    background: var(--panel-strong);
+}
+
+@media (max-width: 360px) {
+    .search-scope span,
+    .fuzzy-toggle span,
+    .filter-checks label span,
+    .search-order .choice-button,
+    .sheet-foot .command {
+        padding: 0 10px;
+        font-size: 14px;
+    }
 }
 
 .filter-clear {
@@ -926,6 +951,7 @@ select:hover {
     border: 0;
     background: transparent;
     box-shadow: none;
+    scroll-margin-top: 12px;
 }
 
 .results-panel > .panel-heading {
@@ -1012,11 +1038,13 @@ select:hover {
     margin-left: auto;
 }
 
+/* Chips go on their own line after Clear, which stays on the first line. */
 .context-meta {
     display: flex;
     flex: 1 1 100%;
     flex-wrap: wrap;
     gap: 6px;
+    order: 1;
 }
 
 .context-chip {
@@ -1049,6 +1077,7 @@ select:hover {
 .random-pick {
     display: grid;
     gap: 10px;
+    max-width: 640px;
     margin-bottom: 14px;
 }
 
@@ -1446,6 +1475,9 @@ button.browse-artist:focus-visible {
 }
 
 .mini-add {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     width: 34px;
     min-width: 34px;
     min-height: 32px;
@@ -1794,18 +1826,43 @@ button.browse-artist:focus-visible {
 
 .setlist {
     display: grid;
-    gap: 8px;
     margin: 0;
-    padding: 14px 14px 16px 34px;
+    padding: 4px 14px 14px;
+    list-style: none;
 }
 
+/* Grid items render no list markers, so the position is explicit. */
 .setlist-item {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 4px 10px;
-    align-items: center;
-    padding: 9px 8px;
+    grid-template-columns: 22px minmax(0, 1fr);
+    gap: 10px;
+    align-items: start;
+    padding: 12px 2px;
     border-bottom: 1px solid var(--line);
+}
+
+.setlist-number {
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 20px;
+    text-align: right;
+}
+
+.setlist-body {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+}
+
+.setlist-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px 8px;
+    margin-top: 5px;
 }
 
 .setlist-item.is-dragging {
@@ -1819,22 +1876,23 @@ button.browse-artist:focus-visible {
 
 .setlist-title {
     display: block;
-    grid-column: 1;
     font-weight: 600;
     line-height: 1.25;
+    overflow-wrap: anywhere;
 }
 
 .setlist-artist {
     display: block;
-    grid-column: 1;
-    margin-top: 3px;
     color: var(--muted);
     font-size: 13px;
+    overflow-wrap: anywhere;
 }
 
+/* A content-independent size keeps the controls in place when the singer
+   editor opens or closes; a moving target would swallow the next click. */
 .setlist-singer {
-    grid-column: 1;
-    margin-top: 5px;
+    flex: 1 1 0;
+    min-width: 80px;
 }
 
 .singer-chip,
@@ -1873,7 +1931,7 @@ button.browse-artist:focus-visible {
 }
 
 .singer-input {
-    width: min(200px, 100%);
+    width: 100%;
     min-height: 28px;
     border: 1px solid var(--brand);
     border-radius: 7px;
@@ -1885,11 +1943,10 @@ button.browse-artist:focus-visible {
 
 .setlist-controls {
     display: inline-flex;
-    grid-column: 2;
-    grid-row: 1 / span 2;
+    flex: 0 0 auto;
     gap: 4px;
     align-items: center;
-    justify-content: flex-end;
+    margin-left: auto;
 }
 
 .setlist-handle {
@@ -1940,7 +1997,6 @@ button.browse-artist:focus-visible {
 
 .setlist > .empty-state {
     list-style: none;
-    margin-left: -20px;
 }
 
 .results-sentinel {
@@ -2228,6 +2284,55 @@ dialog::backdrop {
     }
 }
 
+/* Setlist action labels are for the mobile drawer, where there are no tooltips. */
+.button-label {
+    display: none;
+}
+
+@media (min-width: 981px) {
+    /* Keep the sticky rail on screen; long setlists scroll inside it. */
+    .setlist-panel {
+        display: flex;
+        flex-direction: column;
+        max-height: calc(100vh - 32px);
+        max-height: calc(100dvh - 32px);
+    }
+
+    .setlist-panel > .panel-heading {
+        flex: 0 0 auto;
+        flex-wrap: wrap;
+        gap: 2px 6px;
+        min-height: 0;
+    }
+
+    /* The count takes its own line instead of wrapping beside the actions. */
+    .setlist-panel > .panel-heading > div:first-child {
+        display: contents;
+    }
+
+    .setlist-panel > .panel-heading h2 {
+        margin-right: auto;
+    }
+
+    .setlist-panel > .panel-heading .icon-button {
+        width: 38px;
+        min-height: 38px;
+    }
+
+    #setlistCount {
+        order: 1;
+        flex: 1 0 100%;
+        margin-top: 0;
+    }
+
+    .setlist {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+    }
+}
+
 @media (max-width: 720px) {
     .topbar {
         align-items: baseline;
@@ -2299,7 +2404,8 @@ dialog::backdrop {
         font-size: 14px;
     }
 
-    .filters-toggle {
+    .filters-toggle,
+    .more-tools summary {
         padding: 0 8px;
         gap: 4px;
         font-size: 14px;
@@ -2336,7 +2442,7 @@ dialog::backdrop {
         gap: 16px;
         max-height: 82vh;
         margin: 0;
-        padding: 14px 16px calc(18px + env(safe-area-inset-bottom, 0px));
+        padding: 14px 16px 0;
         border-bottom: 0;
         border-radius: 16px 16px 0 0;
         overflow: auto;
@@ -2356,46 +2462,19 @@ dialog::backdrop {
         display: flex;
     }
 
+    /* The sheet has no bottom padding, so the sticky footer sits flush with
+       its edge and nothing scrolls into view underneath it. */
     .sheet-foot {
-        display: block;
-        position: sticky;
-        bottom: 0;
-        margin: 0 -16px -18px;
+        margin: 0 -16px;
         padding: 10px 16px calc(14px + env(safe-area-inset-bottom, 0px));
-        background: var(--panel);
     }
 
     .active-filters {
         margin: 10px 0 12px;
     }
 
-    .search-filters .select-filter select {
-        flex: 1 1 auto;
-        width: auto;
+    .search-filters .multi-filter-button {
         min-height: 42px;
-    }
-
-    .multi-filter {
-        flex-wrap: wrap;
-    }
-
-    .multi-filter-button {
-        flex: 1 1 auto;
-        justify-content: space-between;
-        min-height: 42px;
-    }
-
-    .multi-popover {
-        position: static;
-        width: 100%;
-        max-height: 40vh;
-        box-shadow: none;
-        background: var(--panel-strong);
-    }
-
-    .search-order {
-        flex-wrap: nowrap;
-        overflow-x: auto;
     }
 
     .content-grid,
@@ -2411,21 +2490,36 @@ dialog::backdrop {
         padding: 0 0 12px;
     }
 
+    /* A sticky element can't leave its parent, and .browse-tools ends right
+       after the strip; let the strip stick through the whole list instead. */
     .browse-tools {
-        grid-template-columns: 1fr;
+        display: contents;
+    }
+
+    .browse-choice {
+        display: grid;
         margin-top: 12px;
     }
 
     .letter-strip {
         position: sticky;
-        top: 118px;
+        top: 66px;
         z-index: 12;
         flex-wrap: nowrap;
-        margin: 0 -14px;
+        margin: 6px -14px 10px;
         padding: 6px 14px 8px;
         overflow-x: auto;
         background: var(--bg);
         scrollbar-width: none;
+    }
+
+    /* Scrolled-to results start below the sticky search bar (and letters). */
+    .results-panel {
+        scroll-margin-top: 76px;
+    }
+
+    .browse-tools:not([hidden]) ~ .content-grid .results-panel {
+        scroll-margin-top: 128px;
     }
 
     .letter-strip::-webkit-scrollbar {
@@ -2455,15 +2549,6 @@ dialog::backdrop {
         justify-content: center;
     }
 
-    .card-actions {
-        align-items: stretch;
-        flex-direction: column;
-    }
-
-    .card-tools {
-        justify-content: center;
-    }
-
     .song-popout {
         justify-content: center;
     }
@@ -2478,18 +2563,8 @@ dialog::backdrop {
     }
 
     .add-button {
-        width: 100%;
-    }
-
-    .setlist-item {
-        grid-template-columns: 1fr;
-    }
-
-    .setlist-controls {
-        grid-column: 1;
-        grid-row: auto;
-        justify-content: flex-start;
-        margin-top: 4px;
+        min-height: 40px;
+        padding: 0 18px;
     }
 
     body.setlist-open {
@@ -2535,6 +2610,22 @@ dialog::backdrop {
 
     .setlist-panel .panel-heading .icon-button {
         flex: 0 0 44px;
+    }
+
+    .setlist-panel .panel-heading .icon-button:not(.close-setlist) {
+        flex: 1 1 0;
+        flex-direction: column;
+        gap: 3px;
+        width: auto;
+        min-width: 0;
+        min-height: 54px;
+        padding: 6px 2px;
+        font-size: 11px;
+        font-weight: 700;
+    }
+
+    .setlist-panel .button-label {
+        display: block;
     }
 
     .close-setlist {
@@ -2733,21 +2824,25 @@ body:not(.planning-setlist):not(.filters-open) .snackbar { bottom: calc(16px + e
 @media (min-width: 721px) {
     body.filters-open { overflow: hidden; }
     .sheet-backdrop:not([hidden]) { display: block; }
-    body.filters-open .search-filters:not([hidden]) { position: fixed; inset: 10vh auto auto 50%; transform: translateX(-50%); z-index: 30; display: flex; flex-direction: column; align-items: stretch; gap: 18px; width: min(620px, calc(100vw - 48px)); max-height: 80vh; overflow: auto; margin: 0; padding: 20px; background: var(--panel); box-shadow: var(--drawer-shadow); }
+    body.filters-open .search-filters:not([hidden]) { position: fixed; inset: 10vh auto auto 50%; transform: translateX(-50%); z-index: 30; display: flex; flex-direction: column; align-items: stretch; gap: 18px; width: min(620px, calc(100vw - 48px)); max-height: 80vh; overflow: auto; margin: 0; padding: 20px 20px 0; background: var(--panel); box-shadow: var(--drawer-shadow); }
     .search-filters > * { flex-shrink: 0; }
     .sheet-head { display: flex; }
-    .sheet-foot { display: block; }
-    .search-filters .multi-filter { flex-wrap: wrap; }
+    .sheet-foot { margin: 0 -20px; padding: 14px 20px 20px; }
 }
 @media (max-width: 420px) {
     .control-row { flex-wrap: wrap; gap: 6px; }
-    .control-row .mode-tab { padding: 0 9px; }
+    .control-row .mode-tab { padding: 0 7px; }
     .filters-toggle { padding: 0 9px; }
+    .filters-toggle svg { display: none; }
     .more-tools summary { padding: 0 9px; }
     .more-tools summary svg { display: none; }
 }
+/* Too narrow for one row: tabs take the first row; Filters and More share the
+   second instead of More wrapping on its own. */
+@media (max-width: 374px) {
+    .control-row:has(.filters-toggle:not([hidden])) .mode-tabs { flex-basis: 100%; }
+    .control-row:has(.filters-toggle:not([hidden])) :is(.filters-toggle, .more-tools) { flex: 1 1 0; }
+}
 
-body:not(.planning-setlist) .card-actions { flex-direction: row; }
-body:not(.planning-setlist) .card-tools { justify-content: flex-start; }
 /* Choosing a suggestion can start a setlist without enabling planning first. */
 body:not(.planning-setlist) #pickerResults .mini-add { display: inline-flex; }
