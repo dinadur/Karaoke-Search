@@ -84,11 +84,11 @@ Catalog preparation is asynchronous and time-sliced. Always await `useSongs()`, 
 - Random shows a preview card (Add / Spin again / dismiss) above results; it does not modify the setlist or the query.
 - Browse mode reads the full catalog by song title or artist letter. It shows an empty search box; the Search tab keeps and restores its query. On phones the letter strip docks under the sticky search bar, and a new letter starts at its top.
 - Artist names and visible tag pills are clickable filters/searches; cards cap pills at 5 with a "+N" expander.
-- Clicking an artist selects that exact artist (`exact=1` in shared URLs) with Artist scope and title order; typing or clearing the query leaves that view (`leaveArtistView`) and restores the default scope and relevance order. Query result groups open by default and remember manual expansion during rerenders. Favorite toggles update in place when result membership is unchanged.
+- Clicking an artist selects that exact artist (`exact=1` in shared URLs) with Artist scope and title order; typing, clearing, or choosing a scope leaves that view and restores the default scope and relevance order. `leaveArtistView` is the only place `exactArtist` is cleared; route any new exit through it. Query result groups open by default and remember manual expansion during rerenders. Favorite toggles update in place when result membership is unchanged.
 - Add controls show an accessible "Added" state that follows setlist edits. Mobile search occupies its own toolbar row, and filter sheets scroll vertically. Primary controls and Undo use contrasting text colors in both themes.
 - Query, scope, sort, and filters sync to the URL via `history.replaceState`; URL params win over stored state on load.
 - Favorites and setlist are stored in `localStorage`.
-- UI state is stored in `localStorage` and restored on refresh.
+- UI state is stored in `localStorage` and restored on refresh. It carries `UI_STATE_VERSION`; bump it with a one-time repair in `applyStoredUiState` when stored meanings change.
 - Setlist supports add, remove (undo via snackbar), copy, share (Web Share API when available), clear (undo), swap (undo), drag reorder, and up/down reorder. Entries are numbered. The desktop rail fits the viewport and its list scrolls internally; the mobile drawer labels its actions.
 - Pending Undo expires on a subsequent setlist edit. Mobile sheets contain keyboard focus and make the background inert; their snackbar moves inside the active sheet so Undo stays accessible.
 - Song titles are cleaned for display only (`getDisplaySongTitle`): karaoke bracket noise, empty/dangling brackets, and unclosed trailing brackets are stripped. Identity keys still use raw values.

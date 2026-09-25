@@ -878,13 +878,9 @@ select:hover {
 }
 
 .browse-tools {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: 14px;
-    align-items: start;
     min-width: 0;
     max-width: 100%;
-    margin: 0 0 16px;
+    margin: 12px 0 10px;
 }
 
 .browse-tools[hidden] {
@@ -914,6 +910,7 @@ select:hover {
     gap: 6px;
     min-width: 0;
     max-width: 100%;
+    margin: 0 0 16px;
 }
 
 .letter-button {
@@ -2490,20 +2487,25 @@ dialog::backdrop {
         padding: 0 0 12px;
     }
 
-    /* A sticky element can't leave its parent, and .browse-tools ends right
-       after the strip; let the strip stick through the whole list instead. */
+    /* The sticky search bar: a 46px search box (its minimum height, holding the
+       44px clear button) plus 10px of padding above and below. */
+    :root {
+        --sticky-toolbar-height: 66px;
+    }
+
     .browse-tools {
-        display: contents;
+        margin-top: 12px;
     }
 
     .browse-choice {
         display: grid;
-        margin-top: 12px;
     }
 
+    /* The strip sits directly in the page shell, so it can stay docked under
+       the search bar for the whole list. */
     .letter-strip {
         position: sticky;
-        top: 66px;
+        top: var(--sticky-toolbar-height);
         z-index: 12;
         flex-wrap: nowrap;
         margin: 6px -14px 10px;
@@ -2515,11 +2517,11 @@ dialog::backdrop {
 
     /* Scrolled-to results start below the sticky search bar (and letters). */
     .results-panel {
-        scroll-margin-top: 76px;
+        scroll-margin-top: calc(var(--sticky-toolbar-height) + 10px);
     }
 
-    .browse-tools:not([hidden]) ~ .content-grid .results-panel {
-        scroll-margin-top: 128px;
+    .letter-strip:not([hidden]) ~ .content-grid .results-panel {
+        scroll-margin-top: calc(var(--sticky-toolbar-height) + 62px);
     }
 
     .letter-strip::-webkit-scrollbar {

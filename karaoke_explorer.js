@@ -1,4 +1,4 @@
-const APP_VERSION = "20260925-1";
+const APP_VERSION = "20260925-2";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const TAG_CONSOLIDATION_URL = `tag_consolidation.json?v=${APP_VERSION}`;
 const MOOD_CONSOLIDATION_URL = `mood_consolidation.json?v=${APP_VERSION}`;
@@ -55,6 +55,7 @@ const THEME_STORAGE_KEY = "karaokeTheme";
 const SVG_NS = "http://www.w3.org/2000/svg";
 const XLINK_NS = "http://www.w3.org/1999/xlink";
 const UI_STATE_STORAGE_KEY = "karaokeUiState";
+const UI_STATE_VERSION = 2;
 const FAVORITES_STORAGE_KEY = "karaokeFavorites";
 const RECENT_SEARCHES_STORAGE_KEY = "karaokeRecentSearches";
 const RECENT_SEARCHES_LIMIT = 8;
@@ -453,8 +454,9 @@ function bindEvents() {
 
     for (const input of els.searchScopeInputs) {
         input.addEventListener("change", () => {
+            leaveArtistView();
             state.searchScope = input.value;
-            state.exactArtist = false;
+            syncSearchScopeInput();
             state.mode = "search";
             resetResultLimit();
             updateSearchPlaceholder();
@@ -1354,6 +1356,7 @@ function renderMode() {
     setToggleState(els.searchModeButton, !isBrowse);
     setToggleState(els.browseModeButton, isBrowse);
     els.browseTools.hidden = !isBrowse;
+    els.letterStrip.hidden = !isBrowse;
     els.searchScope.hidden = isBrowse;
     els.searchFilters.hidden = isBrowse;
     els.filtersToggleButton.hidden = isBrowse;
@@ -1606,7 +1609,8 @@ function clearSearchQuery({ resetScope = true } = {}) {
 
 // An artist link shows one artist A-Z by quietly choosing the Artist scope and
 // title order. Leaving that view restores those defaults, so the next search
-// covers song titles again and an empty query returns to Discover.
+// covers song titles again and an empty query returns to Discover. This is the
+// only place exactArtist is cleared; every exit must come through here.
 function leaveArtistView() {
     if (!state.exactArtist) {
         return;
@@ -1677,8 +1681,8 @@ function createRecentSearchesRow() {
         chip.textContent = query;
         chip.title = `Search “${query}” again`;
         chip.addEventListener("click", () => {
+            leaveArtistView();
             state.query = query;
-            state.exactArtist = false;
             els.searchInput.value = query;
             state.mode = "search";
             resetResultLimit();
@@ -1959,10 +1963,13 @@ function renderEmptySearchState() {
     empty.className = "empty-state search-empty";
 
     const title = document.createElement("strong");
-    title.textContent = state.query ? `No matches for “${state.query}”` : "No songs match these filters";
+    // Point at the filters when the query itself found songs.
+    title.textContent = !state.query ? "No songs match these filters"
+        : state.queryScopedSongs.length ? `No “${state.query}” songs match these filters`
+            : `No matches for “${state.query}”`;
     empty.appendChild(title);
 
-    const suggestions = getEmptySearchSuggestions();
+    const { suggestions, nearMatches } = getEmptySearchHelp();
     if (suggestions.length) {
         const suggestionWrap = document.createElement("div");
         suggestionWrap.className = "empty-suggestions";
@@ -1978,8 +1985,8 @@ function renderEmptySearchState() {
             button.textContent = suggestion.label;
             button.title = suggestion.detail || suggestion.label;
             button.addEventListener("click", () => {
+                leaveArtistView();
                 state.query = suggestion.query;
-                state.exactArtist = false;
                 els.searchInput.value = suggestion.query;
                 state.searchScope = suggestion.scope;
                 state.fuzzySearch = false;
@@ -1999,7 +2006,6 @@ function renderEmptySearchState() {
     const actions = document.createElement("div");
     actions.className = "empty-actions";
 
-    const nearMatches = countFilteredNearMatches();
     if (nearMatches) {
         actions.appendChild(createEmptyAction(`Include near matches (${nearMatches.toLocaleString()})`, () => {
             state.fuzzySearch = true;
@@ -2032,17 +2038,6 @@ function renderEmptySearchState() {
     els.resultsList.appendChild(empty);
 }
 
-// Near matches already run automatically when a query has no exact matches,
-// so offering them only helps when filters removed every exact match.
-function countFilteredNearMatches() {
-    if (!state.query || state.fuzzySearch || state.autoFuzzy ||
-        !state.queryScopedSongs.length || !hasSongFilters()) {
-        return 0;
-    }
-
-    return applySearchFilters(rankSongs(state.songs, state.query, { fuzzy: true })).length;
-}
-
 function createEmptyAction(label, onClick) {
     const button = document.createElement("button");
     button.className = "choice-button empty-action";
@@ -2052,21 +2047,32 @@ function createEmptyAction(label, onClick) {
     return button;
 }
 
-function getEmptySearchSuggestions(limit = 5) {
-    const tokens = normalize(state.query).split(" ").filter((token) => token.length > 2);
+// One scan of the (filtered) catalog finds spelling suggestions and counts the
+// near matches that would pass the filters. Near matches already run
+// automatically when a query has no exact matches, so they can only help when
+// filters hid every exact match.
+function getEmptySearchHelp(limit = 5) {
+    const queryTokens = normalize(state.query).split(" ").filter(Boolean);
+    const tokens = queryTokens.filter((token) => token.length > 2);
     if (!tokens.length || state.fuzzySearch) {
-        return [];
+        return { suggestions: [], nearMatches: 0 };
     }
 
+    const shortTokens = queryTokens.filter((token) => token.length <= 2);
+    const countNearMatches = !state.autoFuzzy && !state.exactArtist &&
+        state.queryScopedSongs.length > 0 && hasSongFilters();
     const isArtistSearch = state.searchScope === "artist";
     const sourceSongs = hasSongFilters() ? applySearchFilters(state.songs) : state.songs;
     const seen = new Set();
     const suggestions = [];
+    let nearMatches = 0;
 
     for (const song of sourceSongs) {
         const haystack = getScopedSearchText(song);
         const words = getScopedSearchWords(song);
         let score = 0;
+        // Same membership test as rankSongs(..., { fuzzy: true }).
+        let matchesEveryToken = shortTokens.every((token) => haystack.includes(token));
 
         for (const token of tokens) {
             if (haystack.includes(token)) {
@@ -2077,7 +2083,13 @@ function getEmptySearchSuggestions(limit = 5) {
             const fuzzyScore = getFuzzyTokenScore(token, words);
             if (fuzzyScore) {
                 score += fuzzyScore;
+            } else {
+                matchesEveryToken = false;
             }
+        }
+
+        if (countNearMatches && matchesEveryToken) {
+            nearMatches++;
         }
 
         if (!score) {
@@ -2101,9 +2113,12 @@ function getEmptySearchSuggestions(limit = 5) {
         });
     }
 
-    return suggestions
-        .sort((a, b) => b.score - a.score || compareSongSort(a.song, b.song))
-        .slice(0, limit);
+    return {
+        suggestions: suggestions
+            .sort((a, b) => b.score - a.score || compareSongSort(a.song, b.song))
+            .slice(0, limit),
+        nearMatches,
+    };
 }
 
 function renderGroupedSearchResults() {
@@ -2886,7 +2901,7 @@ function capPills(container, limit) {
 }
 
 function applyPillFilter(filterName, value) {
-    state.exactArtist = false;
+    leaveArtistView();
     state.pushHistory = true;
     const def = MULTI_FILTER_DEFS.find((item) => item.param === filterName);
     if (def) {
@@ -3154,8 +3169,10 @@ function applyStoredUiState() {
     }
 
     // Earlier versions kept an artist link's title order after its query was
-    // cleared, so every later visit opened on the whole catalog A-Z.
-    if (state.sortMode === "song" && !state.query && !hasSongFilters()) {
+    // cleared, so every later visit opened on the whole catalog A-Z. Repair
+    // only their states; a title order chosen since then is kept.
+    if (stored.version !== UI_STATE_VERSION &&
+        state.sortMode === "song" && !state.query && !hasSongFilters()) {
         state.sortMode = "relevance";
     }
 }
@@ -3223,6 +3240,7 @@ function applyInitialRoute() {
 function saveUiState() {
     try {
         localStorage.setItem(UI_STATE_STORAGE_KEY, JSON.stringify({
+            version: UI_STATE_VERSION,
             mode: state.mode,
             browseBy: state.browseBy,
             browseLetter: state.browseLetter,
@@ -3559,7 +3577,7 @@ function renderSetlist() {
         reroll.className = "setlist-icon-button";
         reroll.type = "button";
         reroll.title = "Swap for another match";
-        reroll.setAttribute("aria-label", "Swap for another matching song");
+        reroll.setAttribute("aria-label", `Swap ${displayTitle} for another matching song`);
         reroll.innerHTML = '<i data-lucide="shuffle" aria-hidden="true"></i>';
         reroll.addEventListener("click", () => rerollSetlistSong(index));
 
@@ -4459,10 +4477,14 @@ function renderActiveFilters() {
         clearAll.addEventListener("click", () => {
             if (hasQueryChip) {
                 clearSearchQuery();
+            }
+            clearSearchFilters();
+            // With nothing left to search, return to Discover rather than a
+            // sorted list of the whole catalog.
+            if (!state.query) {
                 state.sortMode = "relevance";
                 state.groupOpenMode = "auto";
             }
-            clearSearchFilters();
             resetResultLimit();
             render();
             els.searchInput.focus();
