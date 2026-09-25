@@ -585,6 +585,12 @@ function bindEvents() {
     // (or page) they belong to moves.
     document.addEventListener("scroll", closeFloatingSongTagMenus, { capture: true, passive: true });
     window.addEventListener("resize", () => closeFloatingSongTagMenus());
+    // Tags opened while a sheet slides in move with it; once it stops, place
+    // them against the viewport again.
+    document.addEventListener("animationend", (event) => {
+        const open = document.querySelector(".song-tags.is-open.is-floating");
+        if (open && event.target.contains(open)) placeSongPopout(open, TAG_MENU_STORAGE.get(open).menu);
+    });
 
     els.sheetBackdrop.addEventListener("click", () => {
         closeFiltersSheet({ restoreFocus: false });
@@ -2814,11 +2820,15 @@ function toggleSongTagMenu(container) {
 // (the setlist, saved songs) that would cut them off, so there they float in
 // the viewport where there is room, and close when anything scrolls.
 function placeSongPopout(container, menu) {
-    Object.assign(menu.style, { top: "", left: "", maxHeight: "" });
     const floating = hasScrollingAncestor(container);
     container.classList.toggle("is-floating", floating);
+    // Measure at the corner, where nothing narrows the menu (a narrower menu
+    // wraps taller). The corner is the viewport's, except while a sheet slides
+    // in: its transform then offsets fixed children, and origin corrects that.
+    Object.assign(menu.style, floating ? { top: "0px", left: "0px", maxHeight: "" } : { top: "", left: "", maxHeight: "" });
     if (!floating) return;
 
+    const origin = menu.getBoundingClientRect();
     const button = TAG_MENU_STORAGE.get(container).button.getBoundingClientRect();
     const gap = 7;
     const margin = 8;
@@ -2826,8 +2836,10 @@ function placeSongPopout(container, menu) {
     const above = button.top - gap - margin;
     const openBelow = below >= Math.min(menu.offsetHeight, 240) || below >= above;
     menu.style.maxHeight = `${Math.min(360, Math.max(120, openBelow ? below : above))}px`;
-    menu.style.top = `${openBelow ? button.bottom + gap : button.top - gap - menu.offsetHeight}px`;
-    menu.style.left = `${Math.max(margin, Math.min(button.right - menu.offsetWidth, window.innerWidth - menu.offsetWidth - margin))}px`;
+    const top = openBelow ? button.bottom + gap : button.top - gap - menu.offsetHeight;
+    const left = Math.max(margin, Math.min(button.right - menu.offsetWidth, window.innerWidth - menu.offsetWidth - margin));
+    menu.style.top = `${top - origin.top}px`;
+    menu.style.left = `${left - origin.left}px`;
 }
 
 function hasScrollingAncestor(element) {

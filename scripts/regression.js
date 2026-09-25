@@ -297,6 +297,30 @@ const tests = [
         const lost = page.locator(".setlist-item", { hasText: "Lost Tune" });
         assert.equal(await lost.locator("button.setlist-artist").textContent(), "Omega");
         assert.equal(await lost.locator(".tag-popout-button").count(), 0);
+
+        // Floating tags sit beside their button and inside the screen, even when
+        // long tags make them wider than the spot the row gives them.
+        await page.evaluate(() => {
+            state.songs.find((song) => song.song === "First Tune").tags = ["singalong anthem", "stadium closer", "wedding favourite", "road trip classic"];
+            renderSetlist();
+        });
+        const placement = () => page.evaluate(() => {
+            const box = document.querySelector(".song-tags.is-open");
+            const button = box.querySelector(".tag-popout-button").getBoundingClientRect();
+            const popout = box.querySelector(".song-tags-popout").getBoundingClientRect();
+            return {
+                gap: Math.round(popout.top >= button.bottom ? popout.top - button.bottom : button.top - popout.bottom),
+                inside: Math.round(popout.left) >= 8 && Math.round(popout.right) <= innerWidth - 8,
+            };
+        });
+        await menu(page, "#repertoireButton");
+        await page.locator("#repertoireList .tag-popout-button").click();
+        assert.deepEqual(await placement(), { gap: 7, inside: true });
+        await page.keyboard.press("Escape");
+        await page.keyboard.press("Escape");
+        await page.click("#mobileSetlistButton");
+        await page.locator(".setlist-item", { hasText: "First Tune" }).locator(".tag-popout-button").click();
+        assert.deepEqual(await placement(), { gap: 7, inside: true });
     }],
     ["mobile Browse keeps letters docked and starts each letter at its top", async (page) => {
         const songs = Array.from({ length: 120 }, (_, index) => ({
