@@ -39,6 +39,8 @@ jobs:
           node --check scripts/offline.js
           node --check personal-songbook.js
           node --check scripts/personal.js
+          node --check stage-effects.js
+          node --check scripts/effects.js
           node --check scripts/enrich-eras.js
           node --check scripts/enrich-eras-musicbrainz.js
           node scripts/check-era-enrichment.js
@@ -68,6 +70,7 @@ jobs:
           node scripts/regression.js
           node scripts/accessibility.js
           node scripts/personal.js
+          node scripts/effects.js
           node scripts/first-visit.js
           node scripts/audio.js
           node scripts/offline.js

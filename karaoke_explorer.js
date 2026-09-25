@@ -1,4 +1,4 @@
-const APP_VERSION = "20260925-3";
+const APP_VERSION = "20260925-7";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const TAG_CONSOLIDATION_URL = `tag_consolidation.json?v=${APP_VERSION}`;
 const MOOD_CONSOLIDATION_URL = `mood_consolidation.json?v=${APP_VERSION}`;
@@ -231,6 +231,7 @@ let songbookLoadPending = false;
 let draggedSetlistIndex = null;
 let activeSheet = null;
 let renderedMode = "";
+let lastSungQuery = "";
 let sheetSnackbarAnchor = null;
 const sheetInertElements = new Map();
 applyStoredTheme();
@@ -432,9 +433,12 @@ async function loadSongbook() {
 function bindEvents() {
     els.homeButton.addEventListener("click", goToDiscover);
 
-    els.themeButton.addEventListener("click", () => {
-        const nextTheme = getTheme() === "dark" ? "light" : "dark";
-        setTheme(nextTheme);
+    els.themeButton.addEventListener("click", (event) => {
+        setTheme(getTheme() === "dark" ? "light" : "dark");
+        // Keyboard clicks have no pointer position; the menu button stays visible.
+        window.StageFx?.themeChanged(event.detail
+            ? { x: event.clientX, y: event.clientY }
+            : getElementCenter(document.getElementById("moreToolsButton")));
     });
 
     els.searchInput.addEventListener("input", () => {
@@ -547,6 +551,7 @@ function bindEvents() {
     els.shuffleShelvesButton.addEventListener("click", () => {
         state.cachedDiscoverShelves = null;
         render();
+        window.StageFx?.roll(els.shuffleShelvesButton);
     });
 
     els.showMoreResultsButton.addEventListener("click", () => {
@@ -862,6 +867,8 @@ async function useSongs(songs) {
     renderSetlist();
     renderThemeButton();
     render();
+    // Styling hook for the "songbook ready" moment; never set by a failed load.
+    document.documentElement.classList.add("songbook-ready");
     personalEl("repertoireButton").disabled = false;
     personalEl("chooseSongButton").disabled = false;
     offerSharedSetlistImport();
@@ -1051,6 +1058,7 @@ function render() {
     }
 
     if (state.mode === "browse") {
+        lastSungQuery = "";
         renderSearchFilters();
         els.searchNotice.hidden = true;
         els.randomPick.hidden = true;
@@ -1092,6 +1100,11 @@ function render() {
     } else {
         renderResults();
     }
+    const sungQuery = isDiscover ? "" : normalize(state.query);
+    if (sungQuery && sungQuery !== lastSungQuery && state.visibleSongs.length) {
+        window.StageFx?.sing(els.resultsList);
+    }
+    lastSungQuery = sungQuery;
     renderStatus(filtered.length);
     renderResultContext();
     renderResultActions(isDiscover ? 0 : filtered.length);
@@ -1140,6 +1153,8 @@ function pickRandomSong() {
     state.randomPick = pool[Math.floor(Math.random() * pool.length)];
     state.mode = "search";
     render();
+    window.StageFx?.spin(els.randomPick.querySelector(".song-card"),
+        Array.from({ length: Math.min(7, pool.length - 1) }, () => pool[Math.floor(Math.random() * pool.length)]));
     scrollResultsIntoView();
 }
 
@@ -2349,7 +2364,11 @@ function createFavoriteButton(song) {
     FAVORITE_BUTTON_SONGS.set(button, song);
     button.innerHTML = '<i data-lucide="star" aria-hidden="true"></i><span class="save-label">Save</span>';
     updateFavoriteButton(button, song);
-    button.addEventListener("click", () => toggleFavorite(song));
+    button.addEventListener("click", () => {
+        const wasSaved = isFavorite(song);
+        toggleFavorite(song);
+        if (!wasSaved && isFavorite(song)) window.StageFx?.saved(button);
+    });
     return button;
 }
 
@@ -2371,7 +2390,7 @@ function createMiniAddButton(song) {
     button.textContent = "+";
     ADD_BUTTON_SONGS.set(button, song);
     updateAddButton(button, song);
-    button.addEventListener("click", () => addToSetlist(song));
+    button.addEventListener("click", () => addToSetlist(song, button));
     return button;
 }
 
@@ -2574,7 +2593,7 @@ function createSongCard(song) {
     button.textContent = "Add";
     ADD_BUTTON_SONGS.set(button, song);
     updateAddButton(button, song);
-    button.addEventListener("click", () => addToSetlist(song));
+    button.addEventListener("click", () => addToSetlist(song, button));
 
     actions.append(cardTools, button);
     card.append(head, meta, actions);
@@ -3310,7 +3329,7 @@ function syncUrlState() {
     }
 }
 
-function addToSetlist(song) {
+function addToSetlist(song, source) {
     setPlanningMode(true);
     recordRecentSearch();
     const exists = state.setlist.some((item) => isSameSong(item, song));
@@ -3321,6 +3340,7 @@ function addToSetlist(song) {
         // The desktop rail scrolls internally; show the entry just added.
         els.setlist.scrollTop = els.setlist.scrollHeight;
         showSnackbar(`Added “${getDisplaySongTitle(song)}” to setlist`);
+        window.StageFx?.added(source);
     }
 }
 
@@ -3858,7 +3878,10 @@ function getDraftPool() {
     return tagged.length ? tagged : state.songs;
 }
 
-function draftSetlist() {
+function draftSetlist(event) {
+    const source = event?.currentTarget;
+    // The empty-list button disappears on render, so measure it first.
+    const startRect = source?.getBoundingClientRect?.();
     const missing = DRAFT_SETLIST_TARGET - state.setlist.length;
     if (missing <= 0) {
         showSnackbar(`Setlist already has ${state.setlist.length} songs`);
@@ -3886,6 +3909,9 @@ function draftSetlist() {
     }
     saveSetlist();
     renderSetlist();
+    // The phone drawer grows as it fills, moving its Draft button.
+    window.StageFx?.confetti(source?.isConnected ? source.getBoundingClientRect() : startRect);
+    window.StageFx?.cascade([...els.setlist.children].slice(previous.length));
     showSnackbar(
         `Drafted ${additions.length} ${additions.length === 1 ? "song" : "songs"}`,
         () => {
@@ -4072,6 +4098,11 @@ function getSystemTheme() {
     } catch {
         return "light";
     }
+}
+
+function getElementCenter(element) {
+    const rect = element?.getBoundingClientRect();
+    return rect?.width ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } : null;
 }
 
 function getTheme() {

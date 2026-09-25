@@ -10,6 +10,7 @@ This repo is a static frontend for a karaoke songbook. It is deployed from `main
   - `karaoke_explorer.css`
   - `karaoke_explorer.js`
   - `personal-songbook.js`
+  - `stage-effects.js`
 - Data/config files:
   - `karaoke_songs_enriched.json`
   - `tag_consolidation.json`
@@ -68,6 +69,14 @@ CI also runs `node scripts/regression.js` against a deterministic catalog for th
 The browser suites accept `BROWSER=chromium|firefox|webkit`; CI runs all three engines. `scripts/offline.js` owns a private server and checks a two-version service-worker upgrade with saved data and subsequent offline loading (server disconnection in WebKit). `scripts/loading.js` checks live input during preparation with native scheduling and its timer fallback. `scripts/performance.js` measures startup at 4× CPU slowdown; run it alone to avoid CPU contention.
 
 Catalog preparation is asynchronous and time-sliced. Always await `useSongs()`, keep derived data local until the atomic state update, and preserve controls/query changes made while loading. `songbookLoadPending` prevents overlapping retry/import operations. The catalog itself remains unchanged.
+
+`stage-effects.js` (`window.StageFx`) holds decorative effects: song flights, save sparks, the random-pick reel, Draft confetti, the theme bloom, and the match-highlight fill.
+
+- The main script calls it only as `window.StageFx?.…`, after updating state and DOM (the theme included).
+- Effects must skip reduced motion, clean up their `fx-*` elements and classes, and never move focus or write to live regions.
+- Don't use View Transitions: while one runs, browsers send clicks to the page instead of its controls.
+- The loading lyric follows `#resultsList[aria-busy]` (set by `startLoadStatus`). The "lights up" CSS follows `html.songbook-ready`, which `useSongs` sets after a successful load.
+- Keep the script precached, and run `scripts/effects.js` (all engines in CI) when changing effects. See `STAGE_EFFECTS.md`.
 
 `personal-songbook.js` loads before the main script and provides `bindPersonalFeatures`, repertoire controls, the guided picker, and the optional era overlay. Keep it and `era_enrichment.json` in the service-worker precache. Personal notes are device-only and must not be added to QR or text sharing. Run `scripts/personal.js` when changing these flows. Era provenance is checked by `scripts/check-era-enrichment.js`; maintenance details are in `FEATURE_RELEASE.md`.
 

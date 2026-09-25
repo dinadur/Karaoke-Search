@@ -38,6 +38,13 @@
     --focus-ring: rgba(98, 71, 201, 0.3);
     --drawer-shadow: 0 18px 52px rgba(24, 18, 48, 0.3);
     --mobile-button-shadow: 0 10px 24px rgba(120, 42, 30, 0.3);
+    --glow-a: rgba(98, 71, 201, 0.15);
+    --glow-b: rgba(199, 71, 53, 0.1);
+    --spotlight: rgba(98, 71, 201, 0.11);
+    --sheen: rgba(255, 255, 255, 0.9);
+    --title-accent-end: #b63b2b;
+    --bloom-core: rgba(255, 236, 210, 0.7);
+    --bloom-edge: rgba(199, 71, 53, 0.16);
 }
 
 :root[data-theme="dark"] {
@@ -72,6 +79,13 @@
     --focus-ring: rgba(167, 149, 255, 0.4);
     --drawer-shadow: 0 18px 52px rgba(0, 0, 0, 0.55);
     --mobile-button-shadow: 0 10px 24px rgba(0, 0, 0, 0.4);
+    --glow-a: rgba(167, 149, 255, 0.16);
+    --glow-b: rgba(239, 106, 85, 0.12);
+    --spotlight: rgba(167, 149, 255, 0.15);
+    --sheen: rgba(255, 255, 255, 0.85);
+    --title-accent-end: var(--accent);
+    --bloom-core: rgba(167, 149, 255, 0.4);
+    --bloom-edge: rgba(98, 71, 201, 0.18);
 }
 
 * {
@@ -181,7 +195,7 @@ summary:focus-visible,
     border-radius: 12px;
     color: #ffffff;
     background: linear-gradient(135deg, var(--brand), var(--accent));
-    box-shadow: var(--shadow);
+    box-shadow: var(--shadow), 0 10px 24px -10px var(--glow-a);
     transition: transform 0.18s ease;
 }
 
@@ -2216,7 +2230,19 @@ dialog::backdrop {
     }
 
     .is-discover .shelf {
-        animation: rise-in 0.28s ease;
+        animation: rise-in 0.36s cubic-bezier(0.2, 0.8, 0.3, 1) backwards;
+    }
+
+    .is-discover .shelf:nth-child(2) {
+        animation-delay: 70ms;
+    }
+
+    .is-discover .shelf:nth-child(3) {
+        animation-delay: 140ms;
+    }
+
+    .is-discover .shelf:nth-child(n + 4) {
+        animation-delay: 210ms;
     }
 }
 
@@ -2848,3 +2874,325 @@ body:not(.planning-setlist):not(.filters-open) .snackbar { bottom: calc(16px + e
 
 /* Choosing a suggestion can start a setlist without enabling planning first. */
 body:not(.planning-setlist) #pickerResults .mini-add { display: inline-flex; }
+
+/* Stage effects (stage-effects.js). Decorations stay static under reduced
+   motion; everything that moves is opt-in via prefers-reduced-motion. */
+body::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    z-index: -1;
+    height: 560px;
+    background:
+        radial-gradient(ellipse 55% 75% at 10% 0%, var(--glow-a), transparent 70%),
+        radial-gradient(ellipse 45% 65% at 90% 0%, var(--glow-b), transparent 70%);
+    pointer-events: none;
+}
+
+.title-accent {
+    color: var(--brand);
+}
+
+/* Forced colors keep a plain system text color; a text fill would not be
+   replaced by the system palette. */
+@media (forced-colors: none) {
+    @supports ((-webkit-background-clip: text) or (background-clip: text)) {
+        .title-accent {
+            background-image:
+                linear-gradient(105deg, transparent 42%, var(--sheen) 50%, transparent 58%),
+                linear-gradient(90deg, var(--brand), var(--title-accent-end));
+            background-position: 100% 0, 0 0;
+            background-repeat: no-repeat;
+            background-size: 260% 100%, 100% 100%;
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+    }
+}
+
+.fx-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    overflow: hidden;
+    pointer-events: none;
+    contain: strict;
+}
+
+.fx-layer > * {
+    position: absolute;
+    pointer-events: none;
+}
+
+.fx-spark {
+    width: 6px;
+    height: 6px;
+    margin: -3px 0 0 -3px;
+    border-radius: 50%;
+}
+
+.fx-spark.is-star {
+    width: 12px;
+    height: 12px;
+    margin: -6px 0 0 -6px;
+    border-radius: 0;
+    clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
+}
+
+.fx-confetti {
+    width: 7px;
+    height: 12px;
+    margin: -6px 0 0 -3.5px;
+    border-radius: 2px;
+}
+
+.fx-confetti.is-round {
+    width: 8px;
+    height: 8px;
+    margin: -4px 0 0 -4px;
+    border-radius: 50%;
+}
+
+.fx-flyer {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    box-shadow: 0 12px 26px rgba(20, 12, 48, 0.32);
+}
+
+.fx-flyer:not(.cover-tile) {
+    border-radius: 50%;
+    color: #ffffff;
+    background: linear-gradient(135deg, var(--brand), var(--accent));
+    font-weight: 700;
+}
+
+.cover-tile.fx-spinning {
+    position: relative;
+    overflow: hidden;
+    color: transparent;
+    text-shadow: none;
+}
+
+.fx-reel {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+}
+
+.fx-reel > .cover-tile {
+    flex: none;
+    width: 100%;
+    height: var(--reel-size, 46px);
+    border-radius: 0;
+}
+
+.fx-bloom {
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--bloom-core) 0%, var(--bloom-edge) 38%, transparent 70%);
+    will-change: transform, opacity;
+}
+
+/* On phones the sticky search bar has a solid background, so the glow fades
+   out within the header instead of ending at a hard edge. */
+@media (max-width: 720px) {
+    body::before {
+        height: 96px;
+        background:
+            radial-gradient(ellipse 70% 100% at 8% 0%, var(--glow-a), transparent 72%),
+            radial-gradient(ellipse 55% 100% at 95% 0%, var(--glow-b), transparent 72%);
+    }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    /* The stage lights come up once a songbook is in use (never after a failed
+       load), so no decorative animation competes with preparing the catalog. */
+    :root:not(.songbook-ready) body::before {
+        opacity: 0;
+    }
+
+    .songbook-ready body::before {
+        transform-origin: top;
+        animation: fx-lights-up 1.6s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+    }
+
+    .songbook-ready .title-accent {
+        animation: fx-sheen 1.6s 0.35s cubic-bezier(0.45, 0, 0.2, 1) both;
+    }
+
+    .brand:hover .brand-mark svg {
+        animation: fx-wiggle 0.6s ease-in-out;
+    }
+
+    .fx-sing mark {
+        background: linear-gradient(90deg, var(--active-bg) 0 50%, transparent 50% 100%) 100% 0 / 200% 100% no-repeat;
+        animation: fx-sing 0.5s cubic-bezier(0.4, 0, 0.2, 1) var(--sing-delay, 0ms) forwards;
+    }
+
+    .favorite-button.fx-pop svg {
+        animation: fx-pop 0.55s cubic-bezier(0.3, 1.5, 0.5, 1);
+    }
+
+    .mobile-setlist-button.fx-bump {
+        animation: fx-bump 0.42s cubic-bezier(0.3, 1.5, 0.5, 1);
+    }
+
+    .setlist-item.fx-landed {
+        animation: fx-flash 1s ease-out;
+    }
+
+    .fx-roll svg {
+        animation: fx-roll 0.8s cubic-bezier(0.3, 1.3, 0.5, 1);
+    }
+
+    .song-card.fx-landed-card {
+        animation: fx-ring 0.8s ease-out;
+    }
+}
+
+/* Loading reads like a karaoke lyric: the words fill in behind a ball. */
+@media (prefers-reduced-motion: no-preference) and (forced-colors: none) {
+    body:has(#resultsList[aria-busy="true"]) :is(#status, #resultCount) {
+        background: linear-gradient(90deg, var(--brand) 0 50%, var(--muted) 50% 100%) 100% 0 / 200% 100% no-repeat;
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        animation: fx-lyric 2.4s linear infinite;
+    }
+
+    body:has(#resultsList[aria-busy="true"]) #status {
+        position: relative;
+    }
+
+    /* The ball is a background on a full-width strip so it travels by
+       repainting, never by layout, while the catalog is being prepared. */
+    body:has(#resultsList[aria-busy="true"]) #status::before {
+        content: "";
+        position: absolute;
+        top: -9px;
+        right: 0;
+        left: 0;
+        height: 7px;
+        background: radial-gradient(circle, var(--accent) 3.2px, transparent 3.7px) 0 0 / 7px 7px no-repeat;
+        animation: fx-ball-x 2.4s linear infinite, fx-ball-y 0.3s cubic-bezier(0.3, 0.6, 0.5, 1) infinite alternate;
+    }
+}
+
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+    .song-card:hover {
+        background-image: radial-gradient(circle 220px at var(--spot-x, 50%) var(--spot-y, 50%), var(--spotlight), transparent);
+    }
+}
+
+@media (forced-colors: active) {
+    body::before {
+        display: none;
+    }
+}
+
+@keyframes fx-lights-up {
+    from {
+        opacity: 0;
+        transform: scaleY(0.55);
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+@keyframes fx-sheen {
+    from {
+        background-position: 100% 0, 0 0;
+    }
+
+    to {
+        background-position: 0 0, 0 0;
+    }
+}
+
+@keyframes fx-wiggle {
+    25% {
+        transform: rotate(-12deg);
+    }
+
+    55% {
+        transform: rotate(9deg);
+    }
+
+    80% {
+        transform: rotate(-4deg);
+    }
+}
+
+@keyframes fx-lyric {
+    80%,
+    100% {
+        background-position: 0 0;
+    }
+}
+
+@keyframes fx-ball-x {
+    80%,
+    100% {
+        background-position: 100% 0;
+    }
+}
+
+@keyframes fx-ball-y {
+    to {
+        transform: translateY(-8px);
+    }
+}
+
+@keyframes fx-sing {
+    to {
+        background-position: 0 0;
+    }
+}
+
+@keyframes fx-pop {
+    35% {
+        transform: scale(1.45) rotate(-14deg);
+    }
+
+    65% {
+        transform: scale(0.9) rotate(6deg);
+    }
+}
+
+@keyframes fx-bump {
+    40% {
+        transform: scale(1.14);
+    }
+}
+
+@keyframes fx-flash {
+    from {
+        background-color: var(--active-bg);
+    }
+}
+
+@keyframes fx-roll {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes fx-ring {
+    from {
+        box-shadow: 0 0 0 0 var(--focus-ring);
+    }
+
+    to {
+        box-shadow: 0 0 0 14px transparent;
+    }
+}

@@ -43,7 +43,9 @@ const types = { ".html": "text/html", ".js": "application/javascript", ".css": "
         const context = await browser.newContext();
         const page = await context.newPage();
         const errors = [];
+        const messages = [];
         page.on("pageerror", (error) => errors.push(error.message));
+        page.on("console", (message) => messages.push(`${message.type()}: ${message.text()}`));
         const base = `http://127.0.0.1:${server.address().port}/`;
         await page.goto(base);
         await page.waitForFunction(() => state.songs.length && !document.querySelector(".skeleton"));
@@ -79,7 +81,24 @@ const types = { ".html": "text/html", ".js": "application/javascript", ".css": "
         serverReachable = false;
         if (browserName !== "webkit") await context.setOffline(true);
         await page.reload();
-        await page.waitForFunction(() => state.songs.length && !document.querySelector(".skeleton"));
+        try {
+            await page.waitForFunction(() => state.songs.length && !document.querySelector(".skeleton"));
+        } catch (error) {
+            // Report where an offline load stopped, not only that it did.
+            const snapshot = await Promise.race([
+                page.evaluate(async (cacheName) => ({
+                    songs: typeof state === "undefined" ? "no app state" : state.songs.length,
+                    skeleton: Boolean(document.querySelector(".skeleton")),
+                    status: document.getElementById("status")?.textContent,
+                    openDialog: document.querySelector("dialog[open]")?.id || null,
+                    controlled: Boolean(navigator.serviceWorker.controller),
+                    cached: (await (await caches.open(cacheName)).keys()).map((request) => new URL(request.url).pathname),
+                }), `karaoke-${current}`),
+                new Promise((resolve) => setTimeout(() => resolve("page did not respond"), 5000)),
+            ]);
+            console.error(`offline load stalled: ${JSON.stringify({ snapshot, errors, messages: messages.slice(-20) })}`);
+            throw error;
+        }
         assert.equal(await page.evaluate(() => APP_VERSION), current);
         assert.ok(await page.evaluate(() => state.songs.length > 30000));
         assert.deepEqual(await page.evaluate(() => state.songs.filter((song) => song.audioSource).map((song) => [getSongIdentity(song), song.bpm, song.referenceKey])), savedAudio);
