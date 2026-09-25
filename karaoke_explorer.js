@@ -1,4 +1,4 @@
-const APP_VERSION = "20260925-2";
+const APP_VERSION = "20260925-3";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const TAG_CONSOLIDATION_URL = `tag_consolidation.json?v=${APP_VERSION}`;
 const MOOD_CONSOLIDATION_URL = `mood_consolidation.json?v=${APP_VERSION}`;
@@ -1608,7 +1608,8 @@ function clearSearchQuery({ resetScope = true } = {}) {
 }
 
 // An artist link shows one artist A-Z by quietly choosing the Artist scope and
-// title order. Leaving that view restores those defaults, so the next search
+// title order. Leaving that view restores the default scope and relevance
+// order (an order picked inside the view belongs to it too), so the next search
 // covers song titles again and an empty query returns to Discover. This is the
 // only place exactArtist is cleared; every exit must come through here.
 function leaveArtistView() {
@@ -1618,9 +1619,7 @@ function leaveArtistView() {
 
     state.exactArtist = false;
     state.searchScope = "all";
-    if (state.sortMode === "song") {
-        state.sortMode = "relevance";
-    }
+    state.sortMode = "relevance";
     state.groupOpenMode = "auto";
     syncSearchScopeInput();
     updateSearchPlaceholder();

@@ -140,6 +140,14 @@ const tests = [
         assert.deepEqual(await page.evaluate(() => [state.searchScope, state.sortMode]), ["song", "relevance"]);
         await page.click("#clearButton");
         assert.equal(await page.evaluate(() => isDiscoverView()), true);
+        // An order picked inside the artist view belongs to that view too.
+        await search(page, "First Tune");
+        await page.locator(".song-artist").first().click();
+        await page.click("#filtersToggleButton");
+        await page.click("#orderPopularButton");
+        await page.click("#applyFiltersButton");
+        await page.click("#clearButton");
+        assert.equal(await page.evaluate(() => isDiscoverView()), true);
         // Earlier versions stored the artist view's title order without its query.
         await page.evaluate(() => localStorage.setItem("karaokeUiState",
             JSON.stringify({ mode: "search", query: "", sortMode: "song", filters: {} })));
