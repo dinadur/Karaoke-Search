@@ -174,18 +174,23 @@ const tests = [
         await ready(page);
         await plan(page);
         await search(page, "Tune");
-        await menu(page, "#randomButton");
-        await page.locator("#randomPick .add-button").click();
-        const [flyer, expected, spinning] = await page.evaluate(() => {
+        // Pick and add in one task, from the top of the page, so the reel is
+        // certainly still spinning and the pick's cover is on screen (off
+        // screen, the flight deliberately starts from the button instead).
+        const result = await page.evaluate(() => {
+            window.scrollTo(0, 0);
+            pickRandomSong();
+            const spinning = Boolean(document.querySelector("#randomPick .fx-reel"));
+            document.querySelector("#randomPick .add-button").click();
             const tile = document.querySelector(".fx-flyer");
-            return [
-                { initials: tile.textContent.trim(), reel: Boolean(tile.querySelector(".fx-reel")), spinning: tile.classList.contains("fx-spinning") },
-                getArtistInitials(getDisplayArtist(state.randomPick)),
-                Boolean(document.querySelector("#randomPick .fx-reel")),
-            ];
+            return {
+                spinning,
+                flyer: tile && { initials: tile.textContent.trim(), reel: Boolean(tile.querySelector(".fx-reel")), spinning: tile.classList.contains("fx-spinning") },
+                expected: getArtistInitials(getDisplayArtist(state.randomPick)),
+            };
         });
-        assert.ok(spinning, "the add happened while the reel was still spinning");
-        assert.deepEqual(flyer, { initials: expected, reel: false, spinning: false });
+        assert.ok(result.spinning, "the add happened while the reel was still spinning");
+        assert.deepEqual(result.flyer, { initials: result.expected, reel: false, spinning: false });
         await settled(page);
     }],
     ["failed or missing loads leave nothing busy and no celebration", motion, async (page) => {
