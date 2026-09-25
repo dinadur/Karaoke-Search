@@ -1,6 +1,6 @@
 # Stage effects — 25 September 2026
 
-A light layer of "stage night" delight on top of the songbook (version `20260925-5`). Each effect answers something the person did, or marks loading. None of them loops while you browse.
+A light layer of "stage night" delight on top of the songbook (version `20260925-6`). Each effect answers something the person did, or marks loading. None of them loops while you browse.
 
 ## What plays, and when
 

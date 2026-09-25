@@ -9,7 +9,6 @@ window.StageFx = (() => {
     const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)");
     const finePointer = window.matchMedia?.("(hover: hover) and (pointer: fine)");
     const classTimers = new WeakMap();
-    let singTimer = 0;
 
     function motionOK() {
         return !reducedMotion?.matches && !document.hidden &&
@@ -282,15 +281,17 @@ window.StageFx = (() => {
     }
 
     // New search results: highlighted matches fill in like karaoke lyrics.
+    // Only the cards on screen now take part, so cards rebuilt by a later
+    // render (such as loading more results) keep a steady highlight.
     function sing(list) {
         if (!motionOK() || !list) return;
-        [...list.querySelectorAll(".song-card")].slice(0, 24)
-            .forEach((card, index) => card.style.setProperty("--sing-delay", `${index * 40}ms`));
-        window.clearTimeout(singTimer);
-        list.classList.remove("fx-sing");
-        void list.offsetWidth;
-        list.classList.add("fx-sing");
-        singTimer = window.setTimeout(() => list.classList.remove("fx-sing"), 1800);
+        // Freshly rendered cards, so no restart (and no forced layout) is needed.
+        const cards = [...list.querySelectorAll(".song-card")].slice(0, 24);
+        cards.forEach((card, index) => {
+            card.style.setProperty("--sing-delay", `${index * 40}ms`);
+            card.classList.add("fx-sing");
+        });
+        window.setTimeout(() => cards.forEach((card) => card.classList.remove("fx-sing")), 1500);
     }
 
     // Cards catch a soft spotlight that follows a mouse pointer.
