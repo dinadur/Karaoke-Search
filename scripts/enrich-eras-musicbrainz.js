@@ -9,6 +9,37 @@ const quote = (value) => `"${String(value).replace(/[\\"]/g, " ")}"`;
 const fields = (song) => ({ artist: song.artist, song: song.song, lookupArtist: song.lookupArtist || "", lookupSong: song.lookupSong || "" });
 const identify = (song) => JSON.stringify(fields(song));
 const decade = (year) => year < 2000 ? `${Math.floor(year / 10) % 10}0s` : `${Math.floor(year / 10) * 10}s`;
+const MAX_RESPONSE_BYTES = 1024 * 1024;
+const MAX_RECORDINGS = 100;
+
+const readBoundedJson = async (response) => {
+    const contentLength = response.headers.get("content-length");
+    if (contentLength && /^\d+$/.test(contentLength.trim()) && Number(contentLength) > MAX_RESPONSE_BYTES) {
+        throw new Error("MusicBrainz response is too large");
+    }
+    if (!response.body) throw new Error("MusicBrainz response has no body");
+    const reader = response.body.getReader();
+    const chunks = [];
+    let total = 0;
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            total += value.byteLength;
+            if (total > MAX_RESPONSE_BYTES) {
+                await reader.cancel();
+                throw new Error("MusicBrainz response is too large");
+            }
+            chunks.push(value);
+        }
+    } finally {
+        reader.releaseLock();
+    }
+    const body = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) { body.set(chunk, offset); offset += chunk.byteLength; }
+    return JSON.parse(new TextDecoder().decode(body));
+};
 
 (async () => {
     const limit = Number(process.argv[2] || 100);
@@ -49,8 +80,9 @@ const decade = (year) => year < 2000 ? `${Math.floor(year / 10) % 10}0s` : `${Ma
             url.search = new URLSearchParams({ query: `recording:${quote(title)} AND artist:${quote(artist)}`, fmt: "json", limit: "100" });
             const response = await fetch(url, { headers: { "User-Agent": "KaraokeSearchEraEnrichment/1.0 (https://github.com/dinadur/Karaoke-Search)", Accept: "application/json" }, signal: AbortSignal.timeout(15000) });
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            const result = await response.json();
+            const result = await readBoundedJson(response);
             if (result.error || !Array.isArray(result.recordings)) throw new Error(result.error || "Invalid response");
+            if (result.recordings.length > MAX_RECORDINGS) throw new Error("MusicBrainz response has too many recordings");
             consecutiveErrors = 0;
             remember(key);
             if (result.count > 100) continue; // Incomplete search results cannot establish agreement.
