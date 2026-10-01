@@ -4,7 +4,7 @@ This repo is a static frontend for a karaoke songbook. It is deployed from `main
 
 ## Project Shape
 
-- No framework, bundler, package manager, or build step.
+- No framework, bundler, or build step. `package.json` only pins test tooling (Playwright, axe-core) for CI and is excluded from Vercel uploads.
 - Main app files:
   - `karaoke_explorer.html`
   - `karaoke_explorer.css`

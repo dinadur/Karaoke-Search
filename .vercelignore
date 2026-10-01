@@ -14,3 +14,5 @@ metadata_cache/
 qa/
 scripts/sync-venue.js
 scripts/test-sync-venue.js
+package.json
+package-lock.json
