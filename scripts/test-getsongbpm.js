@@ -4,8 +4,9 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync, spawnSync } = require('node:child_process');
-const { matchResult } = require('./enrich-getsongbpm');
+const { matchResult, readResponseJson } = require('./enrich-getsongbpm');
 const { catalogGroups } = require('./lib/music-metadata');
+(async () => {
 const group = { artist: 'Alpha', title: 'Exact' };
 const song = { id: 'abc', title: 'Exact', artist: { name: 'Alpha' }, uri: 'https://getsongbpm.com/song/exact/abc', tempo: '120', key_of: 'Am', time_sig: '4/4', danceability: 0, acousticness: 40 };
 const matched = matchResult({ search: [song] }, group);
@@ -22,6 +23,16 @@ assert.equal(matchResult({ search: [{ ...song, uri: 'https://example.com/song/ex
 assert.throws(() => matchResult({}, group));
 assert.equal(matchResult({ search: { error: 'no result' } }, group).status, 'unmatched');
 assert.throws(() => matchResult({ search: { error: 'invalid API key' } }, group));
+await assert.rejects(() => readResponseJson(new Response('', { headers: { 'Content-Length': String(1024 * 1024 + 1) } })), /too large/);
+await assert.rejects(() => readResponseJson(new Response(JSON.stringify({ search: [{ title: 'x'.repeat(4097) }] }))), /field is too large/);
+await assert.rejects(() => readResponseJson(new Response(JSON.stringify({ search: Array(65).fill('x'.repeat(4096)) }))), /data is too large/);
+const oversizedStream = new ReadableStream({
+    start(controller) {
+        controller.enqueue(new Uint8Array(1024 * 1024));
+        controller.enqueue(new Uint8Array(1));
+    },
+});
+await assert.rejects(() => readResponseJson(new Response(oversizedStream)), /too large/);
 const grouped = catalogGroups([{ artist: 'Alpha', song: 'Exact' }, { artist: 'Alpha', song: 'Exact (karaoke)' }, { artist: 'Alpha', song: 'Exact (live)' }]);
 assert.equal(grouped.length, 2); assert.equal(grouped[0].songs.length, 2);
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'karaoke-bpm-test-'));
@@ -67,3 +78,4 @@ try {
     assert.ok(!fs.existsSync(path.join(temp, 'metadata_cache/getsongbpm.lock')));
     console.log('ok   GetSongBPM exact matching, conflicts, version grouping, private API header, checkpoint recovery, quota stop, and failure bounds');
 } finally { fs.rmSync(temp, { recursive: true, force: true }); }
+})().catch((error) => { console.error(error); process.exitCode = 1; });
