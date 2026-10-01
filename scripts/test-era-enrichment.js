@@ -4,13 +4,13 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { execFileSync } = require("node:child_process");
+const { execFileSync, spawnSync } = require("node:child_process");
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), "karaoke-era-test-"));
 try {
     fs.mkdirSync(path.join(temp, "scripts"));
     const script = path.join(temp, "scripts", "enrich-eras-musicbrainz.js");
     fs.copyFileSync(path.join(__dirname, "enrich-eras-musicbrainz.js"), script);
-    const songs = ["Exact", "Conflict", "Undated", "Fuzzy", "Wrong artist", "Incomplete", "Future"].map((song) => ({ artist: "Alpha", song, eras: [], popularity: 1 }));
+    const songs = ["Exact", "Conflict", "Undated", "Fuzzy", "Wrong artist", "Incomplete", "Future", "Too many recordings", "Large body", "Large header"].map((song) => ({ artist: "Alpha", song, eras: [], popularity: 1 }));
     fs.writeFileSync(path.join(temp, "karaoke_songs_enriched.json"), JSON.stringify(songs));
     const output = path.join(temp, "era_enrichment.json");
     fs.writeFileSync(output, JSON.stringify({ summary: { before: 0 }, entries: [] }));
@@ -25,16 +25,24 @@ try {
             if (title === "Fuzzy") recording.score = 99;
             if (title === "Wrong artist") recording["artist-credit"][0].name = "Beta";
             if (title === "Future") recording["first-release-date"] = "2099-01-01";
-            const recordings = title === "Conflict" ? [recording, { ...recording, "first-release-date": "2001" }] : [recording];
-            return new Response(JSON.stringify({ count: title === "Incomplete" ? 101 : recordings.length, recordings }));
+            const recordings = title === "Conflict" ? [recording, { ...recording, "first-release-date": "2001" }] :
+                title === "Too many recordings" ? Array.from({ length: 101 }, () => recording) : [recording];
+            const body = JSON.stringify({ count: title === "Incomplete" ? 101 : recordings.length, recordings,
+                padding: title === "Large body" ? "x".repeat(1024 * 1024) : "" });
+            return new Response(body, { headers: title === "Large header" ? { "Content-Length": String(2 * 1024 * 1024) } : {} });
         };
     `);
-    execFileSync(process.execPath, ["--require", mock, script, "20"]);
+    const run = spawnSync(process.execPath, ["--require", mock, script, "20"], { encoding: "utf8" });
+    assert.equal(run.status, 0, run.stderr);
+    assert.match(run.stderr, /too many recordings/);
+    assert.equal((run.stderr.match(/response is too large/g) || []).length, 2);
     let data = JSON.parse(fs.readFileSync(output));
     assert.deepEqual(data.entries.map((entry) => [entry.song, entry.eras]), [["Exact", ["90s"]]]);
     assert.equal(data.entries[0].source.type, "musicbrainz");
+    assert.equal(data.entries.length, 1);
     // Simulate losing the output after checkpointing an accepted result.
     fs.writeFileSync(output, JSON.stringify({ summary: { before: 0 }, entries: [] }));
+    fs.writeFileSync(path.join(temp, "karaoke_songs_enriched.json"), JSON.stringify(songs.slice(0, 7)));
     fs.writeFileSync(mock, 'global.fetch = async () => { throw new Error("Checkpoint should avoid network"); };');
     const log = execFileSync(process.execPath, ["--require", mock, script, "20"], { encoding: "utf8" });
     assert.match(log, /"requests":0/);

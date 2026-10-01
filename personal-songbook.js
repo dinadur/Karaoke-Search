@@ -356,15 +356,28 @@ async function applyAudioEnrichment(songs, enrichment) {
     });
 }
 
+function getAudioSourceUrl(song) {
+    if (song.audioSource?.type !== 'getsongbpm' || typeof song.audioSource.url !== 'string') return null;
+    try {
+        const url = new URL(song.audioSource.url);
+        return url.protocol === 'https:' && url.hostname === 'getsongbpm.com' && url.pathname.startsWith('/song/')
+            ? url.href
+            : null;
+    } catch {
+        return null;
+    }
+}
+
 function appendAudioMetadata(container, song) {
-    if (!song.audioSource) return;
+    const sourceUrl = getAudioSourceUrl(song);
+    if (!sourceUrl) return;
     const description = 'Reference recording from GetSongBPM. Karaoke arrangements may use a different tempo or key.';
     const values = [song.bpm !== null && song.bpm !== undefined ? `${song.bpm} BPM` : '', song.referenceKey ? `Ref. key ${song.referenceKey}` : ''].filter(Boolean);
     for (const value of values) {
         const link = document.createElement('a');
         link.className = 'pill audio-metadata is-clickable';
         link.textContent = value;
-        link.href = song.audioSource.url;
+        link.href = sourceUrl;
         link.target = '_blank';
         link.rel = 'noopener noreferrer';
         link.title = description;
