@@ -1,4 +1,4 @@
-const APP_VERSION = "20260925-8";
+const APP_VERSION = "20261001-1";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const TAG_CONSOLIDATION_URL = `tag_consolidation.json?v=${APP_VERSION}`;
 const MOOD_CONSOLIDATION_URL = `mood_consolidation.json?v=${APP_VERSION}`;
@@ -2748,7 +2748,8 @@ function createSongTags(song) {
     container.className = "song-popout song-tags";
 
     const groups = getSongTagGroups(song);
-    const hasTags = groups.length || song.audioSource;
+    const audioSourceUrl = getAudioSourceUrl(song);
+    const hasTags = groups.length || audioSourceUrl;
     const button = document.createElement("button");
     button.className = "icon-button link-popout-button tag-popout-button";
     button.type = "button";
@@ -2763,7 +2764,7 @@ function createSongTags(song) {
     menu.className = "song-tags-popout";
     menu.hidden = true;
 
-    if (song.audioSource) {
+    if (audioSourceUrl) {
         const section = document.createElement("section");
         section.className = "tag-popout-group";
         const label = document.createElement("div");

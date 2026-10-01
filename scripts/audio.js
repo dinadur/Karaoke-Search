@@ -39,6 +39,14 @@ const entry = { ...songs[0], bpm: 122, referenceKey: 'Em', source: { type: 'gets
                     assert.equal(await page.evaluate(() => state.songs[1].bpm), undefined);
                     assert.equal(await page.evaluate(() => state.songs[2].bpm), undefined, 'Normalized identity must not expand the explicit import targets');
                 } else assert.equal(await page.locator('.audio-metadata').count(), 0);
+                assert.deepEqual(await page.evaluate(() => {
+                    const destinations = ['https://attacker.example/song/phish', 'javascript:alert(1)', 'not a URL'];
+                    return destinations.map((url) => {
+                        const container = document.createElement('div');
+                        appendAudioMetadata(container, { bpm: 123, audioSource: { type: 'getsongbpm', url } });
+                        return container.querySelector('a')?.href || null;
+                    });
+                }), [null, null, null], 'Untrusted imported audio URLs must not reach link hrefs');
                 assert.deepEqual(errors, []);
                 console.log(`ok   ${engine} audio metadata: ${scenario}`);
             } finally { await context.close(); }
