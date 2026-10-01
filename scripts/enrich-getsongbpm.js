@@ -7,8 +7,46 @@ const { normalize, fields, identity, catalogGroups, atomicJson } = require('./li
 const root = path.join(__dirname, '..');
 const API = 'https://api.getsong.co/search/';
 const INTERVAL = 1500; // At most 2,400 requests/hour from this importer.
+const MAX_RESPONSE_BYTES = 1024 * 1024;
+const MAX_FIELD_CHARS = 4096;
+const MAX_RESULT_CHARS = 256 * 1024;
 const validKey = (value) => typeof value === 'string' && /^[A-G](?:#|b|♯|♭)?m?$/.test(value) ? value : null;
 const number = (value, min, max) => ['number', 'string'].includes(typeof value) && String(value).trim() !== '' && Number.isFinite(Number(value)) && Number(value) >= min && Number(value) <= max ? Number(value) : null;
+async function readResponseJson(response) {
+    const contentLength = response.headers.get('content-length');
+    if (contentLength !== null && (!/^\d+$/.test(contentLength) || Number(contentLength) > MAX_RESPONSE_BYTES)) throw new Error('API response is too large');
+    if (!response.body) throw new Error('API response has no body');
+    const reader = response.body.getReader();
+    const chunks = [];
+    let bytes = 0;
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        bytes += value.byteLength;
+        if (bytes > MAX_RESPONSE_BYTES) {
+            await reader.cancel();
+            throw new Error('API response is too large');
+        }
+        chunks.push(value);
+    }
+    const body = new Uint8Array(bytes);
+    let offset = 0;
+    for (const chunk of chunks) { body.set(chunk, offset); offset += chunk.byteLength; }
+    const result = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(body));
+    const pending = [result];
+    let resultChars = 0;
+    while (pending.length) {
+        const value = pending.pop();
+        if (typeof value === 'string') {
+            if (value.length > MAX_FIELD_CHARS) throw new Error('API response field is too large');
+            resultChars += value.length;
+            if (resultChars > MAX_RESULT_CHARS) throw new Error('API response data is too large');
+        } else if (value && typeof value === 'object') {
+            for (const child of Object.values(value)) pending.push(child);
+        }
+    }
+    return result;
+}
 function matchResult(result, group) {
     // The live API returns this object (not an empty array) for no matches.
     if (result.search?.error === 'no result') return { status: 'unmatched' };
@@ -69,7 +107,7 @@ async function main() {
                 const response = await fetch(url, { headers: { 'X-API-KEY': apiKey, Accept: 'application/json' }, redirect: 'error', signal: AbortSignal.timeout(20000) });
                 if ([401, 403, 429].includes(response.status)) { stoppedReason = `HTTP ${response.status}; check activation or quota before retrying`; break; }
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                const result = await response.json();
+                const result = await readResponseJson(response);
                 if (result.error) { stoppedReason = 'API returned an error; check activation and quota'; break; }
                 checkpoint.results[group.key] = { ...matchResult(result, group), checkedAt: new Date().toISOString() };
                 atomicJson(checkpointPath, checkpoint); failures = 0;
@@ -103,4 +141,4 @@ async function main() {
     } finally { fs.closeSync(lock); fs.unlinkSync(lockPath); }
 }
 if (require.main === module) main().catch((error) => { console.error(error.message); process.exitCode = 1; });
-module.exports = { matchResult };
+module.exports = { matchResult, readResponseJson };
