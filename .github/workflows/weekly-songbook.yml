@@ -174,10 +174,12 @@ jobs:
             esac
           done
           tar -xf songbook-update.tar -C ../..
-      - name: Revalidate and publish additions
+      # Validation and the commit run without the write token; only the
+      # final push step receives it.
+      - name: Revalidate and commit additions
+        id: commit
         env:
           ADDED: ${{ needs.prepare.outputs.added }}
-          GH_TOKEN: ${{ github.token }}
         run: |
           git fetch origin main
           if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
@@ -196,6 +198,12 @@ jobs:
             karaoke_explorer.js karaoke_explorer.html manifest.json sw.js
           git diff --cached --quiet && exit 0
           git commit -m "Sync venue songbook: ${ADDED} new songs"
+          echo 'created=true' >> "$GITHUB_OUTPUT"
+      - name: Publish additions
+        if: steps.commit.outputs.created == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
           auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
           git -c http.https://github.com/.extraheader="AUTHORIZATION: basic $auth" \
             push origin HEAD:main
