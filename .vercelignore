@@ -14,5 +14,6 @@ metadata_cache/
 qa/
 scripts/sync-venue.js
 scripts/test-sync-venue.js
+scripts/test-weekly-songbook.js
 package.json
 package-lock.json

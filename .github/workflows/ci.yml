@@ -58,6 +58,8 @@ jobs:
           node --check scripts/audio.js
           node --check scripts/sync-venue.js
           node scripts/test-sync-venue.js
+          node --check scripts/test-weekly-songbook.js
+          node scripts/test-weekly-songbook.js
           if [ -f audio_enrichment.json ]; then node scripts/check-audio-enrichment.js; fi
 
       - name: Version consistency
@@ -80,6 +82,7 @@ jobs:
           node scripts/first-visit.js
           node scripts/audio.js
           node scripts/offline.js
+          node scripts/test-weekly-songbook.js --browser
 
       - name: Input during catalog loading
         if: matrix.browser == 'chromium'

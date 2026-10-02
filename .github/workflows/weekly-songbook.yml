@@ -48,7 +48,9 @@ jobs:
           cache: npm
 
       - name: Test the importer
-        run: node scripts/test-sync-venue.js
+        run: |
+          node scripts/test-sync-venue.js
+          node scripts/test-weekly-songbook.js
 
       - name: Fetch new venue songs
         id: sync
