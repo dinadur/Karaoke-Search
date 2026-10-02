@@ -1,6 +1,6 @@
 // Bump CACHE_VERSION together with APP_VERSION in karaoke_explorer.js so a
 // deploy invalidates the previous offline cache.
-const CACHE_VERSION = "20261001-1";
+const CACHE_VERSION = "20261002-1";
 const CACHE_NAME = `karaoke-${CACHE_VERSION}`;
 
 const PRECACHE_URLS = [
@@ -28,9 +28,10 @@ const PRECACHE_URLS = [
 self.addEventListener("install", (event) => {
     event.waitUntil((async () => {
         const cache = await caches.open(CACHE_NAME);
-        // Best-effort: a failed precache (e.g. offline install) must not
-        // block activation; runtime caching fills any gaps.
-        await Promise.allSettled(PRECACHE_URLS.map((url) => cache.add(url)));
+        // Commit the complete release atomically. If any response fails or is
+        // interrupted, reject installation and leave the old worker/cache in
+        // service. Reload avoids reusing an unversioned shell from HTTP cache.
+        await cache.addAll(PRECACHE_URLS.map((url) => new Request(url, { cache: "reload" })));
         await self.skipWaiting();
     })());
 });
@@ -62,13 +63,12 @@ self.addEventListener("fetch", (event) => {
             const cache = await caches.open(CACHE_NAME);
             try {
                 const response = await fetch(request);
-                if (response.ok) {
-                    cache.put(request, response.clone());
-                }
+                // Keep the installed shell paired with its precached assets.
+                // An online visit to a newer, failed release must not replace
+                // our known-good offline fallback with that release's HTML.
                 return response;
             } catch {
-                const cached = await cache.match(request) ||
-                    await cache.match("/") ||
+                const cached = await cache.match("/") ||
                     await cache.match("/karaoke_explorer.html");
                 return cached || Response.error();
             }
@@ -86,7 +86,9 @@ self.addEventListener("fetch", (event) => {
 
         const response = await fetch(request);
         if (response.ok) {
-            cache.put(request, response.clone());
+            // Keep the fetch event alive until the write finishes, while a
+            // quota/storage failure still permits the online response.
+            await cache.put(request, response.clone()).catch(() => {});
         }
         return response;
     })());

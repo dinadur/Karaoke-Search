@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 const { menu, plan, notes } = require("./ui-helpers");
-// A private static server simulates two app releases. No live deployment or
-// production cache is modified. Verify activation, saved data, and offline use.
+// A private static server simulates failed/interrupted and successful releases.
+// No live deployment or production cache is modified.
 const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const path = require("node:path");
@@ -20,6 +20,9 @@ const types = { ".html": "text/html", ".js": "application/javascript", ".css": "
     const old = `${current}-qa-old`;
     let release = old;
     let serverReachable = true;
+    let failure = null;
+    let failedRequests = 0;
+    let interruptedResponse;
     const server = http.createServer(async (request, response) => {
         if (!serverReachable) { request.socket.destroy(); return; }
         try {
@@ -29,6 +32,19 @@ const types = { ".html": "text/html", ".js": "application/javascript", ".css": "
             let body = await fs.readFile(filename);
             if ([".html", ".js", ".json"].includes(path.extname(filename))) {
                 body = Buffer.from(body.toString().replaceAll(current, release));
+            }
+            if (release === current && failure && pathname === failure.path) {
+                failedRequests++;
+                if (failure.kind === "http") {
+                    response.writeHead(503); response.end("Upgrade unavailable"); return;
+                }
+                if (failure.kind === "disconnect") { request.socket.destroy(); return; }
+                // Deliver a partial body, then interrupt the connection from
+                // the test while the new worker is still installing.
+                response.writeHead(200, { "Content-Type": types[path.extname(filename)], "Content-Length": body.length });
+                response.write(body.subarray(0, Math.floor(body.length / 2)));
+                interruptedResponse = response;
+                return;
             }
             response.writeHead(200, { "Content-Type": types[path.extname(filename)] || "application/octet-stream", "Cache-Control": "no-store" });
             response.end(body);
@@ -47,6 +63,32 @@ const types = { ".html": "text/html", ".js": "application/javascript", ".css": "
         page.on("pageerror", (error) => errors.push(error.message));
         page.on("console", (message) => messages.push(`${message.type()}: ${message.text()}`));
         const base = `http://127.0.0.1:${server.address().port}/`;
+        async function checkSavedOffline(version) {
+            serverReachable = false;
+            if (browserName !== "webkit") await context.setOffline(true);
+            await page.reload();
+            await page.waitForFunction(() => state.songs.length && !document.querySelector(".skeleton"));
+            assert.equal(await page.evaluate(() => APP_VERSION), version);
+            assert.ok(await page.evaluate(() => state.songs.length > 30000));
+            assert.deepEqual(await page.evaluate(() => ({ setlist: localStorage.getItem("karaokeSetlist"), favorites: [...state.favorites], repertoire: localStorage.getItem("karaokeSavedSongsV1") })), saved);
+            assert.deepEqual(await page.evaluate(() => state.songs.filter((song) => song.audioSource).map((song) => [getSongIdentity(song), song.bpm, song.referenceKey])), savedAudio);
+            serverReachable = true;
+            if (browserName !== "webkit") await context.setOffline(false);
+        }
+        async function startUpdate() {
+            await page.evaluate(async () => {
+                const registration = await navigator.serviceWorker.ready;
+                window.upgrade = { state: null, controllerChanges: 0 };
+                navigator.serviceWorker.addEventListener("controllerchange", () => window.upgrade.controllerChanges++);
+                registration.addEventListener("updatefound", () => {
+                    const worker = registration.installing;
+                    worker.addEventListener("statechange", () => {
+                        if (["activated", "redundant"].includes(worker.state)) window.upgrade.state = worker.state;
+                    });
+                }, { once: true });
+                await registration.update();
+            });
+        }
         await page.goto(base);
         await page.waitForFunction(() => state.songs.length && !document.querySelector(".skeleton"));
         await page.fill("#searchInput", "dancing queen");
@@ -67,15 +109,63 @@ const types = { ".html": "text/html", ".js": "application/javascript", ".css": "
             if (!navigator.serviceWorker.controller) await new Promise((resolve) => navigator.serviceWorker.addEventListener("controllerchange", resolve, { once: true }));
         });
         await page.waitForLoadState("networkidle");
+        // Activation alone is insufficient: assert that every precache entry
+        // exists before disconnecting the server, including the large catalog.
+        const sw = await fs.readFile(path.join(root, "sw.js"), "utf8");
+        const precache = require("node:vm").runInNewContext(`${sw.split('self.addEventListener("install"')[0]}; PRECACHE_URLS`);
+        async function checkPrecache(version) {
+            const urls = Array.from(precache, (url) => url.replaceAll(current, version));
+            const missing = await page.evaluate(async ({ version, urls }) => {
+                const cache = await caches.open(`karaoke-${version}`);
+                const present = await Promise.all(urls.map(async (url) => Boolean(await cache.match(url))));
+                return urls.filter((url, index) => !present[index]);
+            }, { version, urls });
+            assert.deepEqual(missing, [], `Incomplete ${version} precache`);
+        }
+        await checkPrecache(old);
+        await page.evaluate(async () => (await caches.open("unrelated-app")).put("/sentinel", new Response("keep")));
         release = current;
-        await page.evaluate(async () => {
-            const registration = await navigator.serviceWorker.ready;
-            const changed = new Promise((resolve) => navigator.serviceWorker.addEventListener("controllerchange", resolve, { once: true }));
-            await registration.update();
-            await changed;
-        });
+        for (const scenario of [
+            { kind: "http", path: "/karaoke_songs_enriched.json" },
+            { kind: "disconnect", path: "/personal-songbook.js" },
+            { kind: "interrupt", path: "/karaoke_songs_enriched.json" },
+            { kind: "http", path: "/icon-192.png" },
+        ]) {
+            failure = scenario;
+            failedRequests = 0;
+            interruptedResponse = null;
+            await startUpdate();
+            if (scenario.kind === "interrupt") {
+                const deadline = Date.now() + 10000;
+                while (!interruptedResponse && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 25));
+                assert.ok(interruptedResponse, "Upgrade must request the interrupted catalog");
+                serverReachable = false;
+                interruptedResponse.destroy();
+            }
+            await page.waitForFunction(() => window.upgrade.state !== null);
+            assert.ok(failedRequests > 0, "Fault must reach the installing service worker");
+            assert.equal(await page.evaluate(() => window.upgrade.state), "redundant", `${scenario.kind} ${scenario.path} must reject the upgrade`);
+            assert.equal(await page.evaluate(() => window.upgrade.controllerChanges), 0, "Failed upgrade must keep the old controller");
+            assert.ok((await page.evaluate(() => caches.keys())).includes(`karaoke-${old}`));
+            await checkPrecache(old);
+            await checkSavedOffline(old);
+            console.log(`ok   ${browserName}: ${scenario.kind} ${scenario.path} keeps old offline catalog and saved data`);
+        }
+        // The active worker can see the next release's HTML online even when
+        // its catalog cannot install. That HTML must not poison its fallback.
+        failure = { kind: "http", path: "/karaoke_songs_enriched.json" };
+        await page.goto(`${base}?q=dancing%20queen`);
+        await page.waitForFunction(() => document.getElementById("status").textContent === "Songbook unavailable");
+        assert.equal(await page.evaluate(() => APP_VERSION), current);
+        await checkSavedOffline(old);
+        console.log(`ok   ${browserName}: online visit to failed release preserves installed offline shell`);
+        failure = null;
+        await startUpdate();
+        await page.waitForFunction(() => window.upgrade.state === "activated" && window.upgrade.controllerChanges > 0);
         await page.waitForFunction(() => navigator.serviceWorker.controller.state === "activated");
-        assert.deepEqual(await page.evaluate(() => caches.keys()), [`karaoke-${current}`]);
+        assert.deepEqual((await page.evaluate(() => caches.keys())).sort(), [`karaoke-${current}`, "unrelated-app"].sort());
+        assert.equal(await page.evaluate(async () => (await (await caches.open("unrelated-app")).match("/sentinel")).text()), "keep");
+        await checkPrecache(current);
         // Also cut off the server itself. WebKit's protocol offline override
         // can reject navigation before its service worker handles it.
         serverReachable = false;
