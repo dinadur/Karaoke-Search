@@ -78,7 +78,18 @@ async function fetchVenueSongs({ fetchImpl = fetch, wait = ms => new Promise(res
             if (response.status === 429) throw new Error('Venue rate limit reached; stop until a later run');
             if (response.status >= 500 && attempt < RETRY_DELAYS.length) { await response.body?.cancel(); continue; }
             if (!response.ok) throw new Error(`Venue returned HTTP ${response.status} for query ${JSON.stringify(query)}; catalog left unchanged`);
-            data = parseResponse(await response.json());
+            let body;
+            try {
+                // Receiving headers is not a complete fetch. A disconnect or
+                // timeout while reading the body needs the same bounded retry.
+                body = await response.text();
+            } catch {
+                if (attempt < RETRY_DELAYS.length) continue;
+                throw new Error('Venue unavailable after four attempts; catalog left unchanged');
+            }
+            // A fully received but invalid response is not a transient network
+            // failure: fail closed rather than retrying corrupt JSON/schema.
+            data = parseResponse(JSON.parse(body));
             break;
         }
         for (const row of data) rows.set(JSON.stringify([row.artist, row.song]), row);
