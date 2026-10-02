@@ -86,4 +86,9 @@ jobs:
 
       - name: Input during catalog loading
         if: matrix.browser == 'chromium'
-        run: timeout --kill-after=10s 180s node scripts/loading.js
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 > /tmp/karaoke-loading-http.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          sleep 1
+          timeout --kill-after=10s 180s node scripts/loading.js
