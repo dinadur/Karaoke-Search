@@ -13,6 +13,7 @@ permissions:
 jobs:
   checks:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -72,18 +73,17 @@ jobs:
 
       - name: Browser checks
         run: |
-          python3 -m http.server 8765 --bind 127.0.0.1 &
+          python3 -m http.server 8765 --bind 127.0.0.1 > /tmp/karaoke-http.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
           sleep 1
-          node scripts/smoke.js
-          node scripts/regression.js
-          node scripts/accessibility.js
-          node scripts/personal.js
-          node scripts/effects.js
-          node scripts/first-visit.js
-          node scripts/audio.js
-          node scripts/offline.js
-          node scripts/test-weekly-songbook.js --browser
+          for suite in smoke regression accessibility personal effects first-visit audio offline; do
+            printf 'Running browser suite: %s\n' "$suite"
+            timeout --kill-after=10s 180s node "scripts/$suite.js"
+          done
+          printf 'Running browser suite: weekly fixture\n'
+          timeout --kill-after=10s 180s node scripts/test-weekly-songbook.js --browser
 
       - name: Input during catalog loading
         if: matrix.browser == 'chromium'
-        run: node scripts/loading.js
+        run: timeout --kill-after=10s 180s node scripts/loading.js
