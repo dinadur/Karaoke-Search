@@ -58,6 +58,7 @@ jobs:
           node --check scripts/audio.js
           node --check scripts/sync-venue.js
           node scripts/test-sync-venue.js
+          node scripts/test-venue-workflow.js
           if [ -f audio_enrichment.json ]; then node scripts/check-audio-enrichment.js; fi
 
       - name: Version consistency
