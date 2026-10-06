@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const http = require('node:http');
+const { createHash } = require('node:crypto');
 const { spawnSync } = require('node:child_process');
 const { syncVenue } = require('./sync-venue');
 const root = path.join(__dirname, '..');
@@ -16,6 +17,7 @@ const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'karaoke-weekly-test-'));
 // Do not inherit a real workflow's outputs or credential into fixture commands.
 const env = { ...process.env, GH_TOKEN: 'local-fixture-token', GIT_TERMINAL_PROMPT: '0' };
 delete env.GITHUB_OUTPUT; delete env.GITHUB_STEP_SUMMARY;
+delete env.UPDATE_SHA256;
 delete process.env.GITHUB_OUTPUT; delete process.env.GITHUB_STEP_SUMMARY;
 const bash = process.env.BASH_PATH || (process.platform === 'win32' ? 'C:\\Program Files\\Git\\bin\\bash.exe' : 'bash');
 
@@ -47,7 +49,7 @@ function clone(name, artifact, stage) {
     run('git', ['clone', '--quiet', path.join(temp, 'origin.git'), dir], temp);
     const destination = path.join(dir, 'metadata_cache', stage);
     fs.mkdirSync(destination, { recursive: true });
-    for (const name of ['songbook-update.tar', 'songbook-update.tar.sha256']) fs.copyFileSync(path.join(artifact, name), path.join(destination, name));
+    fs.copyFileSync(path.join(artifact, 'songbook-update.tar'), path.join(destination, 'songbook-update.tar'));
     return dir;
 }
 function snapshot(dir) { return new Map(files.map(name => [name, fs.readFileSync(path.join(dir, name))])); }
@@ -55,6 +57,7 @@ function unchanged(dir, expected) {
     for (const [name, content] of expected) assert.deepEqual(fs.readFileSync(path.join(dir, name)), content, name);
 }
 function remoteHead() { return git(path.join(temp, 'origin.git'), 'rev-parse', 'refs/heads/main'); }
+function archiveDigest(filename) { return createHash('sha256').update(fs.readFileSync(filename)).digest('hex'); }
 
 async function browserCheck(dir) {
     const playwright = require('playwright');
@@ -136,18 +139,24 @@ async function browserCheck(dir) {
     assert.equal(report.added, 1);
     shellStep('Validate updated catalog', prepare);
     const expected = snapshot(prepare);
-    shellStep('Package validated additions', prepare);
+    const packageOutput = path.join(temp, 'package-output');
+    shellStep('Package validated additions', prepare, { GITHUB_OUTPUT: packageOutput });
     const artifact = path.join(prepare, 'metadata_cache');
+    // Model trusted prepare-job outputs, separate from downloaded artifact bytes.
+    const digest = archiveDigest(path.join(artifact, 'songbook-update.tar'));
+    assert.equal(fs.readFileSync(packageOutput, 'utf8'), `sha256=${digest}\n`);
+    assert.equal(fs.existsSync(path.join(artifact, 'songbook-update.tar.sha256')), false);
+    const trusted = Object.freeze({ UPDATE_SHA256: digest });
 
     const verify = clone('verify', artifact, 'verify');
-    shellStep('Apply validated additions', verify);
+    shellStep('Apply validated additions', verify, trusted);
     unchanged(verify, expected);
     shellStep('Validate updated catalog', verify);
     // Later verification/npm code cannot change what publication consumes.
     fs.appendFileSync(path.join(verify, 'karaoke_explorer.js'), '\n// fixture verification mutation\n');
 
     const publish = clone('publish', artifact, 'publish');
-    shellStep('Verify and apply validated additions', publish);
+    shellStep('Verify and apply validated additions', publish, trusted);
     unchanged(publish, expected);
     const output = path.join(publish, 'metadata_cache', 'commit-output');
     shellStep('Revalidate and commit additions', publish, { ADDED: '1', GITHUB_OUTPUT: output });
@@ -163,30 +172,33 @@ async function browserCheck(dir) {
     const tampered = clone('tampered', artifact, 'publish');
     const beforeTamper = snapshot(tampered);
     fs.appendFileSync(path.join(tampered, 'metadata_cache/publish/songbook-update.tar'), 'tampered');
-    assert.match(shellStep('Verify and apply validated additions', tampered, {}, false).stdout, /FAILED/);
+    assert.match(shellStep('Verify and apply validated additions', tampered, trusted, false).stdout, /FAILED/);
     unchanged(tampered, beforeTamper);
     const tamperedVerify = clone('tampered-verify', artifact, 'verify');
     const beforeVerify = snapshot(tamperedVerify);
     fs.appendFileSync(path.join(tamperedVerify, 'metadata_cache/verify/songbook-update.tar'), 'tampered');
-    shellStep('Apply validated additions', tamperedVerify, {}, false);
+    shellStep('Apply validated additions', tamperedVerify, trusted, false);
     unchanged(tamperedVerify, beforeVerify);
 
     const unexpected = clone('unexpected', artifact, 'publish');
     const beforeUnexpected = snapshot(unexpected);
     fs.writeFileSync(path.join(unexpected, 'unexpected.txt'), 'must not publish');
     run(bash, ['--noprofile', '--norc', '-eo', 'pipefail', '-c',
-        'tar -rf metadata_cache/publish/songbook-update.tar unexpected.txt; cd metadata_cache/publish; sha256sum songbook-update.tar > songbook-update.tar.sha256'], unexpected);
+        'tar -rf metadata_cache/publish/songbook-update.tar unexpected.txt'], unexpected);
     fs.unlinkSync(path.join(unexpected, 'unexpected.txt'));
-    assert.match(shellStep('Verify and apply validated additions', unexpected, {}, false).stdout, /Unexpected publication file/);
+    // A deliberately trusted fixture archive reaches the independent path guard.
+    const unexpectedDigest = archiveDigest(path.join(unexpected, 'metadata_cache/publish/songbook-update.tar'));
+    assert.match(shellStep('Verify and apply validated additions', unexpected, { UPDATE_SHA256: unexpectedDigest }, false).stdout, /Unexpected publication file/);
     assert.equal(fs.existsSync(path.join(unexpected, 'unexpected.txt')), false);
     unchanged(unexpected, beforeUnexpected);
-    console.log('ok   verify/publish reject checksum corruption; publication rejects an unexpected artifact path before extraction');
+    console.log('ok   verify/publish reject corruption against prepare digest; publication rejects a trusted unexpected path before extraction');
 
     const incomplete = clone('incomplete-package', artifact, 'publish');
     fs.unlinkSync(path.join(incomplete, 'audio_enrichment.json'));
-    shellStep('Package validated additions', incomplete, {}, false);
-    assert.equal(fs.existsSync(path.join(incomplete, 'metadata_cache/songbook-update.tar.sha256')), false,
-        'Incomplete packaging must stop before generating an uploadable checksum');
+    const incompleteOutput = path.join(temp, 'incomplete-package-output');
+    shellStep('Package validated additions', incomplete, { GITHUB_OUTPUT: incompleteOutput }, false);
+    assert.equal(fs.existsSync(incompleteOutput), false,
+        'Incomplete packaging must stop before exporting a trusted digest');
 
     // A valid no-change artifact must not create a commit or enable a push.
     const noop = clone('noop', artifact, 'publish');
@@ -198,7 +210,7 @@ async function browserCheck(dir) {
     // Restore the local origin to the prepared baseline for two race fixtures.
     git(path.join(temp, 'origin.git'), 'update-ref', 'refs/heads/main', base);
     const stale = clone('stale', artifact, 'publish');
-    shellStep('Verify and apply validated additions', stale);
+    shellStep('Verify and apply validated additions', stale, trusted);
     git(prepare, 'commit', '--quiet', '--allow-empty', '-m', 'Concurrent owner change');
     git(prepare, 'push', '--quiet', 'origin', 'main');
     const changed = remoteHead();
@@ -210,7 +222,7 @@ async function browserCheck(dir) {
 
     git(path.join(temp, 'origin.git'), 'update-ref', 'refs/heads/main', base);
     const race = clone('race', artifact, 'publish');
-    shellStep('Verify and apply validated additions', race);
+    shellStep('Verify and apply validated additions', race, trusted);
     shellStep('Revalidate and commit additions', race, { ADDED: '1', GITHUB_OUTPUT: path.join(race, 'metadata_cache', 'commit-output') });
     git(path.join(temp, 'origin.git'), 'update-ref', 'refs/heads/main', changed);
     const rejected = shellStep('Publish additions', race, {}, false);
