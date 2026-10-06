@@ -6,7 +6,8 @@ const os = require('node:os');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
 const { spawnSync, execFileSync } = require('node:child_process');
-const workflow = fs.readFileSync(path.join(__dirname, '../.github/workflows/weekly-songbook.yml'), 'utf8');
+const workflow = fs.readFileSync(path.join(__dirname, '../.github/workflows/weekly-songbook.yml'), 'utf8').replaceAll('\r\n', '\n');
+const bash = process.env.BASH_PATH || (process.platform === 'win32' ? 'C:\\Program Files\\Git\\bin\\bash.exe' : 'bash');
 const files = ['karaoke_songs_enriched.json', 'audio_enrichment.json', 'era_enrichment.json',
     'karaoke_explorer.js', 'karaoke_explorer.html', 'manifest.json', 'sw.js'];
 function stepScript(name) {
@@ -21,7 +22,7 @@ function stepScript(name) {
     return body.join('\n');
 }
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'karaoke-workflow-test-'));
-const run = (script, cwd, env = {}) => spawnSync('bash', ['-e', '-o', 'pipefail', '-c', script], {
+const run = (script, cwd, env = {}) => spawnSync(bash, ['--noprofile', '--norc', '-e', '-o', 'pipefail', '-c', script], {
     cwd, env: { ...process.env, ...env }, encoding: 'utf8', timeout: 10000,
 });
 try {
@@ -71,12 +72,9 @@ try {
     }
     assert.match(fs.readFileSync(output, 'utf8'), new RegExp(`^sha256=${digest}$`, 'm'), 'Package exports the exact tar digest');
     // A failed hashing command must abort preparation instead of exporting an empty digest.
-    const bin = path.join(temp, 'bin');
-    fs.mkdirSync(bin);
-    fs.writeFileSync(path.join(bin, 'sha256sum'), '#!/bin/sh\nexit 1\n', { mode: 0o755 });
     fs.writeFileSync(output, '');
-    assert.notEqual(run(stepScript('Package validated additions'), prepared, {
-        GITHUB_OUTPUT: output, PATH: `${bin}:${process.env.PATH}`,
+    assert.notEqual(run('sha256sum() { return 1; }\n' + stepScript('Package validated additions'), prepared, {
+        GITHUB_OUTPUT: output,
     }).status, 0);
     assert.equal(fs.readFileSync(output, 'utf8'), '');
 

@@ -54,6 +54,7 @@ jobs:
         run: |
           node scripts/test-sync-venue.js
           node scripts/test-venue-workflow.js
+          node scripts/test-weekly-songbook.js
 
       - name: Fetch new venue songs
         id: sync

@@ -59,6 +59,8 @@ production deployment, use the project's existing promotion procedure.
 ```bash
 node scripts/test-sync-venue.js
 node scripts/test-venue-workflow.js # local artifact replacement regression
+node scripts/test-weekly-songbook.js # local artifacts and Git origin only
+node scripts/test-weekly-songbook.js --browser # requires installed Playwright browser
 node scripts/sync-venue.js          # live comparison, no catalog changes
 node scripts/sync-venue.js --write  # append, refresh counts, bump and validate
 ```
@@ -72,6 +74,18 @@ updater cancels an obsolete run; manual and scheduled runs otherwise queue.
 The deterministic test uses actual catalog copies to verify dry runs, append-only
 updates, sidecar validation, version bumps, idempotency, rollback and locking. It
 also compares importer identities to the real frontend functions for every row.
+Interrupted response bodies use the same four-attempt retry limit as connection
+failures; a fully received corrupt JSON response fails immediately. Write-mode
+fixtures check truncated results, corrupt catalog/sidecars, every validator's
+rollback, concurrent edits, and isolated workflow outputs.
+
+The weekly fixture test executes the workflow's real packaging, verification,
+commit and publication shell steps against a temporary local bare Git origin.
+It checks immutable artifact reuse, the separate prepare digest, corrupt archives, unexpected paths,
+no-op commits and both concurrent-main races. It never requests the venue or
+pushes to GitHub. `--browser` also loads the published pending song from a private
+server, searches it and checks its saved identity after reloading. CI runs this
+browser check in Chromium, Firefox and WebKit; all temporary catalogs are removed.
 
 The importer is an intentional exception to the repository's exclusion of local
 scraping tools: it is required by the requested GitHub schedule. Raw exports,
