@@ -31,6 +31,15 @@ permission to publish validated additions to `main`.
    data/version files. A concurrent change to `main` stops the push; rerun against
    the new head instead of rebasing or force-pushing.
 
+Preparation exports the uploaded artifact's immutable ID and the tar archive's
+SHA-256 digest as job outputs. Verification and publication download that exact
+ID and check the archive against the preparation digest before extracting it.
+They never trust a checksum packaged alongside the archive. Replacing an artifact
+under the same name gives it a different ID; deletion or replacement stops the run
+instead of publishing different bytes. Browser dependencies run only in the
+read-only verification job, and only the final publication step receives the push
+credential.
+
 No new songs means no commit or cache-version change. Missing venue listings are
 reported, never automatically removed. A fetch matching fewer than 95% of existing
 rows, more than 500 proposed additions, malformed data, or a failed request stops
@@ -49,6 +58,7 @@ production deployment, use the project's existing promotion procedure.
 
 ```bash
 node scripts/test-sync-venue.js
+node scripts/test-venue-workflow.js # local artifact replacement regression
 node scripts/sync-venue.js          # live comparison, no catalog changes
 node scripts/sync-venue.js --write  # append, refresh counts, bump and validate
 ```
