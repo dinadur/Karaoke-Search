@@ -27,6 +27,9 @@ jobs:
       - name: Syntax and data checks
         run: |
           node --check karaoke_explorer.js
+          node --check filters-panel.js
+          node --check browse-discover.js
+          node --check setlist-panel.js
           node --check sw.js
           node --check qrcode.js
           node --check scripts/bump-version.js

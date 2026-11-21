@@ -41,8 +41,11 @@ The requested weekly venue updater is the maintained exception: GitHub Actions c
 
 - `karaoke_explorer.html` is the app entry point.
 - `karaoke_explorer.css` contains the interface styles.
-- `karaoke_explorer.js` contains all browser-side search, browse, filter, grouping, favorites, and setlist logic.
-- `personal-songbook.js` contains the repertoire, guided picker, and era-overlay logic.
+- `karaoke_explorer.js` contains the core app initialization, catalog preparation, search ranking, cards, and URL/history state.
+- `filters-panel.js` contains the multi-select filter popovers, faceted counts, and active filter chips.
+- `browse-discover.js` contains the Discover shelves, batched Song Browse, lazy Artist Browse, and result grouping.
+- `setlist-panel.js` contains the setlist queue, singer editing, Draft/Swap, QR sharing, and snackbar logic.
+- `personal-songbook.js` contains the saved-songs notes/repertoire, guided picker, and era/audio overlay logic.
 - `stage-effects.js` contains the decorative effects (`window.StageFx`).
 - `vercel.json` rewrites `/` to `karaoke_explorer.html`.
 

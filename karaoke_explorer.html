@@ -6,15 +6,18 @@
     <title>Karaoke Songbook</title>
     <meta name="theme-color" content="#f5f4fa" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#14121d" media="(prefers-color-scheme: dark)">
-    <link rel="icon" href="app-icon.svg?v=20261121-1" type="image/svg+xml">
-    <link rel="apple-touch-icon" href="apple-touch-icon.png?v=20261121-1">
+    <link rel="icon" href="app-icon.svg?v=20261121-2" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png?v=20261121-2">
     <link rel="manifest" href="manifest.json">
     <link rel="preload" href="fonts/space-grotesk-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="karaoke_explorer.css?v=20261121-1">
-    <script defer src="qrcode.js?v=20261121-1"></script>
-    <script defer src="personal-songbook.js?v=20261121-1"></script>
-    <script defer src="stage-effects.js?v=20261121-1"></script>
-    <script defer src="karaoke_explorer.js?v=20261121-1"></script>
+    <link rel="stylesheet" href="karaoke_explorer.css?v=20261121-2">
+    <script defer src="qrcode.js?v=20261121-2"></script>
+    <script defer src="personal-songbook.js?v=20261121-2"></script>
+    <script defer src="stage-effects.js?v=20261121-2"></script>
+    <script defer src="filters-panel.js?v=20261121-2"></script>
+    <script defer src="browse-discover.js?v=20261121-2"></script>
+    <script defer src="setlist-panel.js?v=20261121-2"></script>
+    <script defer src="karaoke_explorer.js?v=20261121-2"></script>
 </head>
 <body>
     <svg xmlns="http://www.w3.org/2000/svg" class="icon-sprite" aria-hidden="true" focusable="false">
@@ -195,12 +198,12 @@
                 <div class="search-notice" id="searchNotice" hidden></div>
                 <div class="random-pick" id="randomPick" hidden></div>
                 <div class="results-list" id="resultsList"></div>
+                <div class="browse-list" id="browseList" hidden></div>
                 <div class="results-sentinel" id="resultsSentinel" aria-hidden="true"></div>
                 <div class="result-actions" id="resultActions" hidden>
                     <button id="showMoreResultsButton" class="command subtle-command" type="button">Show more</button>
                     <button id="showAllResultsButton" class="command subtle-command" type="button">Show all</button>
                 </div>
-                <div class="browse-list" id="browseList" hidden></div>
             </section>
 
             <aside class="setlist-panel" aria-labelledby="setlistTitle">

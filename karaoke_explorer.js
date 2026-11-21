@@ -1,4 +1,4 @@
-const APP_VERSION = "20261121-1";
+const APP_VERSION = "20261121-2";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const TAG_CONSOLIDATION_URL = `tag_consolidation.json?v=${APP_VERSION}`;
 const MOOD_CONSOLIDATION_URL = `mood_consolidation.json?v=${APP_VERSION}`;
@@ -11,45 +11,7 @@ const SEARCH_SCOPES = ["all", "song", "artist"];
 const ROUTE_PARAMS = ["q", "scope", "sort", "mood", "genre", "decade", "holiday",
     "duet", "popular", "favorites", "fuzzy", "mode", "by", "letter", "exact"];
 
-const MULTI_FILTER_DEFS = [
-    {
-        key: "moods",
-        param: "mood",
-        label: "Mood",
-        anyLabel: "Any mood",
-        pickHint: "Pick any number of moods",
-        options: () => state.availableMoods,
-        matches: (song, value) => matchesFilterKey(song, "moods", value),
-    },
-    {
-        key: "genres",
-        param: "genre",
-        label: "Genre",
-        anyLabel: "Any genre",
-        pickHint: "Pick any number of genres",
-        options: () => state.availableGenres,
-        matches: (song, value) => matchesFilterKey(song, "genres", value),
-    },
-    {
-        key: "decades",
-        param: "decade",
-        label: "Decade",
-        anyLabel: "Any decade",
-        pickHint: "Pick any number of decades",
-        options: () => state.availableDecades,
-        matches: (song, value) => matchesFilterKey(song, "decades", value),
-    },
-    {
-        key: "holidays",
-        param: "holiday",
-        label: "Holiday",
-        anyLabel: "Any holiday",
-        pickHint: "Pick any number of holidays",
-        options: () => state.availableHolidays,
-        matches: (song, value) => matchesFilterKey(song, "holidays", value),
-    },
-];
-const multiFilterControls = new Map();
+// MULTI_FILTER_DEFS and multiFilterControls live in filters-panel.js.
 const TAG_GENRE_MIN_COUNT = 50;
 const THEME_STORAGE_KEY = "karaokeTheme";
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -229,7 +191,6 @@ const GENRE_TAG_LABELS = {
 const loadStatusTimers = [];
 let searchRenderTimer = 0;
 let songbookLoadPending = false;
-let draggedSetlistIndex = null;
 let activeSheet = null;
 let renderedMode = "";
 let lastSungQuery = "";
@@ -243,6 +204,7 @@ const state = {
     currentSongs: [],
     matchCount: 0,
     resultLimit: RESULT_BATCH_SIZE,
+    browseLimit: RESULT_BATCH_SIZE,
     query: "",
     searchScope: "all",
     exactArtist: false,
@@ -531,18 +493,21 @@ function bindEvents() {
     els.browseModeButton.addEventListener("click", () => {
         state.pushHistory = true;
         state.mode = "browse";
+        resetBrowseLimit();
         ensureBrowseLetter();
         render();
     });
 
     els.browseSongButton.addEventListener("click", () => {
         state.browseBy = "song";
+        resetBrowseLimit();
         ensureBrowseLetter();
         render();
     });
 
     els.browseArtistButton.addEventListener("click", () => {
         state.browseBy = "artist";
+        resetBrowseLimit();
         ensureBrowseLetter();
         render();
     });
@@ -556,11 +521,19 @@ function bindEvents() {
     });
 
     els.showMoreResultsButton.addEventListener("click", () => {
+        if (state.mode === "browse" && state.browseBy === "song") {
+            appendSongBrowseBatch(state.browseLimit + RESULT_BATCH_SIZE);
+            return;
+        }
         state.resultLimit = Math.min(state.resultLimit + RESULT_BATCH_SIZE, state.matchCount);
         render();
     });
 
     els.showAllResultsButton.addEventListener("click", () => {
+        if (state.mode === "browse" && state.browseBy === "song") {
+            appendSongBrowseBatch(state.matchCount);
+            return;
+        }
         state.resultLimit = state.matchCount;
         render();
     });
@@ -771,12 +744,24 @@ function yieldSongbookWork() {
     return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
+async function forEachSongbookInChunks(items, visit) {
+    let sliceStart = performance.now();
+    for (let index = 0; index < items.length; index++) {
+        visit(items[index], index);
+        if ((index & 31) === 31 && performance.now() - sliceStart >= 8) {
+            await yieldSongbookWork();
+            sliceStart = performance.now();
+        }
+    }
+    await yieldSongbookWork();
+}
+
 async function mapSongbookInChunks(items, transform) {
     const result = new Array(items.length);
     let sliceStart = performance.now();
     for (let index = 0; index < items.length; index++) {
         result[index] = transform(items[index], index);
-        if (index % 32 === 31 && performance.now() - sliceStart >= 8) {
+        if ((index & 31) === 31 && performance.now() - sliceStart >= 8) {
             await yieldSongbookWork();
             sliceStart = performance.now();
         }
@@ -786,98 +771,238 @@ async function mapSongbookInChunks(items, transform) {
     return result;
 }
 
+async function sortSongbookInChunks(items, compare) {
+    const runSize = 2048;
+    if (items.length <= runSize) {
+        return [...items].sort(compare);
+    }
+
+    let runs = [];
+    for (let start = 0; start < items.length; start += runSize) {
+        runs.push(items.slice(start, start + runSize).sort(compare));
+        await yieldSongbookWork();
+    }
+
+    while (runs.length > 1) {
+        const nextRuns = [];
+        for (let i = 0; i < runs.length; i += 2) {
+            if (i + 1 >= runs.length) {
+                nextRuns.push(runs[i]);
+                continue;
+            }
+            const left = runs[i];
+            const right = runs[i + 1];
+            const merged = new Array(left.length + right.length);
+            let a = 0;
+            let b = 0;
+            let out = 0;
+            let sliceStart = performance.now();
+            while (a < left.length && b < right.length) {
+                merged[out++] = compare(left[a], right[b]) <= 0 ? left[a++] : right[b++];
+                if ((out & 127) === 0 && performance.now() - sliceStart >= 8) {
+                    await yieldSongbookWork();
+                    sliceStart = performance.now();
+                }
+            }
+            while (a < left.length) merged[out++] = left[a++];
+            while (b < right.length) merged[out++] = right[b++];
+            nextRuns.push(merged);
+            await yieldSongbookWork();
+        }
+        runs = nextRuns;
+    }
+
+    return runs[0] || [];
+}
+
 async function useSongs(songs) {
     if (!Array.isArray(songs) || !songs.length) {
         throw new Error("Invalid songbook data");
     }
-    await mapSongbookInChunks(songs, (song) => {
-        if (!song || typeof song.song !== "string" || typeof song.artist !== "string" ||
-            ["genres", "moods", "eras", "tags", "flags"].some((key) =>
-                song[key] !== undefined && (!Array.isArray(song[key]) ||
-                    song[key].some((value) => typeof value !== "string")))) {
+
+    const variantsByKey = new Map();
+    const tagCounts = new Map();
+    const tagLabelsByKey = new Map();
+    const useConsolidatedGenres = state.tagConsolidation.genreTags.size > 0;
+
+    // Pass 1: validate schema, gather artist variants, and count tags in one scan.
+    await forEachSongbookInChunks(songs, (song) => {
+        if (!song || typeof song.song !== "string" || typeof song.artist !== "string") {
             throw new Error("Invalid songbook data");
         }
+        for (const key of ["genres", "moods", "eras", "tags", "flags"]) {
+            const list = song[key];
+            if (list !== undefined) {
+                if (!Array.isArray(list)) {
+                    throw new Error("Invalid songbook data");
+                }
+                for (let i = 0; i < list.length; i++) {
+                    if (typeof list[i] !== "string") {
+                        throw new Error("Invalid songbook data");
+                    }
+                }
+            }
+        }
+
+        const artistKey = getArtistKey(song);
+        if (artistKey) {
+            let variants = variantsByKey.get(artistKey);
+            if (!variants) {
+                variants = new Map();
+                variantsByKey.set(artistKey, variants);
+            }
+            for (const name of getArtistNameCandidates(song)) {
+                variants.set(name, (variants.get(name) || 0) + 1);
+            }
+        }
+
+        const tags = song.tags;
+        if (tags && tags.length) {
+            const seen = new Set();
+            for (let i = 0; i < tags.length; i++) {
+                const tag = tags[i];
+                const key = normalize(tag);
+                if (!key || seen.has(key)) {
+                    continue;
+                }
+                seen.add(key);
+                tagCounts.set(key, (tagCounts.get(key) || 0) + 1);
+                if (!useConsolidatedGenres) {
+                    let labels = tagLabelsByKey.get(key);
+                    if (!labels) {
+                        labels = new Map();
+                        tagLabelsByKey.set(key, labels);
+                    }
+                    labels.set(tag, (labels.get(tag) || 0) + 1);
+                }
+            }
+        }
     });
-    const artistNames = await buildCanonicalArtistNames(songs);
-    const preparedSongs = await mapSongbookInChunks(songs, (song, index) => {
+
+    const artistNames = new Map();
+    for (const [key, variants] of variantsByKey.entries()) {
+        artistNames.set(key, chooseArtistNameVariant(variants));
+    }
+    await yieldSongbookWork();
+
+    const consolidatedGenres = state.tagConsolidation.genreTags;
+    const promotedGenreTags = useConsolidatedGenres
+        ? new Map([...tagCounts.entries()]
+            .filter(([key, count]) => count >= state.tagConsolidation.minLastFmSongs && consolidatedGenres.has(key))
+            .map(([key]) => [key, consolidatedGenres.get(key)])
+            .sort((a, b) => compareText(a[1], b[1])))
+        : new Map([...tagCounts.entries()]
+            .filter(([key, count]) => count >= TAG_GENRE_MIN_COUNT && isGenreLikeTag(key))
+            .map(([key]) => [key, formatGenreTagLabel(key, tagLabelsByKey.get(key))])
+            .sort((a, b) => compareText(a[1], b[1])));
+    await yieldSongbookWork();
+
+    const scores = [];
+    const availableMoodsSet = new Set();
+    const availableGenresSet = new Set();
+    const availableDecadesSet = new Set();
+    const availableHolidaysSet = new Set();
+
+    // Pass 2: build each prepared & enriched song object in a single allocation,
+    // keeping fuzzy word lists lazy and collecting available facets inline.
+    const enrichedSongs = await mapSongbookInChunks(songs, (song, index) => {
         const artistKey = getArtistKey(song);
         const displayArtist = artistNames.get(artistKey) || getPrimaryArtistName(song);
-        const artistSources = [
-            displayArtist,
-            song.artist,
-            song.lookupArtist,
-        ].join(" ");
+        const artistSources = `${displayArtist} ${song.artist || ""} ${song.lookupArtist || ""}`;
+        const songSortText = normalize(song.song);
+        const artistSortText = normalize(displayArtist);
         const songSearchText = normalizeSearchText(song.song);
         const artistSearchText = normalizeSearchText(artistSources);
         const displayArtistSearchText = normalizeSearchText(displayArtist);
+        const normalizedArtist = artistKey || normalize(song.artist);
+        const rawTags = song.tags || [];
+        const rawGenres = song.genres || [];
+        const rawMoods = song.moods || [];
+        const rawEras = song.eras || [];
+        const rawFlags = song.flags || [];
 
-        return {
+        const normalizedTags = rawTags.length ? rawTags.map(normalize) : [];
+        const normalizedRawGenres = rawGenres.length ? rawGenres.map(normalize) : [];
+        const normalizedFlags = rawFlags.length ? rawFlags.map(normalize) : [];
+
+        const promotedValues = [];
+        for (let i = 0; i < normalizedTags.length; i++) {
+            const label = promotedGenreTags.get(normalizedTags[i]);
+            if (label) promotedValues.push(label);
+        }
+        const sourceGenres = promotedValues.length ? dedupeValues(promotedValues) : [];
+        const allGenres = sourceGenres.length
+            ? dedupeValues([...rawGenres, ...sourceGenres])
+            : (rawGenres.length ? dedupeValues(rawGenres) : []);
+        const genreKeys = allGenres.map(normalize);
+
+        const preparedSong = {
             ...song,
             artistKey,
             displayArtist,
             id: getSongIdentity(song),
-            legacyId: `${artistKey || normalize(song.artist)}\u001f${normalize(song.song)}\u001f${index}`,
-            songLetter: getBrowseLetter(song.song),
-            artistLetter: getBrowseLetter(displayArtist),
+            legacyId: `${normalizedArtist}\u001f${songSortText}\u001f${index}`,
+            songLetter: getBrowseLetterFromNormalized(songSortText),
+            artistLetter: getBrowseLetterFromNormalized(artistSortText),
             songSearchText,
             artistSearchText,
             displayArtistSearchText,
             allSearchText: `${songSearchText} ${artistSearchText}`,
-            songSortText: normalize(song.song),
-            artistSortText: normalize(displayArtist),
-            songWords: getSearchWords(song.song),
-            artistWords: getSearchWords(artistSources),
-        };
-    });
-
-    const promotedGenreTags = await getPromotedGenreTagMap(preparedSongs);
-    const enrichedSongs = await mapSongbookInChunks(preparedSongs, (song) => {
-        const sourceGenres = getPromotedGenresForSong(song, promotedGenreTags);
-        const allGenres = dedupeValues([...(song.genres || []), ...sourceGenres]);
-        const enrichedSong = {
-            ...song,
+            songSortText,
+            artistSortText,
             sourceGenres,
             allGenres,
         };
-        const sourceMoods = getConsolidatedMoodsForSong(enrichedSong);
-        const allMoods = dedupeValues([...(song.moods || []), ...sourceMoods]);
-        const preparedSong = enrichedSong;
+
+        const sourceMoods = getConsolidatedMoodsForSong(preparedSong, normalizedTags, genreKeys);
+        const allMoods = sourceMoods.length
+            ? dedupeValues([...rawMoods, ...sourceMoods])
+            : (rawMoods.length ? dedupeValues(rawMoods) : []);
         preparedSong.sourceMoods = sourceMoods;
         preparedSong.allMoods = allMoods;
 
         // Precomputed lookup structures keep per-keystroke filtering and
         // faceted counting off the regex/normalize hot path.
-        preparedSong.holidayValues = computeHolidayValues(preparedSong);
-        preparedSong.isDuet = hasFlag(preparedSong, "Duet");
+        preparedSong.holidayValues = computeHolidayValues(preparedSong, {
+            songSortText,
+            rawGenres: normalizedRawGenres,
+            tags: normalizedTags,
+            flags: normalizedFlags,
+        });
+        preparedSong.isDuet = normalizedFlags.includes("duet");
         preparedSong.filterKeys = {
             moods: new Set(allMoods.map(normalize)),
-            genres: new Set(preparedSong.allGenres.map(normalize)),
-            decades: new Set((song.eras || []).map(normalize)),
+            genres: new Set(genreKeys),
+            decades: new Set(rawEras.map(normalize)),
             holidays: new Set(preparedSong.holidayValues.map(normalize)),
         };
 
+        if (song.popularity) scores.push(song.popularity);
+        for (const value of allMoods) if (value) availableMoodsSet.add(value);
+        for (const value of allGenres) if (value) availableGenresSet.add(value);
+        for (const value of rawEras) if (value) availableDecadesSet.add(value);
+        for (const value of preparedSong.holidayValues) if (value) availableHolidaysSet.add(value);
+
         return preparedSong;
     });
+
     // "Popular" marks the top decile of songs that have a popularity score.
-    const scores = enrichedSongs
-        .map((song) => song.popularity || 0)
-        .filter(Boolean)
-        .sort((a, b) => a - b);
+    scores.sort((a, b) => a - b);
     const popularThreshold = scores.length
         ? scores[Math.floor(scores.length * POPULAR_PILL_PERCENTILE)]
         : 0;
     await yieldSongbookWork();
-    const defaultRankedSongs = [...enrichedSongs].sort((a, b) =>
+
+    const defaultRankedSongs = await sortSongbookInChunks(enrichedSongs, (a, b) =>
         (b.popularity || 0) - (a.popularity || 0) ||
         (b.confidence || 0) - (a.confidence || 0) ||
         compareArtistSort(a, b) ||
         compareSongSort(a, b)
     );
-    await yieldSongbookWork();
-    const availableMoods = getAvailableValues(getSongMoods, enrichedSongs);
-    const availableGenres = getAvailableValues(getSongGenres, enrichedSongs);
-    const availableDecades = getAvailableDecades(enrichedSongs);
-    const availableHolidays = getAvailableValues(getHolidayValues, enrichedSongs);
+    const availableMoods = [...availableMoodsSet].sort(compareText);
+    const availableGenres = [...availableGenresSet].sort(compareText);
+    const availableDecades = [...availableDecadesSet].sort(compareDecade);
+    const availableHolidays = [...availableHolidaysSet].sort(compareText);
     await yieldSongbookWork();
 
     // Publish the complete catalog together; renders during preparation must
@@ -1051,6 +1176,8 @@ async function loadMoodConsolidation() {
 function createEmptyMoodConsolidation() {
     return {
         moods: [],
+        tagToLabels: new Map(),
+        phraseRules: [],
     };
 }
 
@@ -1069,6 +1196,22 @@ function normalizeMoodConsolidation(raw = {}) {
             return { label, tags, contains };
         })
         .filter((rule) => rule.label && (rule.tags.size || rule.contains.length));
+
+    for (const rule of normalized.moods) {
+        for (const tag of rule.tags) {
+            let labels = normalized.tagToLabels.get(tag);
+            if (!labels) {
+                labels = [];
+                normalized.tagToLabels.set(tag, labels);
+            }
+            if (!labels.includes(rule.label)) {
+                labels.push(rule.label);
+            }
+        }
+        if (rule.contains.length) {
+            normalized.phraseRules.push(rule);
+        }
+    }
 
     return normalized;
 }
@@ -1095,7 +1238,7 @@ function render() {
         els.shuffleShelvesButton.hidden = true;
         renderBrowse();
         renderGroupActions();
-        renderStatus(getBrowseSongs().length);
+        renderStatus(state.matchCount);
         renderResultContext();
         saveUiState();
         hydrateIcons();
@@ -1253,6 +1396,13 @@ function bindResultsSentinel() {
             return;
         }
 
+        if (state.mode === "browse") {
+            if (state.browseBy === "song" && state.visibleSongs.length < state.matchCount) {
+                appendSongBrowseBatch(state.browseLimit + RESULT_BATCH_SIZE);
+            }
+            return;
+        }
+
         if (state.mode !== "search" || isDiscoverView()) {
             return;
         }
@@ -1386,13 +1536,7 @@ function trapSheetFocus(event) {
     }
 }
 
-function countActiveFilters() {
-    return MULTI_FILTER_DEFS.reduce((count, def) => count + state.filters[def.key].length, 0) +
-        Number(state.filters.duet) +
-        Number(state.filters.popular) +
-        Number(state.favoriteOnly) +
-        Number(state.fuzzySearch);
-}
+// countActiveFilters lives in filters-panel.js.
 
 function renderMode() {
     const isBrowse = state.mode === "browse";
@@ -1517,42 +1661,7 @@ function rankSongs(songs, query, { fuzzy = state.fuzzySearch } = {}) {
         .map((item) => item.song);
 }
 
-function applySearchFilters(songs, excludeKey = "") {
-    const selections = [];
-    for (const def of MULTI_FILTER_DEFS) {
-        if (def.key !== excludeKey && state.filters[def.key].length) {
-            selections.push({ key: def.key, keys: state.filters[def.key].map(normalize) });
-        }
-    }
-
-    return songs.filter((song) => {
-        for (const selection of selections) {
-            const songKeys = song.filterKeys?.[selection.key];
-            if (!songKeys || !selection.keys.some((key) => songKeys.has(key))) {
-                return false;
-            }
-        }
-
-        if (state.filters.duet && !song.isDuet) {
-            return false;
-        }
-
-        if (state.filters.popular &&
-            !(state.popularThreshold && (song.popularity || 0) >= state.popularThreshold)) {
-            return false;
-        }
-
-        if (state.favoriteOnly && !isFavorite(song)) {
-            return false;
-        }
-
-        return true;
-    });
-}
-
-function matchesFilterKey(song, key, value) {
-    return Boolean(song.filterKeys?.[key]?.has(normalize(value)));
-}
+// applySearchFilters and matchesFilterKey live in filters-panel.js.
 
 function sortSongs(songs) {
     const mode = state.sortMode;
@@ -1626,18 +1735,7 @@ function resetResultLimit() {
     state.groupOpenStates.clear();
 }
 
-function clearSearchFilters({ resetFuzzy = true } = {}) {
-    for (const def of MULTI_FILTER_DEFS) {
-        state.filters[def.key] = [];
-    }
-    state.filters.duet = false;
-    state.filters.popular = false;
-    state.favoriteOnly = false;
-
-    if (resetFuzzy) {
-        state.fuzzySearch = false;
-    }
-}
+// clearSearchFilters lives in filters-panel.js.
 
 function clearSearchQuery({ resetScope = true } = {}) {
     leaveArtistView();
@@ -1669,313 +1767,7 @@ function leaveArtistView() {
     updateSearchPlaceholder();
 }
 
-function renderDiscover() {
-    els.resultsList.innerHTML = "";
-    els.resultsList.classList.remove("is-grouped");
-    els.resultsList.classList.add("is-discover");
-    renderGroupActions();
-
-    const fragment = document.createDocumentFragment();
-    const recents = createRecentSearchesRow();
-    if (recents) {
-        fragment.appendChild(recents);
-    }
-
-    for (const shelf of buildDiscoverShelves()) {
-        fragment.appendChild(createShelf(shelf));
-    }
-
-    const foot = document.createElement("div");
-    foot.className = "discover-foot";
-    foot.appendChild(createEmptyAction("Browse titles A–Z", () => {
-        state.mode = "browse";
-        state.browseBy = "song";
-        ensureBrowseLetter();
-        render();
-    }));
-    foot.appendChild(createEmptyAction("Browse artists A–Z", () => {
-        state.mode = "browse";
-        state.browseBy = "artist";
-        ensureBrowseLetter();
-        render();
-    }));
-    fragment.appendChild(foot);
-
-    els.resultsList.appendChild(fragment);
-}
-
-function createRecentSearchesRow() {
-    if (!state.recentSearches.length) {
-        return null;
-    }
-
-    const row = document.createElement("div");
-    row.className = "recent-searches";
-
-    const label = document.createElement("span");
-    label.className = "filter-label";
-    label.textContent = "Recent";
-    row.appendChild(label);
-
-    for (const query of state.recentSearches) {
-        const chip = document.createElement("button");
-        chip.className = "empty-suggestion";
-        chip.type = "button";
-        chip.textContent = query;
-        chip.title = `Search “${query}” again`;
-        chip.addEventListener("click", () => {
-            leaveArtistView();
-            state.query = query;
-            els.searchInput.value = query;
-            state.mode = "search";
-            resetResultLimit();
-            render();
-        });
-        row.appendChild(chip);
-    }
-
-    const clear = document.createElement("button");
-    clear.className = "multi-clear";
-    clear.type = "button";
-    clear.textContent = "Clear";
-    clear.title = "Clear recent searches";
-    clear.addEventListener("click", () => {
-        state.recentSearches = [];
-        saveRecentSearches();
-        render();
-    });
-    row.appendChild(clear);
-
-    return row;
-}
-
-function buildDiscoverShelves() {
-    const shelves = [];
-
-    const favorites = state.songs
-        .filter((song) => isFavorite(song))
-        .sort((a, b) => compareArtistSort(a, b) || compareSongSort(a, b));
-    if (favorites.length) {
-        shelves.push({
-            title: "Your saved songs",
-            songs: favorites.slice(0, 8),
-            seeAll: () => applyShelfFilter(() => {
-                state.favoriteOnly = true;
-            }),
-        });
-    }
-
-    if (!state.cachedDiscoverShelves) {
-        state.cachedDiscoverShelves = buildSampledShelves();
-    }
-
-    return [...shelves, ...state.cachedDiscoverShelves];
-}
-
-function buildSampledShelves() {
-    const shelves = [];
-    const tagged = state.songs.filter((song) => song.status === "ok");
-
-    const popular = state.songs.filter((song) => (song.popularity || 0) > 0);
-    if (popular.length >= 100) {
-        const top = [...popular]
-            .sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
-            .slice(0, 800);
-        shelves.push({ title: "Crowd pleasers", songs: sampleSongs(top, 8) });
-    }
-
-    shelves.push({
-        title: "Lucky dip",
-        songs: sampleSongs(tagged.length ? tagged : state.songs, 8),
-    });
-
-    const seasonalHoliday = getSeasonalHoliday();
-    if (seasonalHoliday) {
-        shelves.push({
-            title: `${seasonalHoliday} songs`,
-            songs: sampleSongs(state.songs.filter((song) => getHolidayValues(song).includes(seasonalHoliday)), 8),
-            seeAll: () => applyPillFilter("holiday", seasonalHoliday),
-        });
-    }
-
-    for (const mood of ["Singalong", "Party"]) {
-        const label = findAvailableValue(state.availableMoods, mood);
-        if (!label) {
-            continue;
-        }
-
-        shelves.push({
-            title: label,
-            songs: sampleSongs(state.songs.filter((song) => includesValue(getSongMoods(song), label)), 8),
-            seeAll: () => applyPillFilter("mood", label),
-        });
-    }
-
-    const duets = state.songs.filter((song) => song.isDuet);
-    if (duets.length) {
-        shelves.push({
-            title: "Duets",
-            songs: sampleSongs(duets, 8),
-            seeAll: () => applyShelfFilter(() => {
-                state.filters.duet = true;
-            }),
-        });
-    }
-
-    for (const decade of ["70s", "80s", "90s"]) {
-        const label = findAvailableValue(state.availableDecades, decade);
-        if (!label) {
-            continue;
-        }
-
-        shelves.push({
-            title: `Big in the ${label}`,
-            songs: sampleSongs(state.songs.filter((song) => (song.eras || []).includes(label)), 8),
-            seeAll: () => applyPillFilter("decade", label),
-        });
-    }
-
-    return shelves.filter((shelf) => shelf.songs.length >= 4);
-}
-
-function getSeasonalHoliday() {
-    const month = new Date().getMonth();
-    let target = "";
-    if (month === 9) {
-        target = "Halloween";
-    } else if (month === 10 || month === 11) {
-        target = "Christmas";
-    }
-
-    return target ? findAvailableValue(state.availableHolidays, target) : "";
-}
-
-function findAvailableValue(values, target) {
-    const key = normalize(target);
-    return (values || []).find((value) => normalize(value) === key) || "";
-}
-
-function sampleSongs(pool, count) {
-    const shuffled = [...pool];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-
-    const picked = [];
-    const usedArtists = new Set();
-    for (const song of shuffled) {
-        const artistKey = song.artistKey || normalize(getDisplayArtist(song));
-        if (usedArtists.has(artistKey)) {
-            continue;
-        }
-
-        usedArtists.add(artistKey);
-        picked.push(song);
-        if (picked.length === count) {
-            return picked;
-        }
-    }
-
-    for (const song of shuffled) {
-        if (picked.length === count) {
-            break;
-        }
-
-        if (!picked.includes(song)) {
-            picked.push(song);
-        }
-    }
-
-    return picked;
-}
-
-function applyShelfFilter(mutate) {
-    state.pushHistory = true;
-    mutate();
-    state.mode = "search";
-    resetResultLimit();
-    render();
-    scrollResultsIntoView();
-}
-
-function createShelf(shelf) {
-    const section = document.createElement("section");
-    section.className = "shelf";
-
-    const head = document.createElement("div");
-    head.className = "shelf-head";
-
-    const title = document.createElement("h3");
-    title.textContent = shelf.title;
-    head.appendChild(title);
-
-    const controls = document.createElement("div");
-    controls.className = "shelf-controls";
-
-    const row = document.createElement("div");
-    row.className = "shelf-row";
-    row.setAttribute("tabindex", "0");
-    row.setAttribute("role", "group");
-    row.setAttribute("aria-label", shelf.title);
-    for (const song of shelf.songs) {
-        row.appendChild(createSongCard(song));
-    }
-
-    const back = document.createElement("button");
-    back.className = "shelf-arrow";
-    back.type = "button";
-    back.title = "Scroll back";
-    back.setAttribute("aria-label", `Scroll ${shelf.title} back`);
-    back.innerHTML = '<i data-lucide="chevron-left" aria-hidden="true"></i>';
-    back.addEventListener("click", () => nudgeShelf(row, -1));
-
-    const forward = document.createElement("button");
-    forward.className = "shelf-arrow";
-    forward.type = "button";
-    forward.title = "Scroll forward";
-    forward.setAttribute("aria-label", `Scroll ${shelf.title} forward`);
-    forward.innerHTML = '<i data-lucide="chevron-right" aria-hidden="true"></i>';
-    forward.addEventListener("click", () => nudgeShelf(row, 1));
-
-    controls.append(back, forward);
-
-    if (shelf.seeAll) {
-        const seeAll = document.createElement("button");
-        seeAll.className = "see-all";
-        seeAll.type = "button";
-        seeAll.textContent = "See all";
-        seeAll.title = `See all: ${shelf.title}`;
-        seeAll.addEventListener("click", shelf.seeAll);
-        controls.appendChild(seeAll);
-    }
-
-    head.appendChild(controls);
-
-    const wrap = document.createElement("div");
-    wrap.className = "shelf-row-wrap";
-    wrap.appendChild(row);
-
-    const syncShelfEdges = () => {
-        const overflow = row.scrollWidth - row.clientWidth;
-        wrap.classList.toggle("at-start", row.scrollLeft <= 4);
-        wrap.classList.toggle("at-end", row.scrollLeft >= overflow - 4);
-        section.classList.toggle("no-overflow", overflow <= 4);
-    };
-    row.addEventListener("scroll", syncShelfEdges, { passive: true });
-    requestAnimationFrame(syncShelfEdges);
-
-    section.append(head, wrap);
-    return section;
-}
-
-function nudgeShelf(row, direction) {
-    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    row.scrollBy({
-        left: direction * Math.max(row.clientWidth - 80, 200),
-        behavior: reduceMotion ? "auto" : "smooth",
-    });
-}
+// Discover shelves and sampling live in browse-discover.js.
 
 function renderResults() {
     els.resultsList.innerHTML = "";
@@ -2164,227 +1956,7 @@ function getEmptySearchHelp(limit = 5) {
     };
 }
 
-function renderGroupedSearchResults() {
-    const fragment = document.createDocumentFragment();
-    const sortMode = state.sortMode;
-
-    if (sortMode === "artist") {
-        for (const group of groupByArtist(state.visibleSongs)) {
-            const section = createBrowseSection(group.artist, group.songs.length, shouldOpenGroup(group.songs.length));
-            const body = section.querySelector(".browse-items");
-
-            for (const song of group.songs) {
-                body.appendChild(createGroupedSongRow(song, false));
-            }
-
-            fragment.appendChild(section);
-        }
-    } else {
-        const groups = groupBySongLetter(state.visibleSongs);
-        for (const group of groups) {
-            const section = createBrowseSection(group.letter, group.songs.length, shouldOpenGroup(group.songs.length));
-            const body = section.querySelector(".browse-items");
-
-            for (const song of group.songs) {
-                body.appendChild(createGroupedSongRow(song, true));
-            }
-
-            fragment.appendChild(section);
-        }
-    }
-
-    els.resultsList.appendChild(fragment);
-}
-
-function renderGroupActions() {
-    const browseGrouped = state.mode === "browse" && state.browseBy === "artist";
-    const searchGrouped = shouldGroupSearchResults() && state.visibleSongs.length > 0;
-    els.groupActions.hidden = !browseGrouped && !searchGrouped;
-    els.expandGroupsButton.disabled = state.groupOpenMode === "expanded";
-    els.collapseGroupsButton.disabled = state.groupOpenMode === "collapsed";
-}
-
-function setGroupedResultsOpen(open) {
-    state.groupOpenStates.clear();
-    state.groupOpenMode = open ? "expanded" : "collapsed";
-    const container = state.mode === "browse" ? els.browseList : els.resultsList;
-    for (const section of container.querySelectorAll(".browse-section")) {
-        section.open = open;
-    }
-    renderGroupActions();
-}
-
-function shouldOpenGroup(count) {
-    if (state.groupOpenMode === "expanded") {
-        return true;
-    }
-
-    if (state.groupOpenMode === "collapsed") {
-        return false;
-    }
-
-    return Boolean(state.query) || (state.sortMode === "artist" && count <= 8);
-}
-
-function createGroupedSongRow(song, showArtist) {
-    const row = document.createElement("div");
-    row.className = showArtist ? "browse-row" : "artist-song-row";
-
-    const title = document.createElement("div");
-    title.className = "browse-title";
-    setHighlightedText(title, getDisplaySongTitle(song), getQueryTokens());
-
-    if (showArtist) {
-        row.append(title, createArtistSearchControl(song, "browse-artist"), createRowTools(song));
-    } else {
-        row.append(title, createRowTools(song));
-    }
-
-    return row;
-}
-
-function renderBrowse() {
-    renderBrowseControls();
-    els.browseList.innerHTML = "";
-
-    const songs = getBrowseSongs();
-    state.currentSongs = sortForBrowse(songs);
-    if (!songs.length) {
-        els.browseList.innerHTML = '<p class="empty-state">No songs in this letter</p>';
-        return;
-    }
-
-    const fragment = document.createDocumentFragment();
-    if (state.browseBy === "artist") {
-        renderArtistBrowse(songs, fragment);
-    } else {
-        renderSongBrowse(songs, fragment);
-    }
-
-    els.browseList.appendChild(fragment);
-}
-
-function renderBrowseControls() {
-    setToggleState(els.browseSongButton, state.browseBy === "song");
-    setToggleState(els.browseArtistButton, state.browseBy === "artist");
-
-    const counts = getLetterCounts();
-    const letters = ["#", ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"];
-
-    els.letterStrip.innerHTML = "";
-    for (const letter of letters) {
-        const count = counts.get(letter) || 0;
-        const button = document.createElement("button");
-        button.className = "letter-button";
-        button.type = "button";
-        button.dataset.letter = letter;
-        setToggleState(button, state.browseLetter === letter);
-        button.disabled = count === 0;
-        button.textContent = letter;
-        button.addEventListener("click", () => {
-            state.browseLetter = letter;
-            render();
-            // Start the new letter at its top, not the previous list's depth.
-            const panel = els.browseList.closest(".results-panel");
-            if (panel.getBoundingClientRect().top < parseFloat(getComputedStyle(panel).scrollMarginTop)) {
-                scrollResultsIntoView();
-            }
-        });
-        els.letterStrip.appendChild(button);
-    }
-
-    const active = els.letterStrip.querySelector(".letter-button.is-active");
-    if (active) {
-        active.scrollIntoView({ block: "nearest", inline: "center" });
-    }
-}
-
-function renderSongBrowse(songs, fragment) {
-    const section = createBrowseSection(state.browseLetter, songs.length, true);
-    const body = section.querySelector(".browse-items");
-
-    for (const song of sortForBrowse(songs)) {
-        body.appendChild(createBrowseRow(song));
-    }
-
-    fragment.appendChild(section);
-}
-
-function renderArtistBrowse(songs, fragment) {
-    const groups = groupByArtist(songs);
-    for (const group of groups) {
-        const open = state.groupOpenMode === "expanded" ? true
-            : state.groupOpenMode === "collapsed" ? false
-            : groups.length <= 8;
-        const section = createBrowseSection(group.artist, group.songs.length, open);
-        const body = section.querySelector(".browse-items");
-
-        for (const song of group.songs) {
-            const row = document.createElement("div");
-            row.className = "artist-song-row";
-
-            const title = document.createElement("div");
-            title.className = "browse-title";
-            title.textContent = getDisplaySongTitle(song);
-
-            row.append(title, createRowTools(song));
-            body.appendChild(row);
-        }
-
-        fragment.appendChild(section);
-    }
-}
-
-function createBrowseSection(label, count, open) {
-    const section = document.createElement("details");
-    section.className = "browse-section";
-    const key = JSON.stringify([state.mode, state.browseBy, state.sortMode, label]);
-    section.dataset.groupKey = key;
-    section.open = state.groupOpenStates.get(key) ?? open;
-
-    const summary = document.createElement("summary");
-    summary.addEventListener("click", () => {
-        const container = state.mode === "browse" ? els.browseList : els.resultsList;
-        for (const other of container.querySelectorAll(".browse-section")) {
-            state.groupOpenStates.set(other.dataset.groupKey, other.open);
-        }
-        state.groupOpenStates.set(key, !section.open);
-        state.groupOpenMode = "auto";
-        renderGroupActions();
-    });
-    const title = document.createElement("span");
-    title.textContent = label || "Unknown";
-
-    const countLabel = document.createElement("span");
-    countLabel.className = "browse-count";
-    countLabel.textContent = `${Number(count || 0).toLocaleString()} ${count === 1 ? "song" : "songs"}`;
-
-    const body = document.createElement("div");
-    body.className = "browse-items";
-
-    summary.append(title, countLabel);
-    section.append(summary, body);
-    return section;
-}
-
-function createBrowseRow(song) {
-    const row = document.createElement("div");
-    row.className = "browse-row";
-
-    const title = document.createElement("div");
-    title.className = "browse-title";
-    title.textContent = getDisplaySongTitle(song);
-
-    row.append(title, createArtistSearchControl(song, "browse-artist"), createRowTools(song));
-    return row;
-}
-
-function createRowTools(song) {
-    const tools = document.createElement("div");
-    tools.className = "row-tools";
-    tools.append(createFavoriteButton(song), createSongTags(song), createSongLinks(song), createMiniAddButton(song));
-    return tools;
-}
+// Grouped search results and Browse A–Z rendering live in browse-discover.js.
 
 function createFavoriteButton(song) {
     const button = document.createElement("button");
@@ -3143,7 +2715,9 @@ function renderResultContext() {
 
 function renderResultActions(totalMatches) {
     const remaining = totalMatches - state.visibleSongs.length;
-    els.resultActions.hidden = state.mode !== "search" || remaining <= 0;
+    const supportsPagination = state.mode === "search" ||
+        (state.mode === "browse" && state.browseBy === "song");
+    els.resultActions.hidden = !supportsPagination || remaining <= 0;
 
     if (els.resultActions.hidden) {
         return;
@@ -3414,50 +2988,8 @@ function syncUrlState() {
     }
 }
 
-function addToSetlist(song, source) {
-    setPlanningMode(true);
-    recordRecentSearch();
-    const exists = state.setlist.some((item) => isSameSong(item, song));
-    if (!exists) {
-        state.setlist.push(toSetlistEntry(song));
-        saveSetlist();
-        renderSetlist();
-        // The desktop rail scrolls internally; show the entry just added.
-        els.setlist.scrollTop = els.setlist.scrollHeight;
-        showSnackbar(`Added “${getDisplaySongTitle(song)}” to setlist`);
-        window.StageFx?.added(source);
-    }
-}
-
-// Store only what the setlist needs. Copying whole prepared songs dragged
-// ~1.1KB of search indexes per entry into localStorage, and their Set fields
-// serialized to empty objects that would break any code expecting Sets.
-function toSetlistEntry(song, extra = {}) {
-    const entry = {
-        id: song.id,
-        legacyId: song.legacyId,
-        song: song.song,
-        lookupSong: song.lookupSong,
-        artist: song.artist,
-        lookupArtist: song.lookupArtist,
-        displayArtist: song.displayArtist,
-        artistKey: song.artistKey,
-        seconds: song.seconds,
-        ...extra,
-    };
-
-    if (song.singer) {
-        entry.singer = song.singer;
-    }
-
-    for (const key of Object.keys(entry)) {
-        if (entry[key] === undefined) {
-            delete entry[key];
-        }
-    }
-
-    return entry;
-}
+// Setlist management, QR sharing, and snackbar helpers live in setlist-panel.js.
+// Browse letter/grouping helpers live in browse-discover.js.
 
 function toggleFavorite(song) {
     if (isFavorite(song)) {
@@ -3485,669 +3017,6 @@ function isSameSong(left, right) {
     }
 
     return getSongIdentity(left) === getSongIdentity(right);
-}
-
-function ensureBrowseLetter() {
-    const counts = getLetterCounts();
-    if (counts.get(state.browseLetter)) {
-        return;
-    }
-
-    const letters = ["#", ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"];
-    state.browseLetter = letters.find((letter) => counts.get(letter)) || "#";
-}
-
-function getLetterCounts() {
-    const counts = new Map();
-    for (const song of state.songs) {
-        const letter = state.browseBy === "artist" ? song.artistLetter : song.songLetter;
-        counts.set(letter, (counts.get(letter) || 0) + 1);
-    }
-    return counts;
-}
-
-function getBrowseSongs() {
-    return state.songs.filter((song) => {
-        const letter = state.browseBy === "artist" ? song.artistLetter : song.songLetter;
-        return letter === state.browseLetter;
-    });
-}
-
-function sortForBrowse(songs) {
-    return [...songs].sort((a, b) => {
-        if (state.browseBy === "artist") {
-            return compareArtistSort(a, b) || compareSongSort(a, b);
-        }
-
-        return compareSongSort(a, b) || compareArtistSort(a, b);
-    });
-}
-
-function groupByArtist(songs) {
-    const groups = new Map();
-    const sortedSongs = [...songs].sort((a, b) =>
-        compareArtistSort(a, b) || compareSongSort(a, b)
-    );
-
-    for (const song of sortedSongs) {
-        const artist = getDisplayArtist(song) || "Unknown artist";
-        const key = song.artistKey || normalizeArtistKey(artist) || artist;
-        if (!groups.has(key)) {
-            groups.set(key, { artist, songs: [] });
-        }
-        groups.get(key).songs.push(song);
-    }
-
-    return [...groups.values()]
-        .sort((a, b) => compareText(a.artist, b.artist));
-}
-
-function groupBySongLetter(songs) {
-    const groups = new Map();
-    for (const song of [...songs].sort((a, b) => compareSongSort(a, b) || compareArtistSort(a, b))) {
-        const letter = getBrowseLetter(song.song);
-        if (!groups.has(letter)) {
-            groups.set(letter, []);
-        }
-        groups.get(letter).push(song);
-    }
-
-    const order = ["#", ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"];
-    return [...groups.entries()]
-        .map(([letter, letterSongs]) => ({ letter, songs: letterSongs }))
-        .sort((a, b) => order.indexOf(a.letter) - order.indexOf(b.letter));
-}
-
-function shouldGroupSearchResults() {
-    return state.mode === "search" &&
-        (state.sortMode === "artist" || state.sortMode === "song");
-}
-
-function renderSetlist() {
-    personalEl("planSetlistLabel").textContent = state.setlist.length ? `Setlist (${state.setlist.length})` : "Plan a setlist";
-    syncAddButtons();
-    const focusedItem = document.activeElement?.closest(".setlist-item");
-    const focusedSongId = focusedItem?.dataset.songId;
-    const focusedIndex = Number(focusedItem?.dataset.index || 0);
-    const focusedTitle = document.activeElement?.title;
-    els.setlist.innerHTML = "";
-    els.setlistCount.textContent = getSetlistSummary();
-    els.copySetlistButton.disabled = !state.setlist.length;
-    els.clearSetlistButton.disabled = !state.setlist.length;
-    els.mobileSetlistButton.querySelector("span").textContent =
-        state.setlist.length ? `Setlist (${state.setlist.length})` : "Setlist";
-    els.mobileSetlistButton.setAttribute(
-        "aria-label",
-        state.setlist.length ? `Open setlist, ${state.setlist.length} songs` : "Open setlist"
-    );
-
-    if (!state.setlist.length) {
-        const empty = document.createElement("li");
-        empty.className = "empty-state";
-
-        const message = document.createElement("p");
-        message.textContent = "Nothing queued";
-
-        const draft = document.createElement("button");
-        draft.className = "command subtle-command draft-cta";
-        draft.type = "button";
-        draft.innerHTML = '<i data-lucide="dices" aria-hidden="true"></i><span>Draft 10 songs for me</span>';
-        draft.title = "Fill the setlist from your current results";
-        draft.addEventListener("click", draftSetlist);
-
-        empty.append(message, draft);
-        els.setlist.appendChild(empty);
-        hydrateIcons();
-        if (focusedItem) draft.focus({ preventScroll: true });
-        return;
-    }
-
-    const fragment = document.createDocumentFragment();
-    state.setlist.forEach((song, index) => {
-        const item = document.createElement("li");
-        item.className = "setlist-item";
-        item.draggable = true;
-        item.dataset.index = String(index);
-        item.dataset.songId = getSongIdentity(song);
-
-        item.addEventListener("dragstart", (event) => {
-            draggedSetlistIndex = index;
-            item.classList.add("is-dragging");
-            event.dataTransfer.effectAllowed = "move";
-            event.dataTransfer.setData("text/plain", String(index));
-        });
-
-        item.addEventListener("dragover", (event) => {
-            event.preventDefault();
-            item.classList.add("is-drop-target");
-        });
-
-        item.addEventListener("dragleave", () => {
-            item.classList.remove("is-drop-target");
-        });
-
-        item.addEventListener("drop", (event) => {
-            event.preventDefault();
-            item.classList.remove("is-drop-target");
-            const fromIndex = Number(event.dataTransfer.getData("text/plain") || draggedSetlistIndex);
-            reorderSetlist(fromIndex, index);
-        });
-
-        item.addEventListener("dragend", () => {
-            draggedSetlistIndex = null;
-            item.classList.remove("is-dragging", "is-drop-target");
-        });
-
-        const displayTitle = getDisplaySongTitle(song);
-        const number = document.createElement("span");
-        number.className = "setlist-number";
-        number.textContent = String(index + 1);
-
-        const title = document.createElement("span");
-        title.className = "setlist-title";
-        title.textContent = displayTitle;
-
-        const artist = createArtistSearchControl(song, "setlist-artist", { highlight: false });
-
-        const controls = document.createElement("div");
-        controls.className = "setlist-controls";
-
-        const handle = document.createElement("span");
-        handle.className = "setlist-handle";
-        handle.title = "Drag to reorder";
-        handle.innerHTML = '<i data-lucide="grip-vertical" aria-hidden="true"></i>';
-
-        const up = document.createElement("button");
-        up.className = "setlist-icon-button";
-        up.type = "button";
-        up.title = "Move up";
-        up.setAttribute("aria-label", `Move ${displayTitle} up`);
-        up.disabled = index === 0;
-        up.innerHTML = '<i data-lucide="chevron-up" aria-hidden="true"></i>';
-        up.addEventListener("click", () => moveSetlistItem(index, -1));
-
-        const down = document.createElement("button");
-        down.className = "setlist-icon-button";
-        down.type = "button";
-        down.title = "Move down";
-        down.setAttribute("aria-label", `Move ${displayTitle} down`);
-        down.disabled = index === state.setlist.length - 1;
-        down.innerHTML = '<i data-lucide="chevron-down" aria-hidden="true"></i>';
-        down.addEventListener("click", () => moveSetlistItem(index, 1));
-
-        const reroll = document.createElement("button");
-        reroll.className = "setlist-icon-button";
-        reroll.type = "button";
-        reroll.title = "Swap for another match";
-        reroll.setAttribute("aria-label", `Swap ${displayTitle} for another matching song`);
-        reroll.innerHTML = '<i data-lucide="shuffle" aria-hidden="true"></i>';
-        reroll.addEventListener("click", () => rerollSetlistSong(index));
-
-        const remove = document.createElement("button");
-        remove.className = "setlist-icon-button remove-button";
-        remove.type = "button";
-        remove.title = "Remove";
-        remove.setAttribute("aria-label", `Remove ${displayTitle}`);
-        remove.innerHTML = '<i data-lucide="x" aria-hidden="true"></i>';
-        remove.addEventListener("click", () => {
-            const [removed] = state.setlist.splice(index, 1);
-            saveSetlist();
-            renderSetlist();
-            showSnackbar(`Removed “${getDisplaySongTitle(removed)}”`, () => {
-                state.setlist.splice(Math.min(index, state.setlist.length), 0, removed);
-                saveSetlist();
-                renderSetlist();
-            });
-        });
-
-        controls.append(handle, up, down, reroll, remove);
-
-        // Controls share the singer row so the title and artist get the full width.
-        const footer = document.createElement("div");
-        footer.className = "setlist-row";
-        footer.append(createSingerControl(song, item), controls);
-
-        const heading = document.createElement("div");
-        heading.className = "setlist-heading";
-        heading.append(title, artist);
-        const head = document.createElement("div");
-        head.className = "setlist-head";
-        head.appendChild(heading);
-        const catalogSong = getCatalogSong(song);
-        if (catalogSong) head.appendChild(createSongTags(catalogSong));
-
-        const body = document.createElement("div");
-        body.className = "setlist-body";
-        body.append(head, footer);
-        item.append(number, body);
-        fragment.appendChild(item);
-    });
-
-    els.setlist.appendChild(fragment);
-    hydrateIcons();
-    if (focusedItem) {
-        const items = [...els.setlist.querySelectorAll(".setlist-item")];
-        const item = items.find((entry) => entry.dataset.songId === focusedSongId) ||
-            items[Math.min(focusedIndex, items.length - 1)];
-        const buttons = [...(item?.querySelectorAll("button") || [])]
-            .filter((button) => !button.disabled && !button.closest("[hidden]"));
-        (buttons.find((button) => button.title === focusedTitle) ||
-            item?.querySelector(".setlist-row button:not(:disabled)"))?.focus({ preventScroll: true });
-    }
-}
-
-// Setlist entries are trimmed copies (see toSetlistEntry); their tags come from
-// the catalog song with the same identity.
-let catalogIndex = { songs: null, byId: new Map() };
-function getCatalogSong(entry) {
-    if (catalogIndex.songs !== state.songs) {
-        catalogIndex = { songs: state.songs, byId: new Map(state.songs.map((song) => [song.id, song])) };
-    }
-    return catalogIndex.byId.get(entry.id) || catalogIndex.byId.get(getSongIdentity(entry)) || null;
-}
-
-// Artist and tag links in the setlist or a songs dialog lead to search results,
-// as they do on song cards: close whatever covers the results and move there.
-function returnToResults(event) {
-    // Filter tags are buttons; the GetSongBPM pills are links to another site.
-    if (!event.target.closest("button.setlist-artist, button.personal-artist, button.pill.is-clickable")) {
-        return;
-    }
-    closeSongTagMenus();
-    event.target.closest("dialog[open]")?.close();
-    closeSetlistDrawer({ restoreFocus: false });
-    els.resultsTitle.focus({ preventScroll: true });
-}
-
-function createSingerControl(song, item) {
-    const wrap = document.createElement("div");
-    wrap.className = "setlist-singer";
-
-    const startEdit = () => {
-        wrap.innerHTML = "";
-        item.draggable = false;
-
-        const input = document.createElement("input");
-        input.type = "text";
-        input.className = "singer-input";
-        input.maxLength = 40;
-        input.placeholder = "Who's singing this?";
-        input.value = song.singer || "";
-        input.setAttribute("aria-label", "Singer name");
-
-        let settled = false;
-        const finish = (save) => {
-            if (settled) {
-                return;
-            }
-
-            settled = true;
-            if (save) {
-                const value = input.value.trim();
-                if (value) {
-                    song.singer = value;
-                } else {
-                    delete song.singer;
-                }
-                saveSetlist();
-            }
-            const restoreFocus = document.activeElement === input;
-            const replacement = createSingerControl(song, item);
-            item.draggable = true;
-            wrap.replaceWith(replacement);
-            if (restoreFocus) replacement.querySelector("button").focus({ preventScroll: true });
-        };
-
-        input.addEventListener("keydown", (event) => {
-            if (event.key === "Enter") {
-                event.preventDefault();
-                finish(true);
-            } else if (event.key === "Escape") {
-                event.stopPropagation();
-                finish(false);
-            }
-        });
-        input.addEventListener("blur", () => finish(true));
-
-        wrap.appendChild(input);
-        input.focus();
-        input.select();
-    };
-
-    const button = document.createElement("button");
-    button.type = "button";
-    if (song.singer) {
-        button.className = "singer-chip";
-        button.textContent = `🎤 ${song.singer}`;
-        button.title = "Edit singer";
-        button.setAttribute("aria-label", `Singer: ${song.singer}. Edit`);
-    } else {
-        button.className = "singer-add";
-        button.textContent = "+ Singer";
-        button.title = "Assign a singer";
-    }
-    button.addEventListener("click", startEdit);
-    wrap.appendChild(button);
-    return wrap;
-}
-
-async function openQrDialog() {
-    const url = await buildShareUrl();
-    els.qrHolder.innerHTML = "";
-
-    if (typeof qrcode === "function") {
-        try {
-            const qr = qrcode(0, "M");
-            qr.addData(url);
-            qr.make();
-            els.qrHolder.innerHTML = qr.createSvgTag({ scalable: true, margin: 2 });
-        } catch {
-            els.qrHolder.textContent = url;
-        }
-    } else {
-        els.qrHolder.textContent = url;
-    }
-
-    els.qrCaption.textContent = state.setlist.length
-        ? `Opens this view with your ${state.setlist.length}-song setlist ready to import.`
-        : "Opens this songbook view, filters and all.";
-    els.qrDialog.showModal();
-}
-
-async function buildShareUrl() {
-    const base = `${window.location.origin}${window.location.pathname}${window.location.search}`;
-    if (!state.setlist.length) {
-        return base;
-    }
-
-    const payload = await encodeSetlistPayload();
-    return payload ? `${base}#sl=${payload}` : base;
-}
-
-async function encodeSetlistPayload() {
-    try {
-        const raw = state.setlist
-            // Stored IDs may predate content-derived identity and contain a row
-            // index. Recompute from the retained song fields for shared links.
-            .map((song) => getSongIdentity(song))
-            .join("\n");
-        const bytes = new TextEncoder().encode(raw);
-
-        if (typeof CompressionStream === "function") {
-            const stream = new Blob([bytes]).stream()
-                .pipeThrough(new CompressionStream("deflate-raw"));
-            const compressed = new Uint8Array(await new Response(stream).arrayBuffer());
-            return `z.${base64UrlEncode(compressed)}`;
-        }
-
-        return `r.${base64UrlEncode(bytes)}`;
-    } catch {
-        return "";
-    }
-}
-
-async function decodeSetlistPayload(payload) {
-    try {
-        const [kind, data] = payload.split(".", 2);
-        const bytes = base64UrlDecode(data);
-        let raw;
-        if (kind === "z") {
-            const stream = new Blob([bytes]).stream()
-                .pipeThrough(new DecompressionStream("deflate-raw"));
-            raw = await new Response(stream).text();
-        } else {
-            raw = new TextDecoder().decode(bytes);
-        }
-
-        return raw.split("\n").filter(Boolean);
-    } catch {
-        return [];
-    }
-}
-
-function base64UrlEncode(bytes) {
-    let binary = "";
-    for (const byte of bytes) {
-        binary += String.fromCharCode(byte);
-    }
-
-    return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
-function base64UrlDecode(data) {
-    const padded = data.replace(/-/g, "+").replace(/_/g, "/");
-    const binary = atob(padded);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-        bytes[i] = binary.charCodeAt(i);
-    }
-
-    return bytes;
-}
-
-async function offerSharedSetlistImport() {
-    const payload = state.pendingSharedSetlist;
-    state.pendingSharedSetlist = "";
-    if (!payload) {
-        return;
-    }
-
-    const ids = await decodeSetlistPayload(payload);
-    if (!ids.length) {
-        return;
-    }
-
-    const songsById = new Map();
-    for (const song of state.songs) {
-        songsById.set(song.id, song);
-    }
-
-    const shared = ids.map((id) => songsById.get(id)).filter(Boolean);
-    if (!shared.length) {
-        return;
-    }
-
-    els.importCaption.textContent =
-        `Someone shared a setlist with ${shared.length} ${shared.length === 1 ? "song" : "songs"}` +
-        (shared.length < ids.length ? ` (${ids.length - shared.length} not in this songbook)` : "") + ".";
-
-    const applyImport = (replace) => {
-        const previous = [...state.setlist];
-        if (replace) {
-            state.setlist = shared.map((song) => toSetlistEntry(song));
-        } else {
-            for (const song of shared) {
-                if (!state.setlist.some((item) => isSameSong(item, song))) {
-                    state.setlist.push(toSetlistEntry(song));
-                }
-            }
-        }
-        saveSetlist();
-        renderSetlist();
-        els.importDialog.close();
-        setPlanningMode(true);
-        if (matchMedia("(max-width: 720px)").matches) openSetlistDrawer();
-        showSnackbar(`Setlist ${replace ? "replaced" : "updated"} (${state.setlist.length} songs)`, () => {
-            state.setlist = previous;
-            saveSetlist();
-            renderSetlist();
-        });
-    };
-
-    els.importAddButton.onclick = () => applyImport(false);
-    els.importReplaceButton.onclick = () => applyImport(true);
-    if (typeof els.importDialog.showModal === "function") {
-        els.importDialog.showModal();
-    }
-}
-
-const DRAFT_SETLIST_TARGET = 10;
-
-function getDraftPool() {
-    if (searchRenderTimer) render();
-    const hasScope = state.mode === "search" &&
-        (Boolean(normalizeSearchText(state.query)) || hasSongFilters());
-    if (hasScope) {
-        return state.currentSongs;
-    }
-
-    const tagged = state.songs.filter((song) => song.status === "ok");
-    return tagged.length ? tagged : state.songs;
-}
-
-function draftSetlist(event) {
-    const source = event?.currentTarget;
-    // The empty-list button disappears on render, so measure it first.
-    const startRect = source?.getBoundingClientRect?.();
-    const missing = DRAFT_SETLIST_TARGET - state.setlist.length;
-    if (missing <= 0) {
-        showSnackbar(`Setlist already has ${state.setlist.length} songs`);
-        return;
-    }
-
-    let pool = getDraftPool().filter(
-        (song) => !state.setlist.some((item) => isSameSong(item, song))
-    );
-    // Bias to the recognizable end: a draft should be songs a room knows.
-    if (pool.length > 200 && pool.some((song) => (song.popularity || 0) > 0)) {
-        pool = [...pool]
-            .sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
-            .slice(0, Math.max(200, Math.floor(pool.length * 0.05)));
-    }
-    const additions = sampleSongs(pool, missing);
-    if (!additions.length) {
-        showSnackbar("No matching songs left to draft");
-        return;
-    }
-
-    const previous = [...state.setlist];
-    for (const song of additions) {
-        state.setlist.push(toSetlistEntry(song));
-    }
-    saveSetlist();
-    renderSetlist();
-    // The phone drawer grows as it fills, moving its Draft button.
-    window.StageFx?.confetti(source?.isConnected ? source.getBoundingClientRect() : startRect);
-    window.StageFx?.cascade([...els.setlist.children].slice(previous.length));
-    showSnackbar(
-        `Drafted ${additions.length} ${additions.length === 1 ? "song" : "songs"}`,
-        () => {
-            state.setlist = previous;
-            saveSetlist();
-            renderSetlist();
-        }
-    );
-}
-
-function rerollSetlistSong(index) {
-    const current = state.setlist[index];
-    if (!current) {
-        return;
-    }
-
-    const pool = getDraftPool().filter(
-        (song) => !state.setlist.some((item) => isSameSong(item, song))
-    );
-    const [replacement] = sampleSongs(pool, 1);
-    if (!replacement) {
-        showSnackbar("No matching songs left to swap in");
-        return;
-    }
-
-    const previous = [...state.setlist];
-    const next = toSetlistEntry(replacement, current.singer ? { singer: current.singer } : {});
-    state.setlist.splice(index, 1, next);
-    saveSetlist();
-    renderSetlist();
-    showSnackbar(`Swapped in “${getDisplaySongTitle(replacement)}”`, () => {
-        state.setlist = previous;
-        saveSetlist();
-        renderSetlist();
-    });
-}
-
-function buildSetlistText() {
-    return state.setlist
-        .map((song, index) => {
-            const singer = song.singer ? ` (${song.singer})` : "";
-            return `${index + 1}. ${getDisplaySongTitle(song)} - ${getDisplayArtist(song) || "Unknown artist"}${singer}`;
-        })
-        .join("\n");
-}
-
-function showSnackbar(message, onAction) {
-    window.clearTimeout(state.snackbarTimer);
-    state.snackbarAction = onAction || null;
-    els.snackbarText.textContent = message;
-    els.snackbarAction.hidden = !onAction;
-    els.snackbar.hidden = false;
-    state.snackbarTimer = window.setTimeout(hideSnackbar, 6000);
-}
-
-function hideSnackbar() {
-    window.clearTimeout(state.snackbarTimer);
-    state.snackbarTimer = 0;
-    state.snackbarAction = null;
-    els.snackbar.hidden = true;
-}
-
-function getSetlistSummary() {
-    const count = state.setlist.length;
-    const label = `${count} ${count === 1 ? "song" : "songs"}`;
-    if (!count) {
-        return label;
-    }
-
-    // Average karaoke track is ~3.5 min; use real durations where known.
-    const totalSeconds = state.setlist.reduce(
-        (sum, song) => sum + (song.seconds || 210), 0
-    );
-    return `${label} · ~${Math.max(1, Math.round(totalSeconds / 60))} min`;
-}
-
-function moveSetlistItem(index, direction) {
-    reorderSetlist(index, index + direction);
-}
-
-function reorderSetlist(fromIndex, toIndex) {
-    if (!Number.isInteger(fromIndex) || !Number.isInteger(toIndex) || fromIndex === toIndex) {
-        return;
-    }
-
-    if (fromIndex < 0 || fromIndex >= state.setlist.length || toIndex < 0 || toIndex >= state.setlist.length) {
-        return;
-    }
-
-    const [song] = state.setlist.splice(fromIndex, 1);
-    state.setlist.splice(toIndex, 0, song);
-    saveSetlist();
-    renderSetlist();
-}
-
-function saveSetlist() {
-    // Any subsequent edit makes a prior snapshot-based Undo unsafe. Callers
-    // offering a new Undo install it after saving their own change.
-    if (state.snackbarAction) hideSnackbar();
-    try {
-        localStorage.setItem("karaokeSetlist", JSON.stringify(state.setlist));
-    } catch {
-        // Setlist remains available in memory for the current page.
-    }
-}
-
-function loadSetlist() {
-    try {
-        const stored = JSON.parse(localStorage.getItem("karaokeSetlist") || "[]");
-        if (!Array.isArray(stored)) {
-            return [];
-        }
-
-        // Entries saved by older versions carry the full prepared song; slim
-        // them so the next save writes the compact shape.
-        return stored.map((song) => toSetlistEntry(song));
-    } catch {
-        return [];
-    }
 }
 
 function loadRecentSearches() {
@@ -4274,26 +3143,52 @@ function getScopedSearchText(song, scope = state.searchScope) {
 
 function getScopedSearchWords(song, scope = state.searchScope) {
     if (scope === "artist") {
+        if (!song.artistWords) {
+            song.artistWords = getSearchWordsFromNormalized(
+                song.artistSearchText || normalizeSearchText([getDisplayArtist(song), song.artist, song.lookupArtist].join(" ")),
+                song.artistSortText || normalize(getDisplayArtist(song))
+            );
+        }
         return song.artistWords;
     }
 
     if (scope === "song") {
+        if (!song.songWords) {
+            song.songWords = getSearchWordsFromNormalized(
+                song.songSearchText || normalizeSearchText(song.song),
+                song.songSortText || normalize(song.song)
+            );
+        }
         return song.songWords;
     }
 
     if (!song.allWords) {
-        song.allWords = [...new Set([...(song.songWords || []), ...(song.artistWords || [])])];
+        song.allWords = [...new Set([
+            ...getScopedSearchWords(song, "song"),
+            ...getScopedSearchWords(song, "artist"),
+        ])];
     }
 
     return song.allWords;
 }
 
+function getSearchWordsFromNormalized(searchText, sortText = "") {
+    const words = new Set();
+    if (searchText) {
+        for (const word of searchText.split(" ")) {
+            if (word.length > 2) words.add(word);
+        }
+    }
+    if (sortText && sortText !== searchText) {
+        for (const word of sortText.split(" ")) {
+            if (word.length > 2) words.add(word);
+        }
+    }
+    return [...words];
+}
+
 function getSearchWords(value) {
-    const words = [
-        ...normalizeSearchText(value).split(" "),
-        ...normalize(value).split(" "),
-    ];
-    return [...new Set(words.filter((word) => word.length > 2))];
+    return getSearchWordsFromNormalized(normalizeSearchText(value), normalize(value));
 }
 
 function getFuzzyTokenScore(token, words) {
@@ -4352,426 +3247,7 @@ function boundedEditDistance(a, b, maxDistance) {
     return previous[b.length];
 }
 
-function renderFilterOptions() {
-    for (const control of multiFilterControls.values()) {
-        control.options.innerHTML = "";
-    }
-}
-
-function renderSearchFilters() {
-    renderMultiFilters();
-    els.popularFilter.checked = state.filters.popular;
-    els.duetFilter.checked = state.filters.duet;
-    els.favoriteFilter.checked = state.favoriteOnly;
-    els.fuzzySearch.checked = state.fuzzySearch;
-    els.clearFiltersButton.hidden = !hasActiveSearchFilters();
-
-    const activeCount = countActiveFilters();
-    els.filterCountBadge.hidden = !activeCount;
-    els.filterCountBadge.textContent = activeCount ? String(activeCount) : "";
-
-    setToggleState(els.orderRelevanceButton, state.sortMode === "relevance");
-    setToggleState(els.orderPopularButton, state.sortMode === "popular");
-    setToggleState(els.orderSongButton, state.sortMode === "song");
-    setToggleState(els.orderArtistButton, state.sortMode === "artist");
-}
-
-function buildMultiFilters() {
-    for (const root of document.querySelectorAll(".multi-filter")) {
-        const def = MULTI_FILTER_DEFS.find((item) => item.param === root.dataset.filter);
-        if (!def) {
-            continue;
-        }
-
-        const label = document.createElement("span");
-        label.className = "filter-label";
-        label.textContent = def.label;
-
-        const button = document.createElement("button");
-        button.className = "multi-filter-button";
-        button.type = "button";
-        button.setAttribute("aria-haspopup", "true");
-        button.setAttribute("aria-expanded", "false");
-        button.setAttribute("aria-label", `Filter by ${def.label.toLowerCase()}`);
-        const buttonLabel = document.createElement("span");
-        buttonLabel.textContent = def.anyLabel;
-        button.appendChild(buttonLabel);
-        button.innerHTML += '<i data-lucide="chevron-down" aria-hidden="true"></i>';
-        button.addEventListener("click", () => toggleMultiFilterPopover(def.param));
-
-        const popover = document.createElement("div");
-        popover.className = "multi-popover";
-        popover.hidden = true;
-
-        const head = document.createElement("div");
-        head.className = "multi-popover-head";
-        const hint = document.createElement("span");
-        hint.textContent = def.pickHint;
-        const clear = document.createElement("button");
-        clear.className = "multi-clear";
-        clear.type = "button";
-        clear.textContent = "Clear";
-        clear.hidden = true;
-        clear.addEventListener("click", () => {
-            state.filters[def.key] = [];
-            state.mode = "search";
-            resetResultLimit();
-            render();
-        });
-        head.append(hint, clear);
-
-        const options = document.createElement("div");
-        options.className = "multi-options";
-        options.setAttribute("role", "group");
-        options.setAttribute("aria-label", `${def.label} options`);
-
-        popover.append(head, options);
-        root.append(label, button, popover);
-        multiFilterControls.set(def.param, {
-            def,
-            button,
-            buttonLabel: button.querySelector("span"),
-            popover,
-            options,
-            clear,
-        });
-    }
-}
-
-function renderMultiFilters() {
-    for (const control of multiFilterControls.values()) {
-        const { def, button, buttonLabel, options, clear } = control;
-        const selected = state.filters[def.key];
-        const values = def.options();
-
-        buttonLabel.textContent = !selected.length
-            ? def.anyLabel
-            : selected.length === 1
-                ? selected[0]
-                : `${selected[0]} +${selected.length - 1}`;
-        button.classList.toggle("has-selection", selected.length > 0);
-        clear.hidden = !selected.length;
-
-        // Update options in place when possible: rebuilding mid-click detaches
-        // the clicked button, which breaks the outside-click check and drops focus.
-        const existing = [...options.children];
-        if (existing.length !== values.length) {
-            options.innerHTML = "";
-            for (const value of values) {
-                const option = document.createElement("button");
-                option.type = "button";
-                option.className = "multi-option";
-                const text = document.createElement("span");
-                text.textContent = value;
-                const countLabel = document.createElement("span");
-                countLabel.className = "option-count";
-                option.append(text, countLabel);
-                option.addEventListener("click", () => toggleMultiFilterValue(def, value));
-                options.appendChild(option);
-            }
-        }
-
-        [...options.children].forEach((option, index) => {
-            setToggleState(option, includesValue(selected, values[index]));
-        });
-
-        if (!control.popover.hidden) {
-            updateFacetedCounts(control);
-        }
-    }
-}
-
-function updateFacetedCounts(control) {
-    const { def, options } = control;
-    const values = def.options();
-
-    // Count against the current query plus every OTHER filter, so the numbers
-    // answer "what would picking this add to my current results?".
-    const base = applySearchFilters(
-        state.queryScopedSongs,
-        def.key
-    );
-    const counts = new Map();
-    for (const song of base) {
-        for (const key of song.filterKeys[def.key]) {
-            counts.set(key, (counts.get(key) || 0) + 1);
-        }
-    }
-
-    [...options.children].forEach((option, index) => {
-        const count = counts.get(normalize(values[index])) || 0;
-        const countLabel = option.querySelector(".option-count");
-        countLabel.textContent = count.toLocaleString();
-        option.classList.toggle("is-empty", count === 0);
-    });
-}
-
-function toggleMultiFilterValue(def, value) {
-    if (includesValue(state.filters[def.key], value)) {
-        state.filters[def.key] = state.filters[def.key].filter(
-            (item) => normalize(item) !== normalize(value)
-        );
-    } else {
-        state.filters[def.key] = [...state.filters[def.key], value];
-    }
-
-    state.mode = "search";
-    resetResultLimit();
-    render();
-}
-
-function toggleMultiFilterPopover(param) {
-    const control = multiFilterControls.get(param);
-    if (!control) {
-        return;
-    }
-
-    const open = control.popover.hidden;
-    closeMultiFilterPopovers();
-    control.popover.hidden = !open;
-    control.button.setAttribute("aria-expanded", String(open));
-    if (open) {
-        updateFacetedCounts(control);
-    }
-}
-
-function closeMultiFilterPopovers() {
-    for (const control of multiFilterControls.values()) {
-        control.popover.hidden = true;
-        control.button.setAttribute("aria-expanded", "false");
-    }
-}
-
-function setToggleState(button, isActive) {
-    button.classList.toggle("is-active", isActive);
-    button.setAttribute("aria-pressed", String(isActive));
-}
-
-function renderActiveFilters() {
-    els.activeFilters.innerHTML = "";
-    if (state.mode === "browse") {
-        els.activeFilters.hidden = true;
-        return;
-    }
-
-    const scopeChipLabels = {
-        song: "Song",
-        artist: "Artist",
-    };
-    const chips = [];
-    // The search box already shows the query; a chip only adds a narrower scope.
-    const hasQueryChip = Boolean(state.query && scopeChipLabels[state.searchScope]);
-    if (hasQueryChip) {
-        chips.push({
-            label: `${scopeChipLabels[state.searchScope]}: ${state.query}`,
-            onClear: () => clearSearchQuery({ resetScope: false }),
-        });
-    }
-
-    for (const def of MULTI_FILTER_DEFS) {
-        for (const value of state.filters[def.key]) {
-            chips.push({
-                label: `${def.label}: ${value}`,
-                onClear: () => {
-                    state.filters[def.key] = state.filters[def.key].filter((item) => item !== value);
-                },
-            });
-        }
-    }
-
-    if (state.filters.duet) {
-        chips.push({
-            label: "Duet",
-            onClear: () => {
-                state.filters.duet = false;
-            },
-        });
-    }
-
-    if (state.filters.popular) {
-        chips.push({
-            label: "Popular",
-            onClear: () => {
-                state.filters.popular = false;
-            },
-        });
-    }
-
-    if (state.favoriteOnly) {
-        chips.push({
-            label: "Saved songs",
-            onClear: () => {
-                state.favoriteOnly = false;
-            },
-        });
-    }
-
-    if (state.fuzzySearch) {
-        chips.push({
-            label: "Near matches",
-            onClear: () => {
-                state.fuzzySearch = false;
-            },
-        });
-    }
-
-    for (const chip of chips) {
-        els.activeFilters.appendChild(createActiveFilterChip(chip.label, chip.onClear));
-    }
-
-    if (chips.length > 1) {
-        // Clear exactly what the chips show; a chip-less query stays in the box.
-        const clearAll = document.createElement("button");
-        clearAll.className = "active-filter-clear";
-        clearAll.type = "button";
-        clearAll.textContent = hasQueryChip ? "Clear all" : "Clear filters";
-        clearAll.addEventListener("click", () => {
-            if (hasQueryChip) {
-                clearSearchQuery();
-            }
-            clearSearchFilters();
-            // With nothing left to search, return to Discover rather than a
-            // sorted list of the whole catalog.
-            if (!state.query) {
-                state.sortMode = "relevance";
-                state.groupOpenMode = "auto";
-            }
-            resetResultLimit();
-            render();
-            els.searchInput.focus();
-        });
-        els.activeFilters.appendChild(clearAll);
-    }
-
-    els.activeFilters.hidden = !chips.length;
-}
-
-function createActiveFilterChip(label, onClear) {
-    const chip = document.createElement("button");
-    chip.className = "active-filter-chip";
-    chip.type = "button";
-    chip.title = `Remove ${label}`;
-    const text = document.createElement("span");
-    text.textContent = label;
-    const icon = document.createElement("i");
-    icon.setAttribute("data-lucide", "x");
-    icon.setAttribute("aria-hidden", "true");
-    chip.append(text, icon);
-    chip.addEventListener("click", () => {
-        onClear();
-        resetResultLimit();
-        render();
-        els.searchInput.focus();
-    });
-    return chip;
-}
-
-function hasActiveSearchFilters() {
-    return MULTI_FILTER_DEFS.some((def) => state.filters[def.key].length > 0) ||
-        state.filters.duet ||
-        state.filters.popular ||
-        state.favoriteOnly ||
-        state.fuzzySearch;
-}
-
-function hasSongFilters() {
-    return MULTI_FILTER_DEFS.some((def) => state.filters[def.key].length > 0) ||
-        state.filters.duet ||
-        state.filters.popular ||
-        state.favoriteOnly;
-}
-
-function getAvailableDecades(songs = state.songs) {
-    const values = new Set();
-
-    for (const song of songs) {
-        for (const era of song.eras || []) {
-            if (era) {
-                values.add(era);
-            }
-        }
-    }
-
-    return [...values].sort(compareDecade);
-}
-
-function getAvailableValues(getValues, songs = state.songs) {
-    const values = new Set();
-
-    for (const song of songs) {
-        for (const value of getValues(song) || []) {
-            if (value) {
-                values.add(value);
-            }
-        }
-    }
-
-    return [...values].sort(compareText);
-}
-
-function getTopValues(songs, getValues, limit) {
-    const counts = new Map();
-    const labels = new Map();
-
-    for (const song of songs || []) {
-        const seen = new Set();
-        for (const value of getValues(song) || []) {
-            const key = normalize(value);
-            if (!key || seen.has(key)) {
-                continue;
-            }
-
-            seen.add(key);
-            counts.set(key, (counts.get(key) || 0) + 1);
-            if (!labels.has(key)) {
-                labels.set(key, value);
-            }
-        }
-    }
-
-    return [...counts.entries()]
-        .sort((a, b) => b[1] - a[1] || compareText(labels.get(a[0]), labels.get(b[0])))
-        .slice(0, limit)
-        .map(([key]) => labels.get(key));
-}
-
-async function getPromotedGenreTagMap(songs) {
-    const counts = new Map();
-    const labelsByKey = new Map();
-
-    await mapSongbookInChunks(songs, (song) => {
-        const seen = new Set();
-        for (const tag of song.tags || []) {
-            const key = normalize(tag);
-            if (!key || seen.has(key)) {
-                continue;
-            }
-
-            seen.add(key);
-            counts.set(key, (counts.get(key) || 0) + 1);
-
-            if (!labelsByKey.has(key)) {
-                labelsByKey.set(key, new Map());
-            }
-
-            const labels = labelsByKey.get(key);
-            labels.set(tag, (labels.get(tag) || 0) + 1);
-        }
-    });
-
-    const consolidatedGenres = state.tagConsolidation.genreTags;
-    if (consolidatedGenres.size) {
-        return new Map([...counts.entries()]
-            .filter(([key, count]) => count >= state.tagConsolidation.minLastFmSongs && consolidatedGenres.has(key))
-            .map(([key]) => [key, consolidatedGenres.get(key)])
-            .sort((a, b) => compareText(a[1], b[1])));
-    }
-
-    return new Map([...counts.entries()]
-        .filter(([key, count]) => count >= TAG_GENRE_MIN_COUNT && isGenreLikeTag(key))
-        .map(([key]) => [key, formatGenreTagLabel(key, labelsByKey.get(key))])
-        .sort((a, b) => compareText(a[1], b[1])));
-}
+// Filter popover UI, faceted counts, and active filter chips live in filters-panel.js.
 
 function isGenreLikeTag(key) {
     if (!key || NON_GENRE_TAGS.has(key) || /^(female|male|my) /.test(key)) {
@@ -4812,44 +3288,6 @@ function toGenreLabel(value) {
 
         return index === 0 ? word.charAt(0).toUpperCase() + word.slice(1) : word;
     }).join(" ");
-}
-
-function getPromotedGenresForSong(song, promotedGenreTags = state.promotedGenreTags) {
-    const values = [];
-
-    for (const tag of song.tags || []) {
-        const label = promotedGenreTags.get(normalize(tag));
-        if (label) {
-            values.push(label);
-        }
-    }
-
-    return dedupeValues(values);
-}
-
-async function buildCanonicalArtistNames(songs) {
-    const variantsByKey = new Map();
-
-    await mapSongbookInChunks(songs, (song) => {
-        const key = getArtistKey(song);
-        if (!key) {
-            return;
-        }
-
-        if (!variantsByKey.has(key)) {
-            variantsByKey.set(key, new Map());
-        }
-
-        const variants = variantsByKey.get(key);
-        for (const name of getArtistNameCandidates(song)) {
-            variants.set(name, (variants.get(name) || 0) + 1);
-        }
-    });
-
-    return new Map([...variantsByKey.entries()].map(([key, variants]) => [
-        key,
-        chooseArtistNameVariant(variants),
-    ]));
 }
 
 function chooseArtistNameVariant(variants) {
@@ -4994,36 +3432,60 @@ function cleanDisplayValue(value) {
     return result;
 }
 
-function getConsolidatedMoodsForSong(song) {
-    const values = [];
-    const rules = state.moodConsolidation.moods || [];
-    if (!rules.length) {
-        return values;
+const ANY_HOLIDAY_PATTERN = /(^| )(christmas|xmas|santa|noel|jingle|yule|yuletide|hanukkah|chanukah|halloween|spooky|new year|new years|auld lang syne|thanksgiving|valentine|valentines|st patrick|saint patrick|easter)( |$)/;
+
+function getConsolidatedMoodsForSong(song, normalizedTags = null, normalizedGenres = null) {
+    const consolidation = state.moodConsolidation;
+    const tagToLabels = consolidation.tagToLabels;
+    const phraseRules = consolidation.phraseRules || [];
+    if ((!tagToLabels || !tagToLabels.size) && !phraseRules.length) {
+        return [];
     }
 
-    const sourceKeys = new Set([
-        ...(song.tags || []),
-        ...getSongGenres(song),
-    ].map(normalize).filter(Boolean));
-    const sourceText = [
-        song.artist,
-        song.lookupArtist,
-        song.song,
-        song.lookupSong,
-        ...(song.tags || []),
-        ...getSongGenres(song),
-    ].map(normalize).join(" ");
+    const values = [];
+    const seenLabels = new Set();
+    const addLabel = (label) => {
+        if (!seenLabels.has(label)) {
+            seenLabels.add(label);
+            values.push(label);
+        }
+    };
 
-    for (const rule of rules) {
-        const hasExactMatch = [...rule.tags].some((tag) => sourceKeys.has(tag));
-        const hasPhraseMatch = rule.contains.some((phrase) => sourceText.includes(phrase));
-
-        if (hasExactMatch || hasPhraseMatch) {
-            values.push(rule.label);
+    if (tagToLabels && tagToLabels.size) {
+        const tagKeys = normalizedTags || (song.tags || []).map(normalize);
+        for (const key of tagKeys) {
+            const labels = tagToLabels.get(key);
+            if (labels) {
+                for (const label of labels) addLabel(label);
+            }
+        }
+        const genreKeys = normalizedGenres || getSongGenres(song).map(normalize);
+        for (const key of genreKeys) {
+            const labels = tagToLabels.get(key);
+            if (labels) {
+                for (const label of labels) addLabel(label);
+            }
         }
     }
 
-    return dedupeValues(values);
+    if (phraseRules.length) {
+        const sourceText = [
+            song.artist,
+            song.lookupArtist,
+            song.song,
+            song.lookupSong,
+            ...(song.tags || []),
+            ...getSongGenres(song),
+        ].map(normalize).join(" ");
+
+        for (const rule of phraseRules) {
+            if (!seenLabels.has(rule.label) && rule.contains.some((phrase) => sourceText.includes(phrase))) {
+                addLabel(rule.label);
+            }
+        }
+    }
+
+    return values;
 }
 
 function getSongGenres(song) {
@@ -5047,31 +3509,45 @@ function getHolidayValues(song) {
     return computeHolidayValues(song);
 }
 
-function computeHolidayValues(song) {
-    const values = new Set();
+function computeHolidayValues(song, precomputed = null) {
     // Artist names are deliberately excluded: "Bullet For My Valentine" and
     // "Noel Gourdin" are not holiday music.
-    const text = normalize([
-        song.song,
-        ...(song.genres || []),
-        ...(song.tags || []),
-        ...(song.flags || []),
-    ].join(" "));
-
-    if (/(^| )(christmas|xmas|santa|noel|jingle|yule|yuletide)( |$)/.test(text)) values.add("Christmas");
-    if (/(^| )(hanukkah|chanukah)( |$)/.test(text)) values.add("Hanukkah");
-    if (/(^| )(halloween|spooky)( |$)/.test(text)) values.add("Halloween");
-    if (/(^| )(new year|new years|auld lang syne)( |$)/.test(text)) values.add("New Year");
-    if (/(^| )(thanksgiving)( |$)/.test(text)) values.add("Thanksgiving");
-    if (/(^| )(valentine|valentines)( |$)/.test(text)) values.add("Valentine's Day");
-    if (/(^| )(st patrick|saint patrick)( |$)/.test(text)) values.add("St. Patrick's Day");
-    if (/(^| )(easter)( |$)/.test(text)) values.add("Easter");
-
-    if (!values.size && hasFlag(song, "Holiday")) {
-        values.add("Holiday");
+    let text;
+    if (precomputed) {
+        const parts = [];
+        if (precomputed.songSortText) parts.push(precomputed.songSortText);
+        for (const v of precomputed.rawGenres) if (v) parts.push(v);
+        for (const v of precomputed.tags) if (v) parts.push(v);
+        for (const v of precomputed.flags) if (v) parts.push(v);
+        text = parts.join(" ");
+    } else {
+        text = normalize([
+            song.song,
+            ...(song.genres || []),
+            ...(song.tags || []),
+            ...(song.flags || []),
+        ].join(" "));
     }
 
-    return [...values];
+    if (!ANY_HOLIDAY_PATTERN.test(text)) {
+        return hasFlag(song, "Holiday") ? ["Holiday"] : [];
+    }
+
+    const values = [];
+    if (/(^| )(christmas|xmas|santa|noel|jingle|yule|yuletide)( |$)/.test(text)) values.push("Christmas");
+    if (/(^| )(hanukkah|chanukah)( |$)/.test(text)) values.push("Hanukkah");
+    if (/(^| )(halloween|spooky)( |$)/.test(text)) values.push("Halloween");
+    if (/(^| )(new year|new years|auld lang syne)( |$)/.test(text)) values.push("New Year");
+    if (/(^| )(thanksgiving)( |$)/.test(text)) values.push("Thanksgiving");
+    if (/(^| )(valentine|valentines)( |$)/.test(text)) values.push("Valentine's Day");
+    if (/(^| )(st patrick|saint patrick)( |$)/.test(text)) values.push("St. Patrick's Day");
+    if (/(^| )(easter)( |$)/.test(text)) values.push("Easter");
+
+    if (!values.length && hasFlag(song, "Holiday")) {
+        values.push("Holiday");
+    }
+
+    return values;
 }
 
 function hasFlag(song, flag) {
@@ -5098,10 +3574,10 @@ function normalize(value) {
         return cached;
     }
 
-    const result = raw
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
+    const folded = /[^\x00-\x7f]/.test(raw)
+        ? raw.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        : raw.toLowerCase();
+    const result = folded
         .replace(/&/g, " and ")
         .replace(/[^a-z0-9]+/g, " ")
         .replace(/\s+/g, " ")
@@ -5124,10 +3600,10 @@ function normalizeSearchText(value) {
         return cached;
     }
 
-    const result = raw
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
+    const folded = /[^\x00-\x7f]/.test(raw)
+        ? raw.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        : raw.toLowerCase();
+    const result = folded
         .replace(/['\u2018\u2019\u02bc]/g, "")
         .replace(/([a-z0-9])[./](?=[a-z0-9])/g, "$1")
         .replace(/&/g, " and ")
@@ -5142,14 +3618,17 @@ function normalizeSearchText(value) {
     return result;
 }
 
-function getBrowseLetter(value) {
-    const normalized = normalize(value);
+function getBrowseLetterFromNormalized(normalized) {
     if (!normalized) {
         return "#";
     }
 
     const first = normalized[0].toUpperCase();
     return first >= "A" && first <= "Z" ? first : "#";
+}
+
+function getBrowseLetter(value) {
+    return getBrowseLetterFromNormalized(normalize(value));
 }
 
 function compareText(a, b) {
