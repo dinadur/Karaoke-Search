@@ -631,6 +631,10 @@ const tests = [
             { song: "Baby Love", artist: "Diana Ross & The Supremes", status: "ok" },
             { song: "If You Can't Hang", artist: "Sleeping With Sirens", status: "ok" },
             { song: "Vocal Track", artist: "Solo Act (with vocals)", status: "ok" },
+            // Producer/DJ-led credits have a single vocalist
+            { song: "Producer Hit", artist: "Guetta, David ft Zara Larsson", status: "ok" },
+            { song: "Rather Be ft. Jess Glynne", artist: "Clean Bandit", status: "ok" },
+            { song: "Rockabye", artist: "Clean Bandit Feat Anne Marie And Sean Paul", status: "ok" },
             // Pending songs for Newly added shelf
             { song: "Fresh One", artist: "New Artist 1", status: "pending" },
             { song: "Fresh Two", artist: "New Artist 2", status: "pending" },
@@ -640,7 +644,7 @@ const tests = [
         await context.unroute("**/karaoke_songs_enriched.json?*");
         await context.route("**/karaoke_songs_enriched.json?*", (route) => route.fulfill({ json: duetCatalog }));
         await page.goto(BASE);
-        await page.waitForFunction(() => state.songs.length === 18 && !document.querySelector(".skeleton"));
+        await page.waitForFunction(() => state.songs.length === 21 && !document.querySelector(".skeleton"));
 
         const shelfTitles = await page.locator(".shelf h3").allTextContents();
         assert.ok(shelfTitles.includes("Newly added"), `Expected Newly added shelf in ${JSON.stringify(shelfTitles)}`);
@@ -652,11 +656,17 @@ const tests = [
             "Don't Go Breaking My Heart",
             "Explicit Flag Duet",
             "Islands in the Stream",
+            "Rockabye",
         ]);
+        const sources = await page.evaluate(() => Object.fromEntries(state.songs.filter((s) => s.isDuet).map((s) => [s.song, s.duetSource])));
+        assert.equal(sources["Explicit Flag Duet"], "tagged");
+        assert.equal(sources["Don't Go Breaking My Heart"], "tagged");
+        assert.equal(sources["Islands in the Stream"], "likely");
+        assert.equal(sources["Crazy In Love"], "likely");
 
-        // Detected duets show a single Duet pill without duplicating explicit flags.
+        // Guessed duets are labelled as such; explicit flags are not duplicated.
         await search(page, "Islands in the Stream");
-        assert.deepEqual(await page.locator(".song-card .pill.flag").allTextContents(), ["Duet"]);
+        assert.deepEqual(await page.locator(".song-card .pill.flag").allTextContents(), ["Likely duet"]);
         await search(page, "Explicit Flag Duet");
         assert.deepEqual(await page.locator(".song-card .pill.flag").allTextContents(), ["Duet"]);
     }],
