@@ -8,6 +8,11 @@ const enrichment = JSON.parse(fs.readFileSync(path.join(root, "era_enrichment.js
 const key = (song) => JSON.stringify([song.artist, song.song, song.lookupArtist || "", song.lookupSong || ""]);
 const existing = new Map(songs.map((song) => [key(song), song]));
 const valid = new Set(["50s", "60s", "70s", "80s", "90s", "2000s", "2010s", "2020s"]);
+const decadeTagPattern = /^(?:19)?([5-9]0)s$|^(20[0-2]0)s$/;
+const parseDecadeTag = (tag) => {
+    const match = String(tag || "").trim().toLowerCase().match(decadeTagPattern);
+    return match ? (match[1] ? `${match[1]}s` : `${match[2]}s`) : null;
+};
 const seen = new Set();
 for (const entry of enrichment.entries) {
     assert.ok(existing.has(key(entry)), "Enrichment target must exist in the catalog");
@@ -20,6 +25,13 @@ for (const entry of enrichment.entries) {
             const sources = songs.filter((song) => key(song) === key(evidence) && song.eras?.length);
             assert.ok(sources.length && sources.every((source) => JSON.stringify(source.eras) === JSON.stringify(entry.eras)), "Evidence must be a real catalog entry with the stated decade");
         }
+    } else if (entry.source.type === "catalog-tag") {
+        const target = existing.get(key(entry));
+        assert.ok((target.confidence || 0) >= 0.7, "Catalog-tag era inference requires track-level confidence >= 0.7");
+        assert.equal(typeof entry.source.matchedTag, "string");
+        assert.ok((target.tags || []).includes(entry.source.matchedTag), "Matched tag must exist on the catalog entry");
+        const uniqueDecades = [...new Set((target.tags || []).map(parseDecadeTag).filter((dec) => dec && valid.has(dec)))];
+        assert.deepEqual(uniqueDecades, entry.eras, "Catalog tags must unambiguously specify the stated decade");
     } else {
         assert.equal(entry.source.type, "musicbrainz");
         assert.ok(entry.source.recordingIds.length);

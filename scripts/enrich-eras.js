@@ -3,26 +3,31 @@
 // Existing era tags are evidence, not independently verified release dates.
 const fs = require("node:fs");
 const path = require("node:path");
-const { normalize, fields, identity, atomicJson } = require("./lib/music-metadata");
+const { normalize, fields, identity, stripArtistNoise, normalizeArtistName, cleanTitleForLookup, atomicJson } = require("./lib/music-metadata");
 const root = path.join(__dirname, "..");
 const songs = JSON.parse(fs.readFileSync(path.join(root, "karaoke_songs_enriched.json")));
 const output = path.join(root, "era_enrichment.json");
-const clean = (value) => String(value || "").replace(/\bwvocals?\b/gi, " ").replace(/\bw\s*\/?\s*vocals?\b/gi, " ").replace(/[\[(]\s*karaoke\s*[\])]/gi, " ").replace(/\bkaraoke\b/gi, " ").replace(/\s+/g, " ").trim();
-const artist = (song) => normalize((clean(song.lookupArtist) || clean(song.artist)).replace(/[’'!?.]/g, ""));
-const knownArtists = new Set(songs.map(artist));
-const aliases = new Map();
-for (const song of songs) {
-    const parts = (clean(song.lookupArtist) || clean(song.artist)).split(",");
-    if (parts.length === 2) {
-        const reversed = normalize(`${parts[1].trim()} ${parts[0].trim()}`.replace(/[’'!?.]/g, ""));
-        if (knownArtists.has(reversed)) aliases.set(artist(song), reversed);
-    }
-}
-const title = (song) => normalize(String(song.lookupSong || song.song)
-    .replace(/[\[(][^\])]*\b(karaoke|instrumental|backing track|multiplex)\b[^\])]*[\])]/gi, " ")
-    .replace(/[-\s]+\b(?:sf|sbi|sb|mm|hmx|sc|sm)\d{3,6}\b/gi, " "));
-const key = (song) => `${aliases.get(artist(song)) || artist(song)}\u001f${title(song)}`;
+const known = new Set(songs.map((song) => normalize(stripArtistNoise(song))));
+const artist = (song) => normalize(
+    normalizeArtistName(stripArtistNoise(song), known)
+        .replace(/[’'!?.]/g, "")
+        .replace(/\b(?:feat|ft|featuring)\b/gi, "feat")
+        .replace(/^the\s+/i, "")
+        .replace(/,\s*the$/i, "")
+);
+const title = (song) => normalize(
+    cleanTitleForLookup(song)
+        .replace(/,\s*(?:the|a|an)$/i, "")
+        .replace(/^(?:the|a|an)\s+/i, "")
+        .replace(/[’']/g, "")
+);
+const key = (song) => `${artist(song)}\u001f${title(song)}`;
 const valid = new Set(["50s", "60s", "70s", "80s", "90s", "2000s", "2010s", "2020s"]);
+const decadeTagPattern = /^(?:19)?([5-9]0)s$|^(20[0-2]0)s$/;
+const parseDecadeTag = (tag) => {
+    const match = String(tag || "").trim().toLowerCase().match(decadeTagPattern);
+    return match ? (match[1] ? `${match[1]}s` : `${match[2]}s`) : null;
+};
 const groups = new Map();
 for (const song of songs) {
     if (!artist(song) || !title(song)) continue;
@@ -31,18 +36,35 @@ for (const song of songs) {
 }
 const entries = [];
 let conflicts = 0;
+const checkedAt = new Date().toISOString().slice(0, 10);
 for (const song of songs) {
     if (song.eras?.length) continue;
     const evidence = (groups.get(key(song)) || []).filter((row) => row.eras?.length);
-    if (!evidence.length) continue;
-    const eras = [...new Set(evidence.flatMap((row) => row.eras))];
-    // Require a single consistent decade across exact artist/title matches.
-    if (eras.length !== 1 || !valid.has(eras[0])) { conflicts++; continue; }
-    entries.push({ ...fields(song), eras, source: {
-        type: "catalog-consensus", confidence: "inferred", checkedAt: new Date().toISOString().slice(0, 10),
-        matching: "Normalized lookup title and artist; comma-reversed artist allowed only when that exact name also exists; karaoke source codes removed; all dated matches agree on one decade",
-        evidence: evidence.slice(0, 3).map((row) => ({ ...fields(row), eras: row.eras })),
-    } });
+    if (evidence.length) {
+        const eras = [...new Set(evidence.flatMap((row) => row.eras))];
+        // Require a single consistent decade across exact artist/title matches.
+        if (eras.length !== 1 || !valid.has(eras[0])) { conflicts++; continue; }
+        entries.push({ ...fields(song), eras, source: {
+            type: "catalog-consensus", confidence: "inferred", checkedAt,
+            matching: "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
+            evidence: evidence.slice(0, 3).map((row) => ({ ...fields(row), eras: row.eras })),
+        } });
+        continue;
+    }
+    // Only trust decade tags on track-level rows (confidence >= 0.7); lower-confidence
+    // rows carry artist-level fallback tags whose decade may not match the track.
+    if ((song.confidence || 0) < 0.7) continue;
+    const tagMatches = (song.tags || []).map((raw) => [raw, parseDecadeTag(raw)]).filter(([, dec]) => dec && valid.has(dec));
+    const uniqueTagDecades = [...new Set(tagMatches.map(([, dec]) => dec))];
+    if (uniqueTagDecades.length === 1) {
+        entries.push({ ...fields(song), eras: uniqueTagDecades, source: {
+            type: "catalog-tag", confidence: "inferred", checkedAt,
+            matchedTag: tagMatches[0][0],
+            matching: "Unambiguous single decade tag present in track-level catalog tags[] (confidence >= 0.7)",
+        } });
+    } else if (uniqueTagDecades.length > 1) {
+        conflicts++;
+    }
 }
 // Keep separately reviewed MusicBrainz matches when regenerating local matches.
 if (fs.existsSync(output)) {
@@ -55,5 +77,5 @@ const unique = [...new Map(entries.map((entry) => [identity(entry), entry])).val
 const before = songs.filter((song) => song.eras?.length).length;
 const covered = new Set(unique.map(identity));
 const added = songs.filter((song) => !song.eras?.length && covered.has(identity(song))).length;
-atomicJson(output, { schemaVersion: 1, generatedAt: new Date().toISOString().slice(0, 10), summary: { total: songs.length, before, added, after: before + added, conflictsSkipped: conflicts }, entries: unique });
+atomicJson(output, { schemaVersion: 1, generatedAt: checkedAt, summary: { total: songs.length, before, added, after: before + added, conflictsSkipped: conflicts }, entries: unique });
 console.log({ before, added, after: before + added, conflictsSkipped: conflicts });

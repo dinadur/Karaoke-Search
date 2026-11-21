@@ -133,12 +133,14 @@ function buildSampledShelves() {
     // Bucket all Discover pools in a single catalog pass instead of scanning
     // 37k songs separately for every shelf.
     const tagged = [];
+    const newlyAdded = [];
     const seasonalSongs = [];
     const duets = [];
     let popularCount = 0;
 
     for (const song of state.songs) {
         if (song.status === "ok") tagged.push(song);
+        else if (song.status === "pending") newlyAdded.push(song);
         if ((song.popularity || 0) > 0) popularCount++;
         if (seasonalKey && song.filterKeys.holidays.has(seasonalKey)) seasonalSongs.push(song);
         for (const target of moodTargets) {
@@ -160,6 +162,13 @@ function buildSampledShelves() {
             if (top.length === 800) break;
         }
         shelves.push({ title: "Crowd pleasers", songs: sampleSongs(top, 8) });
+    }
+
+    if (newlyAdded.length >= 4) {
+        shelves.push({
+            title: "Newly added",
+            songs: sampleSongs(newlyAdded, 8),
+        });
     }
 
     shelves.push({
