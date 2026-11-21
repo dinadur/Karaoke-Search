@@ -261,8 +261,18 @@ function pickPersonalSongs(pool, preferences) {
         if (preferences.voices === "duet" && !song.isDuet) continue;
         if (preferences.voices === "solo" && song.isDuet) continue;
         const moods = song.filterKeys.moods;
-        const energetic = ["high energy", "party", "danceable"].some((mood) => moods.has(mood));
-        const relaxed = ["mellow", "relaxed", "chill", "calm", "romantic"].some((mood) => moods.has(mood));
+        const moodEnergetic = ["high energy", "party", "danceable"].some((mood) => moods.has(mood));
+        const moodRelaxed = ["mellow", "relaxed", "chill", "calm", "romantic"].some((mood) => moods.has(mood));
+        const audioEnergetic = !moodRelaxed && (
+            (typeof song.danceability === "number" && song.danceability >= 70 && (!song.bpm || song.bpm >= 105)) ||
+            (typeof song.bpm === "number" && song.bpm >= 125 && (song.acousticness == null || song.acousticness <= 35))
+        );
+        const audioRelaxed = !moodEnergetic && !audioEnergetic && (
+            (typeof song.acousticness === "number" && song.acousticness >= 60 && (!song.bpm || song.bpm <= 115)) ||
+            (typeof song.bpm === "number" && song.bpm <= 85 && (song.danceability == null || song.danceability <= 55))
+        );
+        const energetic = moodEnergetic || audioEnergetic;
+        const relaxed = moodRelaxed || audioRelaxed;
         if (preferences.energy === "energetic" && !energetic) continue;
         if (preferences.energy === "relaxed" && (!relaxed || energetic)) continue;
         seen.add(group);
@@ -275,7 +285,11 @@ function pickPersonalSongs(pool, preferences) {
         if (entry?.comfort) reasons.push(`Your comfort rating: ${entry.comfort}/5`);
         if (preferences.voices === "duet") reasons.push("Tagged as a duet");
         if (preferences.voices === "solo") reasons.push("Not tagged as a duet");
-        if (preferences.energy !== "any") reasons.push(preferences.energy === "energetic" ? "Energetic mood tags" : "Relaxed mood tags");
+        if (preferences.energy === "energetic") {
+            reasons.push(moodEnergetic ? "Energetic mood tags" : "Reference tempo/energy from GetSongBPM");
+        } else if (preferences.energy === "relaxed") {
+            reasons.push(moodRelaxed ? "Relaxed mood tags" : "Reference tempo/energy from GetSongBPM");
+        }
         if (!reasons.length) reasons.push("A fresh pick from your current results");
         // Shuffle within the eligible pool; keep each result's explanation factual.
         const score = Math.random() + (entry?.status === "want" ? .2 : 0);
@@ -328,9 +342,13 @@ function annotateEraSource(container, song) {
     if (!song.eraSource) return;
     const explanation = song.eraSource.type === "musicbrainz"
         ? "Decade from matching MusicBrainz recording dates"
-        : "Decade inferred from matching catalog entries";
+        : song.eraSource.type === "catalog-tag"
+            ? "Decade from catalog tag metadata"
+            : "Decade inferred from matching catalog entries";
     for (const pill of container.querySelectorAll(".era")) {
-        if (song.eraSource.type === "catalog-consensus") pill.textContent += " · inferred";
+        if (song.eraSource.type === "catalog-consensus" || song.eraSource.type === "catalog-tag") {
+            pill.textContent += " · inferred";
+        }
         pill.title = explanation;
         pill.setAttribute("aria-label", `${pill.textContent}. ${explanation}`);
     }
@@ -346,10 +364,12 @@ async function applyAudioEnrichment(songs, enrichment) {
         if (!entry || typeof entry.song !== 'string' || typeof entry.artist !== 'string' || entry.source?.type !== 'getsongbpm' || !Array.isArray(entry.source.records)) continue;
         const url = entry.source.records?.find((record) => typeof record?.url === 'string' && /^https:\/\/getsongbpm\.com\/song\//.test(record.url))?.url;
         if (!url) continue;
-        const bpm = typeof entry.bpm === 'number' && entry.bpm >= 20 && entry.bpm <= 400 ? entry.bpm : null;
+        const bpm = typeof entry.bpm === 'number' && Number.isFinite(entry.bpm) && entry.bpm >= 20 && entry.bpm <= 400 ? entry.bpm : null;
         const referenceKey = typeof entry.referenceKey === 'string' && /^[A-G](?:#|b|♯|♭)?m?$/.test(entry.referenceKey) ? entry.referenceKey : null;
+        const danceability = typeof entry.danceability === 'number' && Number.isFinite(entry.danceability) && entry.danceability >= 0 && entry.danceability <= 100 ? entry.danceability : null;
+        const acousticness = typeof entry.acousticness === 'number' && Number.isFinite(entry.acousticness) && entry.acousticness >= 0 && entry.acousticness <= 100 ? entry.acousticness : null;
         if (bpm === null && referenceKey === null) continue;
-        byId.set(targetKey(entry), { bpm, referenceKey, audioSource: { url, type: 'getsongbpm' } });
+        byId.set(targetKey(entry), { bpm, referenceKey, danceability, acousticness, audioSource: { url, type: 'getsongbpm' } });
     }
     if (!byId.size) return songs;
     return mapSongbookInChunks(songs, (song) => {

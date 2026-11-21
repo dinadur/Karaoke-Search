@@ -1,4 +1,4 @@
-const APP_VERSION = "20261121-2";
+const APP_VERSION = "20261121-3";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const TAG_CONSOLIDATION_URL = `tag_consolidation.json?v=${APP_VERSION}`;
 const MOOD_CONSOLIDATION_URL = `mood_consolidation.json?v=${APP_VERSION}`;
@@ -821,11 +821,13 @@ async function useSongs(songs) {
     }
 
     const variantsByKey = new Map();
+    const soloArtistCounts = new Map();
     const tagCounts = new Map();
     const tagLabelsByKey = new Map();
     const useConsolidatedGenres = state.tagConsolidation.genreTags.size > 0;
 
-    // Pass 1: validate schema, gather artist variants, and count tags in one scan.
+    // Pass 1: validate schema, gather artist variants, track solo artists for
+    // duet detection, and count tags in one scan.
     await forEachSongbookInChunks(songs, (song) => {
         if (!song || typeof song.song !== "string" || typeof song.artist !== "string") {
             throw new Error("Invalid songbook data");
@@ -855,6 +857,7 @@ async function useSongs(songs) {
                 variants.set(name, (variants.get(name) || 0) + 1);
             }
         }
+        recordSoloArtistCount(soloArtistCounts, song.lookupArtist || song.artist);
 
         const tags = song.tags;
         if (tags && tags.length) {
@@ -969,7 +972,7 @@ async function useSongs(songs) {
             tags: normalizedTags,
             flags: normalizedFlags,
         });
-        preparedSong.isDuet = normalizedFlags.includes("duet");
+        preparedSong.isDuet = detectIsDuet(song, normalizedFlags, normalizedTags, soloArtistCounts);
         preparedSong.filterKeys = {
             moods: new Set(allMoods.map(normalize)),
             genres: new Set(genreKeys),
@@ -3550,19 +3553,99 @@ function computeHolidayValues(song, precomputed = null) {
     return values;
 }
 
+const DUET_COLLAB_PATTERN = /\b(?:feat\.?|ft\.?|featuring|duet)\b/i;
+const DUET_PAREN_WITH_PATTERN = /\(\s*with\s+(?!vocals?\b)[^)]+\)/i;
+const SOLO_ARTIST_SEP_PATTERN = /[&+]|\b(?:feat\.?|ft\.?|featuring|and|with|vs\.?|versus|duet)\b/i;
+const DUET_BACKING_GROUP_PATTERN = /^(?:the\s+|his\s+|her\s+)|^(?:wings|friends|company|band|orchestra|chorus|singers|quartet|trio|ensemble|players|crew|cast|family|gang|boys|girls|brothers|sisters|bandmates)$|\b(?:band|orchestra|chorus|singers|quartet|trio|ensemble|players|all[\s-]*stars?|experience|movement|revolution|heartbreakers|e street band|wailers|supremes|miracles|pips|diamonds|bad seeds|attractions|imposters|news|shondells|vandellas|marvelettes|four seasons|blackhearts|crickets|drifters|comets|blue caps|silver bullet band|rhythm kings|sunshine band|soul syndicate|family stone|crazy horse|stray gators|range|spiders from mars|saints|angels|revelations|jets|breakers|strangers|drifting cowboys|texas playboys|blue moon boys)\b/i;
+
+function recordSoloArtistCount(soloArtistCounts, rawArtist) {
+    const cleaned = String(rawArtist || "").replace(/\s*\([^)]*\)\s*/g, " ").trim();
+    if (!cleaned || SOLO_ARTIST_SEP_PATTERN.test(cleaned)) {
+        return;
+    }
+    const key = normalize(cleaned);
+    if (key) {
+        soloArtistCounts.set(key, (soloArtistCounts.get(key) || 0) + 1);
+    }
+    if (cleaned.includes(",")) {
+        const parts = cleaned.split(",").map((part) => part.trim()).filter(Boolean);
+        if (parts.length === 2 && !/^the$/i.test(parts[1])) {
+            const flipped = normalize(`${parts[1]} ${parts[0]}`);
+            if (flipped) {
+                soloArtistCounts.set(flipped, (soloArtistCounts.get(flipped) || 0) + 1);
+            }
+        }
+    }
+}
+
+function resolveDuetArtistPart(rawPart, soloArtistCounts) {
+    const cleaned = String(rawPart || "").trim();
+    if (!cleaned) {
+        return "";
+    }
+    if (cleaned.includes(",")) {
+        const parts = cleaned.split(",").map((part) => part.trim()).filter(Boolean);
+        if (parts.length === 2 && !/^the$/i.test(parts[1])) {
+            const flipped = normalize(`${parts[1]} ${parts[0]}`);
+            if ((soloArtistCounts.get(flipped) || 0) >= 2) {
+                return flipped;
+            }
+        }
+    }
+    return normalize(cleaned);
+}
+
+function detectIsDuet(song, normalizedFlags, normalizedTags, soloArtistCounts) {
+    if (normalizedFlags.includes("duet")) {
+        return true;
+    }
+    if (normalizedTags.includes("duet") || normalizedTags.includes("duets")) {
+        return true;
+    }
+    const artistText = `${song.artist || ""} ${song.lookupArtist || ""}`;
+    if (
+        DUET_COLLAB_PATTERN.test(artistText) ||
+        DUET_COLLAB_PATTERN.test(song.song || "") ||
+        DUET_PAREN_WITH_PATTERN.test(artistText)
+    ) {
+        return true;
+    }
+    const primary = String(song.lookupArtist || song.artist || "");
+    if (!primary.includes("&")) {
+        return false;
+    }
+    const parts = primary.split(/\s*&\s*/).map((part) => part.trim()).filter(Boolean);
+    if (parts.length !== 2 || DUET_BACKING_GROUP_PATTERN.test(parts[1])) {
+        return false;
+    }
+    const left = resolveDuetArtistPart(parts[0], soloArtistCounts);
+    const right = resolveDuetArtistPart(parts[1], soloArtistCounts);
+    return Boolean(
+        left &&
+        right &&
+        left !== right &&
+        (soloArtistCounts.get(left) || 0) >= 2 &&
+        (soloArtistCounts.get(right) || 0) >= 2
+    );
+}
+
 function hasFlag(song, flag) {
     return (song.flags || []).some((value) => normalize(value) === normalize(flag));
 }
 
 function getDisplayFlags(song) {
     const holidays = getHolidayValues(song).map(normalize);
-    return (song.flags || []).filter((flag) => {
+    const flags = (song.flags || []).filter((flag) => {
         if (normalize(flag) === "holiday" && holidays.some((holiday) => holiday !== "holiday")) {
             return false;
         }
 
         return true;
     });
+    if (song.isDuet && !flags.some((flag) => normalize(flag) === "duet")) {
+        flags.push("Duet");
+    }
+    return flags;
 }
 
 const NORMALIZE_CACHE = new Map();

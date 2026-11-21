@@ -605,6 +605,54 @@ const tests = [
         await page.click("#expandGroupsButton");
         assert.equal(await page.locator("#browseList .artist-song-row").count(), 200);
     }],
+    ["Duet detection catches collaborations accurately without false positives and Newly added shelf surfaces pending songs", async (page, context) => {
+        const duetCatalog = [
+            // Solo baseline so Dolly Parton & Kenny Rogers each have >= 2 solo tracks
+            { song: "Jolene", artist: "Dolly Parton", status: "ok" },
+            { song: "9 to 5", artist: "Dolly Parton", status: "ok" },
+            { song: "The Gambler", artist: "Kenny Rogers", status: "ok" },
+            { song: "Lucille", artist: "Kenny Rogers", status: "ok" },
+            { song: "Upside Down", artist: "Diana Ross", status: "ok" },
+            { song: "I'm Coming Out", artist: "Diana Ross", status: "ok" },
+            // True duets via different signals
+            { song: "Islands in the Stream", artist: "Rogers, Kenny & Dolly Parton", status: "ok" },
+            { song: "Don't Go Breaking My Heart", artist: "Elton John & Kiki Dee", tags: ["duet"], status: "ok" },
+            { song: "Crazy In Love", artist: "Beyonce feat. Jay-Z", status: "ok" },
+            { song: "Bloodline", artist: "Alex Warren (with Jelly Roll)", status: "ok" },
+            { song: "Explicit Flag Duet", artist: "Duo One", flags: ["Duet"], status: "ok" },
+            // Precision exclusions (must NOT be flagged as duets)
+            { song: "Baby Love", artist: "Diana Ross & The Supremes", status: "ok" },
+            { song: "If You Can't Hang", artist: "Sleeping With Sirens", status: "ok" },
+            { song: "Vocal Track", artist: "Solo Act (with vocals)", status: "ok" },
+            // Pending songs for Newly added shelf
+            { song: "Fresh One", artist: "New Artist 1", status: "pending" },
+            { song: "Fresh Two", artist: "New Artist 2", status: "pending" },
+            { song: "Fresh Three", artist: "New Artist 3", status: "pending" },
+            { song: "Fresh Four", artist: "New Artist 4", status: "pending" },
+        ].map((song) => ({ eras: [], tags: [], genres: [], moods: [], flags: [], ...song }));
+        await context.unroute("**/karaoke_songs_enriched.json?*");
+        await context.route("**/karaoke_songs_enriched.json?*", (route) => route.fulfill({ json: duetCatalog }));
+        await page.goto(BASE);
+        await page.waitForFunction(() => state.songs.length === 18 && !document.querySelector(".skeleton"));
+
+        const shelfTitles = await page.locator(".shelf h3").allTextContents();
+        assert.ok(shelfTitles.includes("Newly added"), `Expected Newly added shelf in ${JSON.stringify(shelfTitles)}`);
+
+        const duetTitles = await page.evaluate(() => state.songs.filter((s) => s.isDuet).map((s) => s.song).sort());
+        assert.deepEqual(duetTitles, [
+            "Bloodline",
+            "Crazy In Love",
+            "Don't Go Breaking My Heart",
+            "Explicit Flag Duet",
+            "Islands in the Stream",
+        ]);
+
+        // Detected duets show a single Duet pill without duplicating explicit flags.
+        await search(page, "Islands in the Stream");
+        assert.deepEqual(await page.locator(".song-card .pill.flag").allTextContents(), ["Duet"]);
+        await search(page, "Explicit Flag Duet");
+        assert.deepEqual(await page.locator(".song-card .pill.flag").allTextContents(), ["Duet"]);
+    }],
 ];
 
 (async () => {

@@ -33,8 +33,19 @@ const oversizedStream = new ReadableStream({
     },
 });
 await assert.rejects(() => readResponseJson(new Response(oversizedStream)), /too large/);
-const grouped = catalogGroups([{ artist: 'Alpha', song: 'Exact' }, { artist: 'Alpha', song: 'Exact (karaoke)' }, { artist: 'Alpha', song: 'Exact (live)' }]);
-assert.equal(grouped.length, 2); assert.equal(grouped[0].songs.length, 2);
+const grouped = catalogGroups([
+    { artist: 'Alpha', song: 'Exact' },
+    { artist: 'Alpha', song: 'Exact (karaoke)' },
+    { artist: 'Alpha', song: 'Exact [Karaok' },
+    { artist: 'Alpha', song: 'Exact (live)' },
+    { artist: 'Jennifer Lopez', song: 'Waiting for Tonight' },
+    { artist: 'Lopez, Jennifer & Pitbull', song: 'On the Floor' },
+    { artist: 'Earth, Wind & Fire', song: 'September' },
+]);
+assert.equal(grouped.length, 5);
+assert.equal(grouped.find((g) => g.title === 'Exact').songs.length, 3);
+assert.ok(grouped.some((g) => g.artist === 'Jennifer Lopez & Pitbull' && g.title === 'On the Floor'));
+assert.ok(grouped.some((g) => g.artist === 'Earth, Wind & Fire' && g.title === 'September'));
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'karaoke-bpm-test-'));
 try {
     fs.mkdirSync(path.join(temp, 'scripts/lib'), { recursive: true });

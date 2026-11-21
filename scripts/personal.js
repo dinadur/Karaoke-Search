@@ -80,8 +80,25 @@ const tests = [
     ["era enrichment fills missing tags without overwriting existing dates", async (page) => {
         assert.deepEqual(await page.evaluate(() => state.songs[0].eras), ["80s"]);
         assert.deepEqual(await page.evaluate(() => state.songs[1].eras), ["90s"]);
+        assert.deepEqual(await page.evaluate(() => state.songs.find((s) => s.song === "Tag Era Song").eras), ["2020s"]);
         await search(page, "Tune 0");
         assert.match(await page.locator(".pill.era").getAttribute("aria-label"), /inferred/);
+        await search(page, "Tag Era Song");
+        const tagEraLabel = await page.locator(".pill.era").getAttribute("aria-label");
+        assert.match(tagEraLabel, /inferred/);
+        assert.match(tagEraLabel, /catalog tag metadata/);
+    }],
+    ["picker falls back to GetSongBPM tempo/energy when mood tags are absent", async (page) => {
+        await search(page, "Audio");
+        await menu(page, "#chooseSongButton");
+        await page.check('[name="energy"][value="energetic"]');
+        await page.click('#chooseSongForm button[type="submit"]');
+        assert.deepEqual(await page.locator("#pickerResults h3").allTextContents(), ["Audio Fast"]);
+        assert.match(await page.locator("#pickerResults").textContent(), /Reference tempo\/energy from GetSongBPM/);
+        await page.check('[name="energy"][value="relaxed"]');
+        await page.click('#chooseSongForm button[type="submit"]');
+        assert.deepEqual(await page.locator("#pickerResults h3").allTextContents(), ["Audio Chill"]);
+        assert.match(await page.locator("#pickerResults").textContent(), /Reference tempo\/energy from GetSongBPM/);
     }],
     ["new dialogs reflow at 320px and pass accessibility checks", async (page) => {
         await page.setViewportSize({ width: 320, height: 740 });
@@ -104,13 +121,34 @@ const tests = [
 ];
 (async () => {
     const browser = await pw[browserName].launch(options);
+    const fullCatalog = [
+        ...catalog,
+        { artist: "Tag Artist", song: "Tag Era Song", genres: [], tags: ["2020s"], moods: [], eras: [], flags: [], status: "ok" },
+        { artist: "Audio One", song: "Audio Fast", genres: [], tags: [], moods: [], eras: ["2010s"], flags: [], status: "ok" },
+        { artist: "Audio Two", song: "Audio Chill", genres: [], tags: [], moods: [], eras: ["2010s"], flags: [], status: "ok" },
+    ];
     try {
         for (const [name, run] of tests) {
             const context = await browser.newContext({ serviceWorkers: "block", reducedMotion: "reduce" });
             const page = await context.newPage(); const errors = [];
             page.on("pageerror", (error) => errors.push(error.message));
-            await context.route("**/karaoke_songs_enriched.json?*", (route) => route.fulfill({ json: catalog }));
-            await context.route("**/era_enrichment.json?*", (route) => route.fulfill({ json: { entries: catalog.slice(0, 2).map((song) => ({ ...song, eras: ["80s"], source: { type: "catalog-consensus" } })) } }));
+            await context.route("**/karaoke_songs_enriched.json?*", (route) => route.fulfill({ json: fullCatalog }));
+            await context.route("**/era_enrichment.json?*", (route) => route.fulfill({
+                json: {
+                    entries: [
+                        ...catalog.slice(0, 2).map((song) => ({ ...song, eras: ["80s"], source: { type: "catalog-consensus" } })),
+                        { artist: "Tag Artist", song: "Tag Era Song", eras: ["2020s"], source: { type: "catalog-tag", matchedTag: "2020s" } },
+                    ],
+                },
+            }));
+            await context.route("**/audio_enrichment.json?*", (route) => route.fulfill({
+                json: {
+                    entries: [
+                        { artist: "Audio One", song: "Audio Fast", bpm: 132, referenceKey: "Am", danceability: 84, acousticness: 8, source: { type: "getsongbpm", records: [{ url: "https://getsongbpm.com/song/audio-fast/1" }] } },
+                        { artist: "Audio Two", song: "Audio Chill", bpm: 74, referenceKey: "C", danceability: 36, acousticness: 82, source: { type: "getsongbpm", records: [{ url: "https://getsongbpm.com/song/audio-chill/2" }] } },
+                    ],
+                },
+            }));
             try {
                 await page.goto(BASE); await page.waitForFunction(() => state.songs.length && !songbookLoadPending);
                 await run(page); assert.deepEqual(errors, []); console.log(`ok   ${name}`);
