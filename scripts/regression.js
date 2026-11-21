@@ -515,11 +515,13 @@ const tests = [
         await page.waitForFunction(() => !document.querySelector("[inert]"));
         assert.equal(await page.locator("#sheetBackdrop").isVisible(), false);
     }],
-    ["all manifest and touch icons are served at their declared dimensions", async (page) => {
+    ["all manifest, favicon, and touch icons are served at their declared dimensions", async (page) => {
         const manifest = await (await page.request.get(new URL("manifest.json", BASE).href)).json();
         await page.goto(BASE);
         const touchIcon = await page.locator('link[rel="apple-touch-icon"]').getAttribute("href");
-        const icons = [...manifest.icons, { src: touchIcon, sizes: "180x180" }];
+        const favIcon = await page.locator('link[rel="icon"]').getAttribute("href");
+        assert.match(favIcon || "", /^app-icon\.svg\?v=/);
+        const icons = [...manifest.icons, { src: touchIcon, sizes: "180x180" }, { src: favIcon, sizes: "any" }];
         for (const icon of icons) {
             const response = await page.request.get(new URL(icon.src, BASE).href);
             assert.equal(response.status(), 200, icon.src);
@@ -529,6 +531,41 @@ const tests = [
                 assert.equal(`${png.readUInt32BE(16)}x${png.readUInt32BE(20)}`, icon.sizes);
                 assert.ok(fs.existsSync(path.join(__dirname, "..", icon.src.split("?")[0])));
             }
+        }
+    }],
+    ["contractions and punctuation match exact search, highlight cleanly, and music links use cleaned titles", async (page, context) => {
+        const customCatalog = [
+            { song: "It's My Life", artist: "Bon Jovi", eras: ["2000s"] },
+            { song: "Don't Stop Believin' [Karaoke] SF123", artist: "Journey", eras: ["80s"] },
+            { song: "Back In Black", artist: "AC/DC", eras: ["80s"] },
+            { song: "Losing My Religion", artist: "R.E.M.", eras: ["90s"] },
+        ].map((song) => ({ ...song, status: "ok", tags: [], genres: [], moods: [], flags: [] }));
+        await context.unroute("**/karaoke_songs_enriched.json?*");
+        await context.route("**/karaoke_songs_enriched.json?*", (route) => route.fulfill({ json: customCatalog }));
+        await page.goto(BASE);
+        await page.waitForFunction(() => state.songs.length === 4 && !document.querySelector(".skeleton"));
+
+        for (const [query, expectedTitle, expectedMark] of [
+            ["its my life", "It's My Life", "It's"],
+            ["dont stop believin", "Don't Stop Believin'", "Don't"],
+            ["acdc", "Back In Black", "AC/DC"],
+            ["rem", "Losing My Religion", "R.E.M"],
+        ]) {
+            await search(page, query);
+            assert.equal(await page.locator("#searchNotice").isVisible(), false, `${query} should match without fuzzy fallback`);
+            assert.equal(await page.locator(".song-card").count(), 1, query);
+            assert.equal(await page.locator(".song-card .song-title").textContent(), expectedTitle);
+            const marks = await page.locator(".song-card mark").allTextContents();
+            assert.ok(marks.includes(expectedMark), `expected mark ${expectedMark} in ${JSON.stringify(marks)} for ${query}`);
+        }
+
+        await search(page, "dont stop believin");
+        await page.locator(".song-card .link-popout-button").first().click();
+        const hrefs = await page.locator(".song-links-popout a").evaluateAll((links) => links.map((a) => decodeURIComponent(a.href)));
+        assert.equal(hrefs.length, 2);
+        for (const href of hrefs) {
+            assert.match(href, /Journey Don't Stop Believin'/);
+            assert.doesNotMatch(href, /Karaoke|SF123/);
         }
     }],
 ];

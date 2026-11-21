@@ -3,11 +3,9 @@
 // Usage: node scripts/enrich-eras-musicbrainz.js [maximum requests, default 100]
 const fs = require("node:fs");
 const path = require("node:path");
+const { normalize, fields, identity: identify, catalogGroups, atomicJson } = require("./lib/music-metadata");
 const root = path.join(__dirname, "..");
-const normalize = (value) => String(value || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/&/g, " and ").replace(/[^a-z0-9]+/g, " ").trim();
 const quote = (value) => `"${String(value).replace(/[\\"]/g, " ")}"`;
-const fields = (song) => ({ artist: song.artist, song: song.song, lookupArtist: song.lookupArtist || "", lookupSong: song.lookupSong || "" });
-const identify = (song) => JSON.stringify(fields(song));
 const decade = (year) => year < 2000 ? `${Math.floor(year / 10) % 10}0s` : `${Math.floor(year / 10) * 10}s`;
 const MAX_RESPONSE_BYTES = 1024 * 1024;
 const MAX_RECORDINGS = 100;
@@ -52,56 +50,59 @@ const readBoundedJson = async (response) => {
     try { checkpoint = JSON.parse(fs.readFileSync(checkpointPath)); } catch { /* First run. */ }
     const existing = new Set(data.entries.map(identify));
     for (const result of Object.values(checkpoint)) {
-        if (result.entry && !existing.has(identify(result.entry))) {
-            data.entries.push(result.entry); existing.add(identify(result.entry));
+        const recovered = Array.isArray(result.entries) ? result.entries : result.entry ? [result.entry] : [];
+        for (const entry of recovered) {
+            if (entry && !existing.has(identify(entry))) {
+                data.entries.push(entry); existing.add(identify(entry));
+            }
         }
     }
-    const remember = (key, entry = null) => {
-        checkpoint[key] = { checkedAt: new Date().toISOString(), entry };
+    const remember = (key, entries = []) => {
+        checkpoint[key] = { checkedAt: new Date().toISOString(), entries };
         fs.mkdirSync(path.dirname(checkpointPath), { recursive: true });
         fs.writeFileSync(`${checkpointPath}.tmp`, JSON.stringify(checkpoint));
         fs.renameSync(`${checkpointPath}.tmp`, checkpointPath);
     };
-    const seen = new Set();
     let requests = 0, added = 0, consecutiveErrors = 0;
-    for (const song of [...songs].sort((a, b) => (b.popularity || 0) - (a.popularity || 0))) {
-        if (song.eras?.length || existing.has(identify(song))) continue;
-        const title = song.lookupSong || song.song;
-        let artist = song.lookupArtist || song.artist;
-        if (artist.split(",").length === 2) artist = artist.split(",").reverse().join(" ").trim();
-        const key = `${normalize(artist)}\u001f${normalize(title)}`;
-        if (!artist || seen.has(key) || checkpoint[key]) continue;
-        seen.add(key);
+    for (const group of catalogGroups(songs)) {
+        const targets = group.songs.filter((song) => !song.eras?.length && !existing.has(identify(song)));
+        if (!targets.length || checkpoint[group.key]) continue;
         if (requests >= limit) break;
         await new Promise((resolve) => setTimeout(resolve, consecutiveErrors ? 5000 * consecutiveErrors : 1200));
         requests++;
         try {
             const url = new URL("https://musicbrainz.org/ws/2/recording/");
-            url.search = new URLSearchParams({ query: `recording:${quote(title)} AND artist:${quote(artist)}`, fmt: "json", limit: "100" });
+            url.search = new URLSearchParams({ query: `recording:${quote(group.title)} AND artist:${quote(group.artist)}`, fmt: "json", limit: "100" });
             const response = await fetch(url, { headers: { "User-Agent": "KaraokeSearchEraEnrichment/1.0 (https://github.com/dinadur/Karaoke-Search)", Accept: "application/json" }, signal: AbortSignal.timeout(15000) });
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const result = await readBoundedJson(response);
             if (result.error || !Array.isArray(result.recordings)) throw new Error(result.error || "Invalid response");
             if (result.recordings.length > MAX_RECORDINGS) throw new Error("MusicBrainz response has too many recordings");
             consecutiveErrors = 0;
-            remember(key);
+            remember(group.key);
             if (result.count > 100) continue; // Incomplete search results cannot establish agreement.
             const matches = result.recordings.filter((recording) =>
-                Number(recording.score) === 100 && normalize(recording.title) === normalize(title) &&
-                normalize((recording["artist-credit"] || []).map((credit) => `${credit.name || credit.artist?.name || ""}${credit.joinphrase || ""}`).join("")) === normalize(artist));
+                Number(recording.score) === 100 && normalize(recording.title) === normalize(group.title) &&
+                normalize((recording["artist-credit"] || []).map((credit) => `${credit.name || credit.artist?.name || ""}${credit.joinphrase || ""}`).join("")) === normalize(group.artist));
             if (!matches.length || matches.some((recording) => !/^\d{4}/.test(recording["first-release-date"] || ""))) continue;
             const years = matches.map((recording) => Number(recording["first-release-date"].slice(0, 4)));
             const eras = [...new Set(years.map(decade))];
             if (eras.length !== 1 || years.some((year) => year < 1950 || year > new Date().getUTCFullYear())) continue;
-            data.entries.push({ ...fields(song), eras, source: {
+            const source = {
                 type: "musicbrainz", confidence: "exact-name-consensus", checkedAt: new Date().toISOString().slice(0, 10),
                 firstReleaseDate: matches.map((recording) => recording["first-release-date"]).sort()[0],
                 recordingIds: matches.map((recording) => recording.id),
                 urls: matches.map((recording) => `https://musicbrainz.org/recording/${recording.id}`),
-            } });
-            remember(key, data.entries[data.entries.length - 1]);
-            existing.add(identify(song)); added++;
-            console.log(`Matched ${artist} — ${title}: ${eras[0]}`);
+            };
+            const created = targets.map((song) => ({ ...fields(song), eras, source }));
+            for (const entry of created) {
+                if (existing.has(identify(entry))) continue;
+                data.entries.push(entry);
+                existing.add(identify(entry));
+                added++;
+            }
+            remember(group.key, created);
+            console.log(`Matched ${group.artist} — ${group.title}: ${eras[0]}`);
         } catch (error) {
             consecutiveErrors++;
             console.error(`MusicBrainz request failed: ${error.message}`);
@@ -109,9 +110,10 @@ const readBoundedJson = async (response) => {
         }
     }
     const covered = new Set(data.entries.map(identify));
+    const before = songs.filter((song) => song.eras?.length).length;
     const count = songs.filter((song) => !song.eras?.length && covered.has(identify(song))).length;
-    data.summary.added = count; data.summary.after = data.summary.before + count;
+    data.summary = { ...(data.summary || {}), total: songs.length, before, added: count, after: before + count };
     data.generatedAt = new Date().toISOString().slice(0, 10);
-    fs.writeFileSync(output, JSON.stringify(data, null, 2) + "\n");
+    atomicJson(output, data);
     console.log(JSON.stringify({ requests, musicBrainzRowsAdded: added, stoppedForServiceErrors: consecutiveErrors >= 3 }));
 })().catch((error) => { console.error(error); process.exitCode = 1; });

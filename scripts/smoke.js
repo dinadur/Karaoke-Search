@@ -61,7 +61,9 @@ function check(name, condition, detail = "") {
     await page.locator('.multi-filter[data-filter="decade"] .multi-option', { hasText: "80s" }).first().click();
     await page.waitForTimeout(500);
     const countLine = await page.locator("#resultCount").textContent();
-    check("decade filter narrows results", /of [\d,]+ matches/.test(countLine) && !countLine.includes("37,125"), countLine);
+    const totalSongs = await page.evaluate(() => state.songs.length);
+    const matchCount = Number((countLine.match(/of ([\d,]+) matches/)?.[1] || "0").replace(/,/g, ""));
+    check("decade filter narrows results", matchCount > 0 && matchCount < totalSongs, `${countLine} (total ${totalSongs})`);
 
     await page.click("#applyFiltersButton");
     await page.click("#browseModeButton");

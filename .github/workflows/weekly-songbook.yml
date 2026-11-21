@@ -16,6 +16,7 @@ on:
       - 'scripts/sync-venue.js'
       - 'scripts/test-sync-venue.js'
       - 'scripts/test-venue-workflow.js'
+      - 'scripts/test-weekly-songbook.js'
 
 concurrency:
   group: weekly-songbook-update

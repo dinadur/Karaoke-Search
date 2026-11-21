@@ -76,7 +76,9 @@ async function browserCheck(dir) {
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
     let browser;
     try {
-        browser = await playwright[name].launch({ headless: true });
+        const launchOptions = { headless: true };
+        if (name === 'chromium' && process.env.CHROMIUM_PATH) launchOptions.executablePath = process.env.CHROMIUM_PATH;
+        browser = await playwright[name].launch(launchOptions);
         const page = await browser.newPage();
         // All browser requests must remain on this private fixture server.
         const base = `http://127.0.0.1:${server.address().port}`;

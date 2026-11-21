@@ -11,10 +11,9 @@ metadata_cache/
 *.log
 .env
 .env.*
+.github/
 qa/
-scripts/sync-venue.js
-scripts/test-sync-venue.js
-scripts/test-venue-workflow.js
-scripts/test-weekly-songbook.js
+scripts/
+*.md
 package.json
 package-lock.json

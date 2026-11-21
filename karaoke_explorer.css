@@ -131,7 +131,8 @@ body,
 
 button,
 input,
-select {
+select,
+textarea {
     font: inherit;
 }
 
@@ -141,6 +142,7 @@ button {
 
 button:focus-visible,
 select:focus-visible,
+textarea:focus-visible,
 a:focus-visible,
 summary:focus-visible,
 [draggable="true"]:focus-visible {

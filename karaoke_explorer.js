@@ -1,4 +1,4 @@
-const APP_VERSION = "20261002-1";
+const APP_VERSION = "20261121-1";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const TAG_CONSOLIDATION_URL = `tag_consolidation.json?v=${APP_VERSION}`;
 const MOOD_CONSOLIDATION_URL = `mood_consolidation.json?v=${APP_VERSION}`;
@@ -63,6 +63,7 @@ const LINK_MENU_STORAGE = new WeakMap();
 const TAG_MENU_STORAGE = new WeakMap();
 const ADD_BUTTON_SONGS = new WeakMap();
 const FAVORITE_BUTTON_SONGS = new WeakMap();
+const SEARCH_NORMALIZE_CACHE = new Map();
 const SMALL_ARTIST_WORDS = new Set([
     "a",
     "an",
@@ -801,12 +802,14 @@ async function useSongs(songs) {
     const preparedSongs = await mapSongbookInChunks(songs, (song, index) => {
         const artistKey = getArtistKey(song);
         const displayArtist = artistNames.get(artistKey) || getPrimaryArtistName(song);
-        const songSearchText = normalize(song.song);
-        const artistSearchText = normalize([
+        const artistSources = [
             displayArtist,
             song.artist,
             song.lookupArtist,
-        ].join(" "));
+        ].join(" ");
+        const songSearchText = normalizeSearchText(song.song);
+        const artistSearchText = normalizeSearchText(artistSources);
+        const displayArtistSearchText = normalizeSearchText(displayArtist);
 
         return {
             ...song,
@@ -818,11 +821,12 @@ async function useSongs(songs) {
             artistLetter: getBrowseLetter(displayArtist),
             songSearchText,
             artistSearchText,
+            displayArtistSearchText,
             allSearchText: `${songSearchText} ${artistSearchText}`,
-            songSortText: songSearchText,
+            songSortText: normalize(song.song),
             artistSortText: normalize(displayArtist),
             songWords: getSearchWords(song.song),
-            artistWords: getSearchWords(artistSearchText),
+            artistWords: getSearchWords(artistSources),
         };
     });
 
@@ -1125,7 +1129,7 @@ function render() {
     } else {
         renderResults();
     }
-    const sungQuery = isDiscover ? "" : normalize(state.query);
+    const sungQuery = isDiscover ? "" : normalizeSearchText(state.query);
     if (sungQuery && sungQuery !== lastSungQuery && state.visibleSongs.length) {
         window.StageFx?.sing(els.resultsList);
     }
@@ -1158,7 +1162,7 @@ function goToDiscover() {
 
 function isDiscoverView() {
     return state.mode === "search" &&
-        !normalize(state.query) &&
+        !normalizeSearchText(state.query) &&
         !hasSongFilters() &&
         state.sortMode === "relevance";
 }
@@ -1445,7 +1449,7 @@ function rankSongs(songs, query, { fuzzy = state.fuzzySearch } = {}) {
         const key = normalizeArtistKey(query);
         return songs.filter((song) => song.artistKey === key);
     }
-    const tokens = normalize(query).split(" ").filter(Boolean);
+    const tokens = normalizeSearchText(query).split(" ").filter(Boolean);
     if (!tokens.length) {
         return state.defaultRankedSongs.length ? state.defaultRankedSongs : songs;
     }
@@ -1484,7 +1488,7 @@ function rankSongs(songs, query, { fuzzy = state.fuzzySearch } = {}) {
 
             let songBonus = 0;
             if (matchesSongs) {
-                const songText = song.songSearchText || normalize(song.song);
+                const songText = song.songSearchText || normalizeSearchText(song.song);
                 if (songText === phrase) {
                     songBonus = 18;
                 } else if (songText.startsWith(phrase)) {
@@ -1494,7 +1498,7 @@ function rankSongs(songs, query, { fuzzy = state.fuzzySearch } = {}) {
 
             let artistBonus = 0;
             if (matchesArtists) {
-                const artistText = song.artistSortText || normalize(getDisplayArtist(song));
+                const artistText = song.displayArtistSearchText || normalizeSearchText(getDisplayArtist(song));
                 if (artistText === phrase) {
                     artistBonus = 16;
                 } else if (artistText.startsWith(phrase)) {
@@ -2091,7 +2095,7 @@ function createEmptyAction(label, onClick) {
 // automatically when a query has no exact matches, so they can only help when
 // filters hid every exact match.
 function getEmptySearchHelp(limit = 5) {
-    const queryTokens = normalize(state.query).split(" ").filter(Boolean);
+    const queryTokens = normalizeSearchText(state.query).split(" ").filter(Boolean);
     const tokens = queryTokens.filter((token) => token.length > 2);
     if (!tokens.length || state.fuzzySearch) {
         return { suggestions: [], nearMatches: 0 };
@@ -2440,7 +2444,15 @@ function getQueryTokens() {
         return [];
     }
 
-    return normalize(state.query).split(" ").filter(Boolean);
+    return normalizeSearchText(state.query).split(" ").filter(Boolean);
+}
+
+function isFoldedSearchWordChar(char) {
+    if (!char) {
+        return false;
+    }
+
+    return /[a-z0-9]/.test(char.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
 }
 
 function setHighlightedText(element, rawText, tokens) {
@@ -2473,13 +2485,21 @@ function getHighlightRanges(rawText, tokens) {
         return [];
     }
 
-    // Rebuild normalize() one source char at a time so normalized match
-    // positions can be mapped back to raw string indices.
+    // Rebuild normalizeSearchText() one source char at a time so normalized
+    // match positions can be mapped back to raw string indices.
     const map = [];
     let normalized = "";
     let prevSpace = true;
     for (let i = 0; i < rawText.length; i++) {
         const char = rawText[i];
+        if (/^['\u2018\u2019\u02bc]$/.test(char)) {
+            continue;
+        }
+        if ((char === "." || char === "/") &&
+            isFoldedSearchWordChar(rawText[i - 1]) &&
+            isFoldedSearchWordChar(rawText[i + 1])) {
+            continue;
+        }
         let out = char === "&"
             ? " and "
             : char.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -2692,7 +2712,7 @@ function createSongLinks(song) {
     const container = document.createElement("div");
     container.className = "song-popout song-links";
 
-    const query = encodeURIComponent(`${getDisplayArtist(song)} ${song.song || ""}`.trim());
+    const query = encodeURIComponent(`${getDisplayArtist(song)} ${getDisplaySongTitle(song) || ""}`.trim());
     const button = document.createElement("button");
     button.className = "icon-button link-popout-button";
     button.type = "button";
@@ -3966,7 +3986,7 @@ const DRAFT_SETLIST_TARGET = 10;
 function getDraftPool() {
     if (searchRenderTimer) render();
     const hasScope = state.mode === "search" &&
-        (Boolean(normalize(state.query)) || hasSongFilters());
+        (Boolean(normalizeSearchText(state.query)) || hasSongFilters());
     if (hasScope) {
         return state.currentSongs;
     }
@@ -4238,7 +4258,7 @@ function updateSearchPlaceholder() {
 
 function getScopedSearchText(song, scope = state.searchScope) {
     if (scope === "artist") {
-        return song.artistSearchText || normalize([
+        return song.artistSearchText || normalizeSearchText([
             getDisplayArtist(song),
             song.artist,
             song.lookupArtist,
@@ -4246,10 +4266,10 @@ function getScopedSearchText(song, scope = state.searchScope) {
     }
 
     if (scope === "song") {
-        return song.songSearchText || normalize(song.song);
+        return song.songSearchText || normalizeSearchText(song.song);
     }
 
-    return song.allSearchText || `${song.songSearchText || normalize(song.song)} ${song.artistSearchText || normalize(getDisplayArtist(song))}`;
+    return song.allSearchText || `${song.songSearchText || normalizeSearchText(song.song)} ${song.artistSearchText || normalizeSearchText(getDisplayArtist(song))}`;
 }
 
 function getScopedSearchWords(song, scope = state.searchScope) {
@@ -4269,7 +4289,11 @@ function getScopedSearchWords(song, scope = state.searchScope) {
 }
 
 function getSearchWords(value) {
-    return [...new Set(normalize(value).split(" ").filter((word) => word.length > 2))];
+    const words = [
+        ...normalizeSearchText(value).split(" "),
+        ...normalize(value).split(" "),
+    ];
+    return [...new Set(words.filter((word) => word.length > 2))];
 }
 
 function getFuzzyTokenScore(token, words) {
@@ -5085,6 +5109,34 @@ function normalize(value) {
 
     if (NORMALIZE_CACHE.size < 300000) {
         NORMALIZE_CACHE.set(raw, result);
+    }
+
+    return result;
+}
+
+// Search-only variant of normalize() that folds apostrophes and intra-word
+// dots/slashes ("Don't" -> "dont", "It's" -> "its", "AC/DC" -> "acdc",
+// "R.E.M." -> "rem") without altering content-derived song identities.
+function normalizeSearchText(value) {
+    const raw = String(value || "");
+    const cached = SEARCH_NORMALIZE_CACHE.get(raw);
+    if (cached !== undefined) {
+        return cached;
+    }
+
+    const result = raw
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/['\u2018\u2019\u02bc]/g, "")
+        .replace(/([a-z0-9])[./](?=[a-z0-9])/g, "$1")
+        .replace(/&/g, " and ")
+        .replace(/[^a-z0-9]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+    if (SEARCH_NORMALIZE_CACHE.size < 300000) {
+        SEARCH_NORMALIZE_CACHE.set(raw, result);
     }
 
     return result;

@@ -209,12 +209,12 @@ function personalSongRow(song, description, savedLibrary = false) {
 }
 
 function renderRepertoire() {
-    const query = normalize(personalEl("repertoireSearch").value);
+    const query = normalizeSearchText(personalEl("repertoireSearch").value);
     const filter = personalEl("repertoireFilter").value;
     const songsById = new Map(state.songs.map((song) => [getSongIdentity(song), song]));
     const entries = Object.entries(repertoire).filter(([, entry]) =>
         (filter === "all" || entry.status === filter) &&
-        normalize(`${entry.song.song} ${entry.song.artist} ${entry.song.displayArtist || ""}`).includes(query)
+        normalizeSearchText(`${entry.song.song} ${entry.song.artist} ${entry.song.displayArtist || ""}`).includes(query)
     ).sort((a, b) => compareText(a[1].song.song, b[1].song.song));
     const list = personalEl("repertoireList");
     list.replaceChildren();

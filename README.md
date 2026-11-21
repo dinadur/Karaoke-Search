@@ -1,21 +1,20 @@
 # Karaoke Search
 
-A static karaoke songbook explorer for finding songs by title, artist, mood, genre, decade, holiday, duet/explicit flags, and favorites.
+A static karaoke songbook explorer for finding songs by title, artist, mood, genre, decade, holiday, popular/duet flags, and saved songs.
 
 Live site: https://karaokesearch.uk
 
 ## Features
 
 - Search across songs and artists at once (scopable to title-only or artist-only), with automatic fuzzy fallback when a query has no exact matches.
-- Discover landing view with shelves (Lucky dip, Singalong, Party, Duets, decades, seasonal holidays, and your favorites) instead of an alphabetical dump.
+- Discover landing view with shelves (Crowd pleasers, Lucky dip, Singalong, Party, Duets, decades, seasonal holidays, and your saved songs) instead of an alphabetical dump.
 - Browse mode for reading the full catalog alphabetically by song title or artist.
-- Filters for mood, genre, decade, holiday, duet, explicit, and favorites — inline on desktop, a bottom sheet behind a "Filters (n)" toggle on mobile.
+- Filters for mood, genre, decade, holiday, popular, duet, and saved songs — opened on demand in a focus-managed sheet behind a "Filters" toggle (bottom sheet on mobile, modal on desktop).
 - Random song preview with Add / Spin again, drawing from the current filtered results.
 - Clickable artist names and tags to jump into focused searches, from song cards, the setlist, and saved songs.
 - Grouped results when sorting by song title or artist, with expand/collapse controls; long result sets load progressively as you scroll.
-- Local setlist with add, remove (with undo), copy, share, clear (with undo), drag reorder, and up/down reorder controls.
-- Local favorites saved in the browser.
-- My repertoire: Want to try / Sung before, comfort ratings, preferred keys, and personal notes saved on the device.
+- Opt-in setlist planning with add, remove (with undo), swap (with undo), Draft, QR sharing, copy, share, clear (with undo), drag reorder, and up/down reorder controls.
+- Saved songs stored locally in the browser (`karaokeSavedSongsV1`), with optional Want to try / Sung before status, comfort ratings, preferred keys, and personal notes kept on-device.
 - Help me choose: five explained suggestions using familiarity, solo/duet, and energy preferences within the current results.
 - Shareable URLs — query, scope, sort, and filters sync to the address bar.
 - Dark mode (follows system preference on first visit) and saved UI state across refreshes.
@@ -32,6 +31,7 @@ Live site: https://karaokesearch.uk
 - `tag_consolidation.json` promotes recurring Last.fm/MusicBrainz tags into cleaner genre labels.
 - `mood_consolidation.json` adds supplemental mood groupings on top of the catalog moods.
 - `era_enrichment.json` adds provenance-backed missing era tags without changing the source catalog. Catalog-inferred tags are labeled; conflicting dates stay unresolved.
+- `audio_enrichment.json` adds optional GetSongBPM reference recording BPM and key links without changing the source catalog.
 
 The public repo intentionally excludes scraping scripts, raw CSV exports, API caches, logs, environment files, and Vercel local state.
 

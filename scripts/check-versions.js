@@ -13,10 +13,10 @@ const manifest = JSON.parse(fs.readFileSync(path.join(root, "manifest.json"), "u
 
 const appVersion = js.match(/const APP_VERSION = "([^"]+)";/)?.[1];
 const cacheVersion = sw.match(/const CACHE_VERSION = "([^"]+)";/)?.[1];
-const htmlVersions = [...html.matchAll(/\?v=([0-9-]+)/g)].map((match) => match[1]);
+const htmlVersions = [...html.matchAll(/\?v=([^"'&\s>]+)/g)].map((match) => match[1]);
 
 const problems = [];
-for (const icon of manifest.icons.filter((icon) => icon.type === "image/png")) {
+for (const icon of manifest.icons) {
     if (new URL(icon.src, "https://example.test/").searchParams.get("v") !== appVersion) {
         problems.push(`manifest icon ${icon.src} must use APP_VERSION`);
     }
