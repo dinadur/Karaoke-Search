@@ -11,15 +11,9 @@ permissions:
   contents: read
 
 jobs:
-  checks:
+  static-checks:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    strategy:
-      fail-fast: false
-      matrix:
-        browser: [chromium, firefox, webkit]
-    env:
-      BROWSER: ${{ matrix.browser }}
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -30,7 +24,7 @@ jobs:
           node-version: 24
           cache: npm
 
-      - name: Syntax checks
+      - name: Syntax and data checks
         run: |
           node --check karaoke_explorer.js
           node --check sw.js
@@ -48,6 +42,8 @@ jobs:
           node --check scripts/personal.js
           node --check stage-effects.js
           node --check scripts/effects.js
+          node --check scripts/first-visit.js
+          node --check scripts/ui-helpers.js
           node --check scripts/enrich-eras.js
           node --check scripts/enrich-eras-musicbrainz.js
           node scripts/check-era-enrichment.js
@@ -66,6 +62,26 @@ jobs:
 
       - name: Version consistency
         run: node scripts/check-versions.js
+
+  checks:
+    needs: static-checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    env:
+      BROWSER: ${{ matrix.browser }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
+        with:
+          node-version: 24
+          cache: npm
 
       - name: Install Playwright
         run: |

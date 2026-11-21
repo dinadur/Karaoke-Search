@@ -28,6 +28,7 @@ for (const entry of enrichment.entries) {
 }
 const before = songs.filter((song) => song.eras?.length).length;
 const added = songs.filter((song) => !song.eras?.length && seen.has(key(song))).length;
+assert.equal(enrichment.summary.total, songs.length);
 assert.equal(enrichment.summary.before, before);
 assert.equal(enrichment.summary.added, added);
 assert.equal(enrichment.summary.after, before + added);
