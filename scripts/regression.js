@@ -631,8 +631,9 @@ const tests = [
             { song: "Baby Love", artist: "Diana Ross & The Supremes", status: "ok" },
             { song: "If You Can't Hang", artist: "Sleeping With Sirens", status: "ok" },
             { song: "Vocal Track", artist: "Solo Act (with vocals)", status: "ok" },
-            // Producer/DJ-led credits have a single vocalist
-            { song: "Producer Hit", artist: "Guetta, David ft Zara Larsson", status: "ok" },
+            // Producer/DJ-led credits have a single vocalist (including legacy comma-flipped lookupArtist)
+            { song: "Producer Hit", artist: "Guetta, David ft Zara Larsson", lookupArtist: "David ft Zara Larsson Guetta", status: "ok" },
+            { song: "Break Free", artist: "Grande, Ariana Ft Zedd", lookupArtist: "Ariana Ft Zedd Grande", status: "ok" },
             { song: "Rather Be ft. Jess Glynne", artist: "Clean Bandit", status: "ok" },
             { song: "Rockabye", artist: "Clean Bandit Feat Anne Marie And Sean Paul", status: "ok" },
             // Pending songs for Newly added shelf
@@ -644,7 +645,7 @@ const tests = [
         await context.unroute("**/karaoke_songs_enriched.json?*");
         await context.route("**/karaoke_songs_enriched.json?*", (route) => route.fulfill({ json: duetCatalog }));
         await page.goto(BASE);
-        await page.waitForFunction(() => state.songs.length === 21 && !document.querySelector(".skeleton"));
+        await page.waitForFunction(() => state.songs.length === 22 && !document.querySelector(".skeleton"));
 
         const shelfTitles = await page.locator(".shelf h3").allTextContents();
         assert.ok(shelfTitles.includes("Newly added"), `Expected Newly added shelf in ${JSON.stringify(shelfTitles)}`);

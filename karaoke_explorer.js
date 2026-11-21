@@ -3606,7 +3606,7 @@ const DUET_NON_VOCAL_ARTISTS = [
     "Clean Bandit", "Avicii", "Kygo", "Sigala", "Tiesto", "Afrojack", "DJ Khaled", "Khaled, DJ",
     "Lost Frequencies", "Sigma", "Rudimental", "Martin Garrix", "Garrix, Martin", "Zedd", "Marshmello",
     "Disclosure", "Jax Jones", "Jones, Jax", "Jonas Blue", "Blue, Jonas", "Alesso", "Swedish House Mafia",
-    "Major Lazer", "The Chainsmokers", "Chainsmokers", "Chainsmokers, The", "Duke Dumont", "Diplo",
+    "Major Lazer", "The Chainsmokers", "Chainsmokers", "Chainsmokers, The", "Duke Dumont", "Dumont, Duke", "Diplo",
     "Steve Aoki", "Aoki, Steve", "Armin van Buuren", "Robin Schulz", "Schulz, Robin", "Felix Jaehn",
     "Jaehn, Felix", "Klangkarussell", "Freemations", "Besomorph", "Coopex", "Joel Corry", "Corry, Joel",
     "Galantis", "Cheat Codes", "Illenium", "Gryffin", "Kungs", "Purple Disco Machine", "Meduza",
@@ -3622,11 +3622,13 @@ function getDuetNonVocalKeys() {
 const DUET_CREDIT_SPLIT_PATTERN = /\s+(?:and|feat|ft|featuring|with|x|vs|versus)\s+/;
 const DUET_TITLE_FEATURE_PATTERN = /\b(?:feat\.?|ft\.?|featuring)\s+([^)\]]+)/i;
 
-function countVocalCredits(song) {
-    const credits = [normalize(song.lookupArtist || song.artist)];
-    const titleFeature = String(song.song || "").match(DUET_TITLE_FEATURE_PATTERN);
+function countVocalCreditsForArtist(rawArtist, titleFeature) {
+    if (!rawArtist) {
+        return Infinity;
+    }
+    const credits = [normalize(rawArtist)];
     if (titleFeature) {
-        credits.push(normalize(titleFeature[1]));
+        credits.push(titleFeature);
     }
     let text = ` ${credits.join(" and ")} `;
     let foundNonVocal = false;
@@ -3644,6 +3646,19 @@ function countVocalCredits(song) {
         .map((part) => part.trim())
         .filter((part) => part && !/^(?:and|feat|ft|featuring|with|x|vs|versus)$/.test(part))
         .length;
+}
+
+function countVocalCredits(song) {
+    const titleMatch = String(song.song || "").match(DUET_TITLE_FEATURE_PATTERN);
+    const titleFeature = titleMatch ? normalize(titleMatch[1]) : "";
+    // Check both raw artist and lookupArtist: legacy comma-flipped lookupArtist
+    // strings like "David ft Sia Guetta" or "Ariana Ft Zedd Grande" can split
+    // a producer or singer name across the feature keyword.
+    const artistCount = countVocalCreditsForArtist(song.artist, titleFeature);
+    if (!song.lookupArtist || song.lookupArtist === song.artist) {
+        return artistCount;
+    }
+    return Math.min(artistCount, countVocalCreditsForArtist(song.lookupArtist, titleFeature));
 }
 
 function detectDuetSource(song, normalizedFlags, normalizedTags, soloArtistCounts) {
