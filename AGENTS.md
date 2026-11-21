@@ -11,6 +11,9 @@ This repo is a static frontend for a karaoke songbook. It is deployed from `main
   - `karaoke_explorer.js`
   - `personal-songbook.js`
   - `stage-effects.js`
+  - `filters-panel.js`
+  - `browse-discover.js`
+  - `setlist-panel.js`
 - Data/config files:
   - `karaoke_songs_enriched.json`
   - `tag_consolidation.json`
@@ -80,6 +83,16 @@ Catalog preparation is asynchronous and time-sliced. Always await `useSongs()`, 
 - The loading lyric follows `#resultsList[aria-busy]` (set by `startLoadStatus`). The "lights up" CSS follows `html.songbook-ready`, which `useSongs` sets after a successful load.
 - Keep the script precached, and run `scripts/effects.js` (all engines in CI) when changing effects. See `STAGE_EFFECTS.md`.
 
+The frontend is split into plain `defer` scripts that share one global scope (no modules, no bundler). Load order in `karaoke_explorer.html` is `qrcode.js`, `personal-songbook.js`, `stage-effects.js`, `filters-panel.js`, `browse-discover.js`, `setlist-panel.js`, then `karaoke_explorer.js`.
+
+- `filters-panel.js`: multi-select filter popovers (`MULTI_FILTER_DEFS`, `buildMultiFilters`), faceted counts, active-filter chips, and `applySearchFilters`.
+- `browse-discover.js`: Discover shelves (single-pass bucketing, partial Fisher-Yates sampling, the Newly added shelf), batched Song Browse, lazy Artist Browse, and result grouping.
+- `setlist-panel.js`: setlist queue, singer editing, Draft/Swap, QR sharing, snackbar, and the shared catalog index `getCatalogIndex()` (a `Map` of `song.id` to song, rebuilt only when `state.songs` changes).
+- `karaoke_explorer.js`: state, catalog loading/`useSongs()`, search and ranking, rendering, and startup.
+- Files call each other's functions at runtime (for example `personal-songbook.js` calls `getCatalogIndex()` from `setlist-panel.js`). Only call across files from event handlers or after startup, never at top level during script evaluation, since later files are not loaded yet.
+- Top-level `const`/`let` names must be unique across all of these files: a duplicate throws a `SyntaxError` and stops the later script.
+- When adding a script, add it to the HTML with the current `?v=` version, to the `sw.js` precache, and to the `node --check` list in `.github/workflows/ci.yml`.
+
 `personal-songbook.js` loads before the main script and provides `bindPersonalFeatures`, repertoire controls, the guided picker, and the optional era overlay. Keep it and `era_enrichment.json` in the service-worker precache. Personal notes are device-only and must not be added to QR or text sharing. Run `scripts/personal.js` when changing these flows. Era provenance is checked by `scripts/check-era-enrichment.js`; maintenance details are in `FEATURE_RELEASE.md`.
 
 ## Current App Behavior
@@ -115,7 +128,8 @@ Catalog preparation is asynchronous and time-sliced. Always await `useSongs()`, 
 - Setlist entries support an optional `singer` field (inline edit, shown as a chip, included in copy/share text); entries are stored as copies of catalog songs.
 - The setlist header has Draft (fills to 10 artist-diverse songs from current results) and QR buttons; each entry has a reroll/swap control. QR links append a deflate-compressed `#sl=` fragment of song ids; opening such a link offers Add/Replace/Ignore import. `qrcode.js` is a vendored MIT copy of qrcode-generator.
 - Popover filter counts are faceted: computed lazily for the open popover against the current query plus all other filters; zero-count options are dimmed.
-- Songs carry precomputed `filterKeys` (normalized Sets per filter), `holidayValues`, and `isDuet`; `normalize()`/`cleanDisplayValue()` are memoized. Keep these in sync if adding filterable attributes.
+- Songs carry precomputed `filterKeys` (normalized Sets per filter), `holidayValues`, `isDuet`, and `duetSource`; `normalize()`/`cleanDisplayValue()` are memoized. Keep these in sync if adding filterable attributes.
+- Duets: `detectDuetSource()` returns `"tagged"` (catalog `Duet` flag or `duet`/`duets` tag), `"likely"` (inferred from artist credits: `feat.`/`ft.`/`(with …)`, or two established solo artists joined by `&`), or `""`. Producer/DJ acts in `DUET_NON_VOCAL_ARTISTS` don't count as a vocal part, so "Producer feat. Singer" is not a duet. Guessed duets show a "Likely duet" pill and a matching Help me choose reason; tagged ones show "Duet". `isDuet` (used by the duet filter, the Duets shelf, and the picker) is true for both.
 - Discover shows recent-search chips (localStorage `karaokeRecentSearches`, recorded on add/favorite/Enter).
 - Display cleanup also strips source-catalog codes (SF/SBI/MM/HMX/SC/SM + digits, MULTIPLEX) from titles — version rows show them as badges — and renders catalog-code artist names as "Unknown artist".
 - Deploys from `main` may need a manual "Promote to Production" in the Vercel dashboard: `main` is updated server-side by the git proxy and Vercel sometimes only builds it as a preview.

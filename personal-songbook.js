@@ -283,7 +283,7 @@ function pickPersonalSongs(pool, preferences) {
         else if (entry?.status === "want") reasons.push("On your want-to-try list");
         else if (preferences.familiarity === "adventurous") reasons.push("Beyond your saved songs");
         if (entry?.comfort) reasons.push(`Your comfort rating: ${entry.comfort}/5`);
-        if (preferences.voices === "duet") reasons.push("Tagged as a duet");
+        if (preferences.voices === "duet") reasons.push(song.duetSource === "likely" ? "Likely duet, from the artist credits" : "Tagged as a duet");
         if (preferences.voices === "solo") reasons.push("Not tagged as a duet");
         if (preferences.energy === "energetic") {
             reasons.push(moodEnergetic ? "Energetic mood tags" : "Reference tempo/energy from GetSongBPM");

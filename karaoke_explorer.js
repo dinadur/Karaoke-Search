@@ -1,4 +1,4 @@
-const APP_VERSION = "20261121-3";
+const APP_VERSION = "20261121-4";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const TAG_CONSOLIDATION_URL = `tag_consolidation.json?v=${APP_VERSION}`;
 const MOOD_CONSOLIDATION_URL = `mood_consolidation.json?v=${APP_VERSION}`;
@@ -972,7 +972,10 @@ async function useSongs(songs) {
             tags: normalizedTags,
             flags: normalizedFlags,
         });
-        preparedSong.isDuet = detectIsDuet(song, normalizedFlags, normalizedTags, soloArtistCounts);
+        // "tagged" comes from catalog flags/tags; "likely" is inferred from
+        // artist credits and is labelled as a guess in the UI.
+        preparedSong.duetSource = detectDuetSource(song, normalizedFlags, normalizedTags, soloArtistCounts);
+        preparedSong.isDuet = Boolean(preparedSong.duetSource);
         preparedSong.filterKeys = {
             moods: new Set(allMoods.map(normalize)),
             genres: new Set(genreKeys),
@@ -3595,13 +3598,80 @@ function resolveDuetArtistPart(rawPart, soloArtistCounts) {
     return normalize(cleaned);
 }
 
-function detectIsDuet(song, normalizedFlags, normalizedTags, soloArtistCounts) {
+// Producer/DJ acts are credited as artists but usually don't sing, so a
+// "Producer feat. Singer" or "Producer & Singer" credit is a solo vocal.
+// Both "First Last" and catalog-style "Last, First" spellings are listed.
+const DUET_NON_VOCAL_ARTISTS = [
+    "David Guetta", "Guetta, David", "Calvin Harris", "Harris, Calvin", "Mark Ronson", "Ronson, Mark",
+    "Clean Bandit", "Avicii", "Kygo", "Sigala", "Tiesto", "Afrojack", "DJ Khaled", "Khaled, DJ",
+    "Lost Frequencies", "Sigma", "Rudimental", "Martin Garrix", "Garrix, Martin", "Zedd", "Marshmello",
+    "Disclosure", "Jax Jones", "Jones, Jax", "Jonas Blue", "Blue, Jonas", "Alesso", "Swedish House Mafia",
+    "Major Lazer", "The Chainsmokers", "Chainsmokers", "Chainsmokers, The", "Duke Dumont", "Dumont, Duke", "Diplo",
+    "Steve Aoki", "Aoki, Steve", "Armin van Buuren", "Robin Schulz", "Schulz, Robin", "Felix Jaehn",
+    "Jaehn, Felix", "Klangkarussell", "Freemations", "Besomorph", "Coopex", "Joel Corry", "Corry, Joel",
+    "Galantis", "Cheat Codes", "Illenium", "Gryffin", "Kungs", "Purple Disco Machine", "Meduza",
+    "Kaskade", "Alan Walker", "Walker, Alan", "Basement Jaxx", "Chase & Status", "Wilkinson",
+];
+let duetNonVocalKeys = null;
+
+// Built lazily: normalize() depends on caches declared later in this file.
+function getDuetNonVocalKeys() {
+    duetNonVocalKeys ||= DUET_NON_VOCAL_ARTISTS.map(normalize).sort((a, b) => b.length - a.length);
+    return duetNonVocalKeys;
+}
+const DUET_CREDIT_SPLIT_PATTERN = /\s+(?:and|feat|ft|featuring|with|x|vs|versus)\s+/;
+const DUET_TITLE_FEATURE_PATTERN = /\b(?:feat\.?|ft\.?|featuring)\s+([^)\]]+)/i;
+
+function countVocalCreditsForArtist(rawArtist, titleFeature) {
+    if (!rawArtist) {
+        return Infinity;
+    }
+    const credits = [normalize(rawArtist)];
+    if (titleFeature) {
+        credits.push(titleFeature);
+    }
+    let text = ` ${credits.join(" and ")} `;
+    let foundNonVocal = false;
+    for (const name of getDuetNonVocalKeys()) {
+        const padded = ` ${name} `;
+        while (text.includes(padded)) {
+            text = text.replace(padded, " and ");
+            foundNonVocal = true;
+        }
+    }
+    if (!foundNonVocal) {
+        return Infinity;
+    }
+    return text.split(DUET_CREDIT_SPLIT_PATTERN)
+        .map((part) => part.trim())
+        .filter((part) => part && !/^(?:and|feat|ft|featuring|with|x|vs|versus)$/.test(part))
+        .length;
+}
+
+function countVocalCredits(song) {
+    const titleMatch = String(song.song || "").match(DUET_TITLE_FEATURE_PATTERN);
+    const titleFeature = titleMatch ? normalize(titleMatch[1]) : "";
+    // Check both raw artist and lookupArtist: legacy comma-flipped lookupArtist
+    // strings like "David ft Sia Guetta" or "Ariana Ft Zedd Grande" can split
+    // a producer or singer name across the feature keyword.
+    const artistCount = countVocalCreditsForArtist(song.artist, titleFeature);
+    if (!song.lookupArtist || song.lookupArtist === song.artist) {
+        return artistCount;
+    }
+    return Math.min(artistCount, countVocalCreditsForArtist(song.lookupArtist, titleFeature));
+}
+
+function detectDuetSource(song, normalizedFlags, normalizedTags, soloArtistCounts) {
     if (normalizedFlags.includes("duet")) {
-        return true;
+        return "tagged";
     }
     if (normalizedTags.includes("duet") || normalizedTags.includes("duets")) {
-        return true;
+        return "tagged";
     }
+    return isLikelyDuetCredit(song, soloArtistCounts) && countVocalCredits(song) >= 2 ? "likely" : "";
+}
+
+function isLikelyDuetCredit(song, soloArtistCounts) {
     const artistText = `${song.artist || ""} ${song.lookupArtist || ""}`;
     if (
         DUET_COLLAB_PATTERN.test(artistText) ||
@@ -3643,7 +3713,7 @@ function getDisplayFlags(song) {
         return true;
     });
     if (song.isDuet && !flags.some((flag) => normalize(flag) === "duet")) {
-        flags.push("Duet");
+        flags.push(song.duetSource === "likely" ? "Likely duet" : "Duet");
     }
     return flags;
 }
