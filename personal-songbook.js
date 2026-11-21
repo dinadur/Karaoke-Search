@@ -211,7 +211,7 @@ function personalSongRow(song, description, savedLibrary = false) {
 function renderRepertoire() {
     const query = normalizeSearchText(personalEl("repertoireSearch").value);
     const filter = personalEl("repertoireFilter").value;
-    const songsById = new Map(state.songs.map((song) => [getSongIdentity(song), song]));
+    const songsById = getCatalogIndex();
     const entries = Object.entries(repertoire).filter(([, entry]) =>
         (filter === "all" || entry.status === filter) &&
         normalizeSearchText(`${entry.song.song} ${entry.song.artist} ${entry.song.displayArtist || ""}`).includes(query)
@@ -243,9 +243,10 @@ function personalSongGroup(song) {
 
 function pickPersonalSongs(pool, preferences) {
     const queued = new Set(state.setlist.map(personalSongGroup));
-    const familiarGroups = new Set(state.songs.filter(isFavorite).map(personalSongGroup));
-    for (const entry of Object.values(repertoire)) {
-        if (entry.status === "sung") familiarGroups.add(personalSongGroup(entry.song));
+    const songsById = getCatalogIndex();
+    const familiarGroups = new Set();
+    for (const [id, entry] of Object.entries(repertoire)) {
+        familiarGroups.add(personalSongGroup(songsById.get(id) || entry.song));
     }
     const seen = new Set();
     const candidates = [];
@@ -310,15 +311,16 @@ function renderPickerResults() {
 }
 
 async function applyEraEnrichment(songs, enrichment) {
-    if (!Array.isArray(songs) || !enrichment || !Array.isArray(enrichment.entries)) return songs;
+    if (!Array.isArray(songs) || !enrichment || !Array.isArray(enrichment.entries) || !enrichment.entries.length) return songs;
     const validEras = new Set(["50s", "60s", "70s", "80s", "90s", "2000s", "2010s", "2020s"]);
     const byId = new Map(enrichment.entries.filter((entry) => entry && typeof entry.song === "string" &&
         typeof entry.artist === "string" && Array.isArray(entry.eras) && entry.eras.length &&
         entry.eras.every((era) => validEras.has(era))).map((entry) => [getSongIdentity(entry), entry]));
+    if (!byId.size) return songs;
     return mapSongbookInChunks(songs, (song) => {
-        if (!song || typeof song.song !== "string" || typeof song.artist !== "string") return song;
+        if (!song || typeof song.song !== "string" || typeof song.artist !== "string" || song.eras?.length) return song;
         const match = byId.get(getSongIdentity(song));
-        return !song.eras?.length && match ? { ...song, eras: match.eras, eraSource: match.source } : song;
+        return match ? { ...song, eras: match.eras, eraSource: match.source } : song;
     });
 }
 
@@ -335,10 +337,10 @@ function annotateEraSource(container, song) {
 }
 
 async function applyAudioEnrichment(songs, enrichment) {
-    if (!Array.isArray(songs) || !Array.isArray(enrichment?.entries)) return songs;
+    if (!Array.isArray(songs) || !Array.isArray(enrichment?.entries) || !enrichment.entries.length) return songs;
     // Overlay only explicit import targets. Favorite/setlist IDs intentionally
     // normalize artist/title variants and are too broad for source attribution.
-    const targetKey = (song) => JSON.stringify([song.artist, song.song, song.lookupArtist || '', song.lookupSong || '']);
+    const targetKey = (song) => `${song.artist}\u001f${song.song}\u001f${song.lookupArtist || ''}\u001f${song.lookupSong || ''}`;
     const byId = new Map();
     for (const entry of enrichment.entries) {
         if (!entry || typeof entry.song !== 'string' || typeof entry.artist !== 'string' || entry.source?.type !== 'getsongbpm' || !Array.isArray(entry.source.records)) continue;
@@ -349,6 +351,7 @@ async function applyAudioEnrichment(songs, enrichment) {
         if (bpm === null && referenceKey === null) continue;
         byId.set(targetKey(entry), { bpm, referenceKey, audioSource: { url, type: 'getsongbpm' } });
     }
+    if (!byId.size) return songs;
     return mapSongbookInChunks(songs, (song) => {
         if (!song || typeof song.song !== 'string' || typeof song.artist !== 'string') return song;
         const match = byId.get(targetKey(song));

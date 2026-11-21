@@ -69,9 +69,10 @@ async function browserCheck(dir) {
             const pathname = decodeURIComponent(new URL(request.url, 'http://127.0.0.1').pathname);
             const filename = path.resolve(dir, '.' + (pathname === '/' ? '/karaoke_explorer.html' : pathname));
             if (!filename.startsWith(dir + path.sep)) { response.writeHead(403); response.end(); return; }
+            const body = fs.readFileSync(filename);
             response.writeHead(200, { 'Content-Type': types[path.extname(filename)] || 'application/octet-stream' });
-            response.end(fs.readFileSync(filename));
-        } catch { response.writeHead(404); response.end(); }
+            response.end(body);
+        } catch { if (!response.headersSent) response.writeHead(404); response.end(); }
     });
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
     let browser;

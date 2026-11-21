@@ -3,10 +3,10 @@
 // Existing era tags are evidence, not independently verified release dates.
 const fs = require("node:fs");
 const path = require("node:path");
+const { normalize, fields, identity, atomicJson } = require("./lib/music-metadata");
 const root = path.join(__dirname, "..");
 const songs = JSON.parse(fs.readFileSync(path.join(root, "karaoke_songs_enriched.json")));
 const output = path.join(root, "era_enrichment.json");
-const normalize = (value) => String(value || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/&/g, " and ").replace(/[^a-z0-9]+/g, " ").trim();
 const clean = (value) => String(value || "").replace(/\bwvocals?\b/gi, " ").replace(/\bw\s*\/?\s*vocals?\b/gi, " ").replace(/[\[(]\s*karaoke\s*[\])]/gi, " ").replace(/\bkaraoke\b/gi, " ").replace(/\s+/g, " ").trim();
 const artist = (song) => normalize((clean(song.lookupArtist) || clean(song.artist)).replace(/[’'!?.]/g, ""));
 const knownArtists = new Set(songs.map(artist));
@@ -22,7 +22,6 @@ const title = (song) => normalize(String(song.lookupSong || song.song)
     .replace(/[\[(][^\])]*\b(karaoke|instrumental|backing track|multiplex)\b[^\])]*[\])]/gi, " ")
     .replace(/[-\s]+\b(?:sf|sbi|sb|mm|hmx|sc|sm)\d{3,6}\b/gi, " "));
 const key = (song) => `${aliases.get(artist(song)) || artist(song)}\u001f${title(song)}`;
-const fields = (song) => ({ artist: song.artist, song: song.song, lookupArtist: song.lookupArtist || "", lookupSong: song.lookupSong || "" });
 const valid = new Set(["50s", "60s", "70s", "80s", "90s", "2000s", "2010s", "2020s"]);
 const groups = new Map();
 for (const song of songs) {
@@ -52,9 +51,9 @@ if (fs.existsSync(output)) {
         if (entry.source?.type === "musicbrainz") entries.push(entry);
     }
 }
-const unique = [...new Map(entries.map((entry) => [JSON.stringify(fields(entry)), entry])).values()];
+const unique = [...new Map(entries.map((entry) => [identity(entry), entry])).values()];
 const before = songs.filter((song) => song.eras?.length).length;
-const covered = new Set(unique.map((entry) => JSON.stringify(fields(entry))));
-const added = songs.filter((song) => !song.eras?.length && covered.has(JSON.stringify(fields(song)))).length;
-fs.writeFileSync(output, JSON.stringify({ schemaVersion: 1, generatedAt: new Date().toISOString().slice(0, 10), summary: { total: songs.length, before, added, after: before + added, conflictsSkipped: conflicts }, entries: unique }, null, 2) + "\n");
+const covered = new Set(unique.map(identity));
+const added = songs.filter((song) => !song.eras?.length && covered.has(identity(song))).length;
+atomicJson(output, { schemaVersion: 1, generatedAt: new Date().toISOString().slice(0, 10), summary: { total: songs.length, before, added, after: before + added, conflictsSkipped: conflicts }, entries: unique });
 console.log({ before, added, after: before + added, conflictsSkipped: conflicts });

@@ -568,6 +568,50 @@ const tests = [
             assert.doesNotMatch(href, /Karaoke|SF123/);
         }
     }],
+    ["Song Browse batches large letters and Artist Browse populates collapsed groups lazily", async (page, context) => {
+        const bigLetterCatalog = Array.from({ length: 360 }, (_, i) => ({
+            song: `Alpha Song ${String(i + 1).padStart(3, "0")}`,
+            artist: `Artist ${String((i % 12) + 1).padStart(2, "0")}`,
+            eras: ["80s"],
+            status: "ok",
+            tags: [],
+            genres: [],
+            moods: [],
+            flags: [],
+        }));
+        await context.unroute("**/karaoke_songs_enriched.json?*");
+        await context.route("**/karaoke_songs_enriched.json?*", (route) => route.fulfill({ json: bigLetterCatalog }));
+        await page.goto(BASE);
+        await page.waitForFunction(() => state.songs.length === 360 && !document.querySelector(".skeleton"));
+
+        await page.click("#browseModeButton");
+        await page.waitForSelector("#browseList .browse-row");
+        assert.equal(await page.locator("#browseList .browse-row").count(), 160);
+        assert.equal(await page.evaluate(() => state.currentSongs.length), 360);
+        assert.match(await page.locator("#resultCount").textContent(), /A · 360 songs/);
+        assert.equal(await page.locator("#resultActions").isVisible(), true);
+
+        // Trigger the button directly without scrolling the sentinel into view first
+        // (scrolling triggers IntersectionObserver auto-load before a pointer click lands).
+        await page.locator("#showMoreResultsButton").dispatchEvent("click");
+        assert.equal(await page.locator("#browseList .browse-row").count(), 320);
+        assert.equal(await page.locator("#resultActions").isVisible(), true);
+
+        // Now scroll the sentinel into view and verify IntersectionObserver loads the rest.
+        await page.locator("#resultActions").scrollIntoViewIfNeeded();
+        await page.waitForFunction(() => document.querySelectorAll("#browseList .browse-row").length === 360);
+        assert.equal(await page.locator("#resultActions").isVisible(), false);
+
+        await page.click("#browseArtistButton");
+        assert.equal(await page.locator("#browseList .browse-section").count(), 12);
+        // 12 artist groups (> 8) start collapsed and unpopulated.
+        assert.equal(await page.locator("#browseList .artist-song-row").count(), 0);
+        await page.locator("#browseList .browse-section summary").first().click();
+        assert.ok(await page.locator("#browseList .artist-song-row").count() > 0);
+        assert.ok(await page.locator("#browseList .artist-song-row").count() < 360);
+        await page.click("#expandGroupsButton");
+        assert.equal(await page.locator("#browseList .artist-song-row").count(), 360);
+    }],
 ];
 
 (async () => {
