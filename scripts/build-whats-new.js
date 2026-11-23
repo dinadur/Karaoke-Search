@@ -8,10 +8,11 @@
 //   node scripts/build-whats-new.js --worktree  # also an uncommitted sync, dated today
 //   node scripts/build-whats-new.js --check     # fail if whats_new.json is stale
 //
-// A row counts as "added" when it first appears on main's first-parent history
-// with status "pending", which is how scripts/sync-venue.js appends venue
-// additions. Data repairs that rename existing rows never produce pending rows,
-// so they are not mistaken for new songs.
+// A row counts as "added" when its identity first appears on main's first-parent
+// history and either the catalog grew by at least as many rows (a sync, even one
+// enriched before committing) or the row is "pending", which is how
+// scripts/sync-venue.js appends venue additions. Data repairs that rename rows
+// don't grow the catalog and don't produce pending rows, so they don't count.
 
 const fs = require('node:fs');
 const path = require('node:path');
@@ -39,18 +40,18 @@ function catalogAt(rev, cwd) {
     return parseCatalog(git(['show', `${rev}:${CATALOG}`], { cwd }));
 }
 
-function addedPending(current, previous) {
+function addedRows(current, previous) {
     const before = new Set(previous.map(appIdentity));
-    const ids = [];
+    const added = [];
     const seen = new Set();
     for (const song of current) {
-        if (song.status !== 'pending') continue;
         const id = appIdentity(song);
         if (before.has(id) || seen.has(id)) continue;
         seen.add(id);
-        ids.push(id);
+        added.push({ id, pending: song.status === 'pending' });
     }
-    return ids;
+    const grew = current.length - previous.length >= added.length;
+    return added.filter(row => grew || row.pending).map(row => row.id);
 }
 
 function buildWhatsNew({ cwd = ROOT, worktree = false, now = new Date(), windowDays = WINDOW_DAYS } = {}) {
@@ -85,7 +86,7 @@ function buildWhatsNew({ cwd = ROOT, worktree = false, now = new Date(), windowD
             continue; // The commit that created the catalog adds nothing "new".
         }
         // Newest first, so a song removed and re-added keeps its latest date.
-        const ids = addedPending(candidate.load(), previous).filter(id => !claimed.has(id));
+        const ids = addedRows(candidate.load(), previous).filter(id => !claimed.has(id));
         if (!ids.length) continue;
         ids.forEach(id => claimed.add(id));
         if (!newest) newest = time;
@@ -130,4 +131,4 @@ if (require.main === module) {
     }
 }
 
-module.exports = { buildWhatsNew, addedPending, serialize, WINDOW_DAYS };
+module.exports = { buildWhatsNew, addedRows, serialize, WINDOW_DAYS };

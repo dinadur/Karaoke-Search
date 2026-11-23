@@ -1,5 +1,5 @@
 {
- "about": "Songs the weekly venue sync added recently. Built by scripts/build-whats-new.js from the catalog's Git history; popularity is ranked in the app.",
+ "about": "Songs the venue sync added recently. Built by scripts/build-whats-new.js from the catalog's Git history; popularity is ranked in the app.",
  "windowDays": 60,
  "batches": [
   {

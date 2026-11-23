@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Checks scripts/build-whats-new.js against a temporary Git history:
-// venue additions are found and dated, repairs are ignored, the window holds,
+// venue additions are found and dated (pending or already enriched), repairs
+// are ignored, the window holds,
 // and an uncommitted sync is included with --worktree.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -32,7 +33,8 @@ try {
     // A repair that renames a row and enriches an earlier addition adds nothing new.
     commit([row('Alpha', 'One (Remastered)'), ...catalog.slice(1).map(song => ({ ...song, status: 'ok' }))],
         '2026-10-01T00:00:00Z', 'Data repair');
-    commit([...catalog, row('Epsilon', 'Fresh', 'pending'), row('Zeta', 'Fresher', 'pending')],
+    // A sync enriched before it was committed still counts: the catalog grew.
+    commit([...catalog, row('Epsilon', 'Fresh', 'pending'), row('Zeta', 'Fresher', 'ok')],
         '2026-11-16T00:00:00Z', 'Latest sync');
 
     const data = buildWhatsNew({ cwd: temp });
