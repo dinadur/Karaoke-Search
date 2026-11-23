@@ -214,7 +214,8 @@ function buildSampledShelves() {
         });
     }
 
-    return shelves.filter((shelf) => shelf.songs.length >= 4);
+    // What's new stays even for a small batch: it is the only way to reach it.
+    return shelves.filter((shelf) => shelf.keepSmall ? shelf.songs.length : shelf.songs.length >= 4);
 }
 
 function getSeasonalHoliday() {
@@ -319,6 +320,7 @@ function createWhatsNewShelf() {
     const count = state.whatsNewSongs.length;
     return {
         title: "What's new",
+        keepSmall: true,
         note: `${count.toLocaleString()} ${count === 1 ? "song" : "songs"} added recently, most popular first. Updated ${formatAddedDate(state.whatsNewLatest)}.`,
         songs: picked,
         seeAll: () => applyShelfFilter(() => {
