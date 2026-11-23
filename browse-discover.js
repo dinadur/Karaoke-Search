@@ -256,7 +256,7 @@ function buildWhatsNew(songs, source) {
     const artistRanks = new Map();
     for (const song of songs) {
         const rank = song.popularity || 0;
-        if (rank <= 0 || addedOn.has(song.id)) continue;
+        if (rank <= 0) continue;
         const versionKey = getSongVersionKey(song);
         versionBest.set(versionKey, Math.max(versionBest.get(versionKey) || 0, rank));
         if (song.artistKey) {
