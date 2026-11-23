@@ -16,6 +16,7 @@ const PRECACHE_URLS = [
     `/stage-effects.js?v=${CACHE_VERSION}`,
     `/era_enrichment.json?v=${CACHE_VERSION}`,
     `/audio_enrichment.json?v=${CACHE_VERSION}`,
+    `/whats_new.json?v=${CACHE_VERSION}`,
     `/karaoke_songs_enriched.json?v=${CACHE_VERSION}`,
     `/tag_consolidation.json?v=${CACHE_VERSION}`,
     `/mood_consolidation.json?v=${CACHE_VERSION}`,

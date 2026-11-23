@@ -1185,6 +1185,17 @@ select:hover {
     line-height: 1.2;
 }
 
+.shelf-heading {
+    min-width: 0;
+}
+
+.shelf-note {
+    margin: 2px 0 0;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.35;
+}
+
 .see-all {
     border: 1px solid var(--line);
     border-radius: 999px;
@@ -1194,6 +1205,7 @@ select:hover {
     background: var(--panel);
     font-size: 13px;
     font-weight: 700;
+    white-space: nowrap;
 }
 
 .see-all:hover {
@@ -1650,6 +1662,13 @@ button.browse-artist:focus-visible {
 .pill.popular {
     color: var(--accent-ink);
     background: var(--accent);
+    font-weight: 700;
+}
+
+.pill.new {
+    color: var(--brand);
+    background: var(--panel);
+    box-shadow: inset 0 0 0 1px currentColor;
     font-weight: 700;
 }
 

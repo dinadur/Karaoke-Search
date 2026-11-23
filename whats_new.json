@@ -1,0 +1,13 @@
+{
+ "about": "Songs the weekly venue sync added recently. Built by scripts/build-whats-new.js from the catalog's Git history; popularity is ranked in the app.",
+ "windowDays": 60,
+ "batches": [
+  {
+   "date": "2026-07-14",
+   "commit": "689cd7e9a340",
+   "ids": [
+    "jennifer and ll cool j lopez\u001fall i have\u001fall i have"
+   ]
+  }
+ ]
+}
