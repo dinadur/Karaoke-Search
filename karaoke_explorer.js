@@ -1,4 +1,4 @@
-const APP_VERSION = "20261123-1";
+const APP_VERSION = "20261123-2";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const TAG_CONSOLIDATION_URL = `tag_consolidation.json?v=${APP_VERSION}`;
 const MOOD_CONSOLIDATION_URL = `mood_consolidation.json?v=${APP_VERSION}`;
@@ -9,7 +9,7 @@ const SEARCH_SCOPES = ["all", "song", "artist"];
 // Params that fully describe a shared view (init() runs before later consts,
 // so this must live with the top-level constants).
 const ROUTE_PARAMS = ["q", "scope", "sort", "mood", "genre", "decade", "holiday",
-    "duet", "popular", "favorites", "fuzzy", "mode", "by", "letter", "exact"];
+    "duet", "popular", "new", "favorites", "fuzzy", "mode", "by", "letter", "exact"];
 
 // MULTI_FILTER_DEFS and multiFilterControls live in filters-panel.js.
 const TAG_GENRE_MIN_COUNT = 50;
@@ -224,6 +224,10 @@ const state = {
     defaultRankedSongs: [],
     queryScopedSongs: [],
     popularThreshold: 0,
+    // whats_new.json as loaded, and the recently added songs ranked from it.
+    whatsNewSource: null,
+    whatsNewSongs: [],
+    whatsNewLatest: "",
     cachedDiscoverShelves: null,
     promotedGenreTags: new Map(),
     tagConsolidation: createEmptyTagConsolidation(),
@@ -235,6 +239,7 @@ const state = {
         holidays: [],
         duet: false,
         popular: false,
+        recent: false,
     },
     mode: "search",
     browseBy: "song",
@@ -264,6 +269,7 @@ const els = {
     applyFiltersButton: document.getElementById("applyFiltersButton"),
     sheetBackdrop: document.getElementById("sheetBackdrop"),
     popularFilter: document.getElementById("popularFilter"),
+    recentFilter: document.getElementById("recentFilter"),
     duetFilter: document.getElementById("duetFilter"),
     favoriteFilter: document.getElementById("favoriteFilter"),
     fuzzySearch: document.getElementById("fuzzySearch"),
@@ -357,6 +363,8 @@ async function loadSongbook() {
             .then((response) => response.ok ? response.json() : null).catch(() => null);
         const audioPromise = fetch(`audio_enrichment.json?v=${APP_VERSION}`)
             .then((response) => response.ok ? response.json() : null).catch(() => null);
+        const whatsNewPromise = fetch(`whats_new.json?v=${APP_VERSION}`)
+            .then((response) => response.ok ? response.json() : null).catch(() => null);
         const tagConsolidationPromise = loadTagConsolidation();
         const moodConsolidationPromise = loadMoodConsolidation();
         const response = await fetch(DATA_URL);
@@ -375,6 +383,7 @@ async function loadSongbook() {
 
         state.tagConsolidation = await tagConsolidationPromise;
         state.moodConsolidation = await moodConsolidationPromise;
+        state.whatsNewSource = await whatsNewPromise;
         await useSongs(await applyAudioEnrichment(await applyEraEnrichment(songs, await eraPromise), await audioPromise));
         els.dataDialog.close();
     } catch (error) {
@@ -434,6 +443,13 @@ function bindEvents() {
 
     els.popularFilter.addEventListener("change", () => {
         state.filters.popular = els.popularFilter.checked;
+        state.mode = "search";
+        resetResultLimit();
+        render();
+    });
+
+    els.recentFilter.addEventListener("change", () => {
+        state.filters.recent = els.recentFilter.checked;
         state.mode = "search";
         resetResultLimit();
         render();
@@ -1009,6 +1025,7 @@ async function useSongs(songs) {
     const availableGenres = [...availableGenresSet].sort(compareText);
     const availableDecades = [...availableDecadesSet].sort(compareDecade);
     const availableHolidays = [...availableHolidaysSet].sort(compareText);
+    const whatsNew = buildWhatsNew(enrichedSongs, state.whatsNewSource);
     await yieldSongbookWork();
 
     // Publish the complete catalog together; renders during preparation must
@@ -1016,6 +1033,7 @@ async function useSongs(songs) {
     Object.assign(state, {
         promotedGenreTags, songs: enrichedSongs, popularThreshold,
         defaultRankedSongs, availableMoods, availableGenres, availableDecades, availableHolidays,
+        whatsNewSongs: whatsNew.songs, whatsNewLatest: whatsNew.latest,
     });
     migrateSavedSongs();
     state.cachedDiscoverShelves = null;
@@ -1601,6 +1619,11 @@ function rankSongs(songs, query, { fuzzy = state.fuzzySearch } = {}) {
     }
     const tokens = normalizeSearchText(query).split(" ").filter(Boolean);
     if (!tokens.length) {
+        // New songs mostly lack their own popularity yet, so they keep the
+        // What's new ranking instead of falling to the end of the catalog order.
+        if (state.filters.recent && state.whatsNewSongs.length) {
+            return state.whatsNewSongs;
+        }
         return state.defaultRankedSongs.length ? state.defaultRankedSongs : songs;
     }
 
@@ -1673,8 +1696,12 @@ function sortSongs(songs) {
     const mode = state.sortMode;
 
     if (mode === "popular") {
+        // Among new songs, rank by the What's new signal (see buildWhatsNew).
+        const score = state.filters.recent
+            ? (song) => song.whatsNew?.score || 0
+            : (song) => song.popularity || 0;
         return [...songs].sort((a, b) =>
-            (b.popularity || 0) - (a.popularity || 0) ||
+            score(b) - score(a) ||
             compareArtistSort(a, b) ||
             compareSongSort(a, b)
         );
@@ -2189,6 +2216,13 @@ function createSongCard(song) {
         popular.title = "Among the most-streamed songs in this songbook";
         meta.appendChild(popular);
     }
+    if (song.whatsNew) {
+        const fresh = document.createElement("span");
+        fresh.className = "pill new";
+        fresh.textContent = "New";
+        fresh.title = `Added to the songbook ${formatAddedDate(song.whatsNew.addedOn)}`;
+        meta.appendChild(fresh);
+    }
     appendAudioMetadata(meta, song);
     appendPills(meta, getSongMoods(song), "mood", "mood");
     appendPills(meta, getSongGenres(song), "genre", "genre");
@@ -2611,6 +2645,7 @@ function applyArtistSearch(artistName) {
     }
     state.filters.duet = false;
     state.filters.popular = false;
+    state.filters.recent = false;
     state.mode = "search";
     state.query = artistName;
     state.searchScope = "artist";
@@ -2849,6 +2884,7 @@ function applyStoredUiState() {
         }
         state.filters.duet = Boolean(stored.filters.duet);
         state.filters.popular = Boolean(stored.filters.popular);
+        state.filters.recent = Boolean(stored.filters.recent);
     }
 
     // Earlier versions kept an artist link's title order after its query was
@@ -2916,6 +2952,7 @@ function applyInitialRoute() {
     }
     if (params.get("duet") === "1") state.filters.duet = true;
     if (params.get("popular") === "1") state.filters.popular = true;
+    if (params.get("new") === "1") state.filters.recent = true;
     if (params.get("favorites") === "1") state.favoriteOnly = true;
     if (params.get("fuzzy") === "1") state.fuzzySearch = true;
 }
@@ -2971,6 +3008,7 @@ function syncUrlState() {
         }
         if (state.filters.duet) params.set("duet", "1");
         if (state.filters.popular) params.set("popular", "1");
+        if (state.filters.recent) params.set("new", "1");
         if (state.favoriteOnly) params.set("favorites", "1");
         if (state.fuzzySearch) params.set("fuzzy", "1");
     }

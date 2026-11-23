@@ -74,6 +74,17 @@ not trigger other push workflows for commits made with `GITHUB_TOKEN`, so this j
 runs its own validation before pushing. If Vercel creates a preview instead of a
 production deployment, use the project's existing promotion procedure.
 
+## What's new
+
+The site's What's new shelf reads `whats_new.json`, which lists recent additions
+by date. After a sync that adds songs, run `node scripts/build-whats-new.js`
+(with `--worktree` before committing the sync, or without it afterwards) and ship
+the file with the version bump. It reads only the catalog's Git history, so it
+needs a full clone (`git fetch --unshallow` in a shallow one). Rows that
+`--enrich` tagged before the commit still count, because the catalog grew by
+that many rows. The manual GitHub workflow does not run it; until a sync
+regenerates the file, What's new keeps showing the previous batch.
+
 ## Local maintenance
 
 ```bash

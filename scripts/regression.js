@@ -671,6 +671,67 @@ const tests = [
         await search(page, "Explicit Flag Duet");
         assert.deepEqual(await page.locator(".song-card .pill.flag").allTextContents(), ["Duet"]);
     }],
+    ["What's new ranks recent additions by popularity and See all opens them as a filter", async (page, context) => {
+        const row = (song, artist, extra = {}) => ({ song, artist, status: "ok", eras: [], tags: [], genres: [], moods: [], flags: [], ...extra });
+        const whatsNewCatalog = [
+            row("Big Hit", "Star", { popularity: 900000 }),
+            row("Deep Cut", "Star", { popularity: 500000 }),
+            row("Other Hit", "Star", { popularity: 700000 }),
+            row("Classic", "Legend", { popularity: 800000 }),
+            row("Old Song", "Quiet Act", { popularity: 1000 }),
+            // Recent additions: their own rank, another version's, the artist median, nothing.
+            row("Enriched New", "Fresh Face", { status: "pending", popularity: 750000 }),
+            row("Classic (Live)", "Legend", { status: "pending", lookupSong: "Classic" }),
+            row("Brand New", "Star", { status: "pending" }),
+            row("Mystery", "Nobody Yet", { status: "pending" }),
+            row("Quiet New", "Quiet Act", { status: "pending" }),
+            // Pending, but not in whats_new.json: not part of What's new.
+            row("Leftover", "Backlog", { status: "pending" }),
+        ];
+        const ids = await page.evaluate((songs) => songs.map(getSongIdentity), whatsNewCatalog);
+        const recent = ids.slice(5, 10);
+        await context.unroute("**/karaoke_songs_enriched.json?*");
+        await context.route("**/karaoke_songs_enriched.json?*", (route) => route.fulfill({ json: whatsNewCatalog }));
+        await context.route("**/whats_new.json?*", (route) => route.fulfill({ json: { batches: [
+            { date: "2026-11-23", ids: recent.slice(0, 3) },
+            { date: "2026-10-05", ids: [...recent.slice(3), "not-in-catalog"] },
+        ] } }));
+        await page.goto(BASE);
+        await page.waitForFunction(() => state.songs.length === 11 && !document.querySelector(".skeleton"));
+
+        assert.equal(await page.locator(".shelf h3").first().textContent(), "What's new");
+        const shelf = page.locator(".shelf").first();
+        assert.match(await shelf.locator(".shelf-note").textContent(), /5 songs added recently, most popular first\. Updated /);
+        // Classic (Live) borrows Classic's 800k, Enriched New has 750k, Brand New
+        // takes Star's median (700k), Quiet New Quiet Act's 1k, Mystery has none.
+        const expected = ["Classic (Live)", "Enriched New", "Brand New", "Quiet New", "Mystery"];
+        assert.deepEqual(await shelf.locator(".song-title").allTextContents(), expected);
+        assert.equal(await shelf.locator(".pill.new").count(), 5);
+        assert.match(await shelf.locator(".pill.new").first().getAttribute("title"), /Added to the songbook .*2026/);
+
+        await shelf.locator(".see-all").click();
+        await page.waitForFunction(() => state.filters.recent && new URLSearchParams(location.search).get("new") === "1");
+        assert.deepEqual(await page.locator("#resultsList .song-title").allTextContents(), expected);
+        assert.deepEqual(await page.locator(".active-filter-chip").allTextContents(), ["New songs"]);
+        // The Popular order uses the same signal while New songs is on.
+        await page.evaluate(() => setSearchOrder("popular"));
+        assert.deepEqual(await page.locator("#resultsList .song-title").allTextContents(), expected);
+        await page.evaluate(() => setSearchOrder("relevance"));
+        await search(page, "new");
+        assert.deepEqual((await page.locator("#resultsList .song-title").allTextContents()).sort(), ["Brand New", "Enriched New", "Quiet New"]);
+
+        await page.locator(".active-filter-chip").filter({ hasText: "New songs" }).click();
+        assert.equal(await page.evaluate(() => state.filters.recent), false);
+        assert.equal(await page.locator("#recentFilter").isChecked(), false);
+    }],
+    ["What's new falls back to Newly added without its sidecar and hides the New songs filter", async (page, context) => {
+        await context.route("**/whats_new.json?*", (route) => route.abort());
+        await page.goto(BASE);
+        await page.waitForFunction(() => state.songs.length && !document.querySelector(".skeleton"));
+        assert.ok(!(await page.locator(".shelf h3").allTextContents()).includes("What's new"));
+        assert.equal(await page.locator(".pill.new").count(), 0);
+        assert.equal(await page.locator("#recentFilter").evaluate((input) => input.closest("label").hidden), true);
+    }],
 ];
 
 (async () => {

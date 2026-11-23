@@ -45,6 +45,7 @@ function countActiveFilters() {
     return MULTI_FILTER_DEFS.reduce((count, def) => count + state.filters[def.key].length, 0) +
         Number(state.filters.duet) +
         Number(state.filters.popular) +
+        Number(state.filters.recent) +
         Number(state.favoriteOnly) +
         Number(state.fuzzySearch);
 }
@@ -74,6 +75,10 @@ function applySearchFilters(songs, excludeKey = "") {
             return false;
         }
 
+        if (state.filters.recent && !song.whatsNew) {
+            return false;
+        }
+
         if (state.favoriteOnly && !isFavorite(song)) {
             return false;
         }
@@ -92,6 +97,7 @@ function clearSearchFilters({ resetFuzzy = true } = {}) {
     }
     state.filters.duet = false;
     state.filters.popular = false;
+    state.filters.recent = false;
     state.favoriteOnly = false;
 
     if (resetFuzzy) {
@@ -108,6 +114,9 @@ function renderFilterOptions() {
 function renderSearchFilters() {
     renderMultiFilters();
     els.popularFilter.checked = state.filters.popular;
+    els.recentFilter.checked = state.filters.recent;
+    // Offer "New songs" only when there are some (or the filter is already on).
+    els.recentFilter.closest("label").hidden = !state.whatsNewSongs.length && !state.filters.recent;
     els.duetFilter.checked = state.filters.duet;
     els.favoriteFilter.checked = state.favoriteOnly;
     els.fuzzySearch.checked = state.fuzzySearch;
@@ -344,6 +353,15 @@ function renderActiveFilters() {
         });
     }
 
+    if (state.filters.recent) {
+        chips.push({
+            label: "New songs",
+            onClear: () => {
+                state.filters.recent = false;
+            },
+        });
+    }
+
     if (state.favoriteOnly) {
         chips.push({
             label: "Saved songs",
@@ -417,6 +435,7 @@ function hasActiveSearchFilters() {
     return MULTI_FILTER_DEFS.some((def) => state.filters[def.key].length > 0) ||
         state.filters.duet ||
         state.filters.popular ||
+        state.filters.recent ||
         state.favoriteOnly ||
         state.fuzzySearch;
 }
@@ -425,6 +444,7 @@ function hasSongFilters() {
     return MULTI_FILTER_DEFS.some((def) => state.filters[def.key].length > 0) ||
         state.filters.duet ||
         state.filters.popular ||
+        state.filters.recent ||
         state.favoriteOnly;
 }
 
