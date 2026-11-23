@@ -236,7 +236,9 @@ function getSeasonalHoliday() {
 // signals already in the catalog, all on the same Deezer rank scale:
 //   1. the song's own Deezer rank, once enrichment has filled it;
 //   2. else the best rank of another karaoke version of the same song;
-//   3. else the median rank of the artist's other catalog songs.
+//   3. else the median rank of the artist's other catalog songs, reduced by 10%
+//      for each further new song by that artist (one batch can bring a dozen
+//      songs by one act, and they can't all be its hits).
 // Songs with no signal at all rank last, newest batch first.
 const WHATS_NEW_SHELF_SIZE = 12;
 
@@ -264,6 +266,7 @@ function buildWhatsNew(songs, source) {
     }
 
     const artistMedian = new Map();
+    const artistUses = new Map();
     const fresh = [];
     let latest = "";
     for (const song of songs) {
@@ -281,7 +284,9 @@ function buildWhatsNew(songs, source) {
                 const mid = ranks.length >> 1;
                 artistMedian.set(song.artistKey, ranks.length % 2 ? ranks[mid] : (ranks[mid - 1] + ranks[mid]) / 2);
             }
-            score = artistMedian.get(song.artistKey);
+            const uses = artistUses.get(song.artistKey) || 0;
+            artistUses.set(song.artistKey, uses + 1);
+            score = Math.round(artistMedian.get(song.artistKey) * 0.9 ** uses);
             basis = "artist";
         }
         song.whatsNew = { addedOn: date, score, basis };
@@ -297,15 +302,19 @@ function buildWhatsNew(songs, source) {
 }
 
 function createWhatsNewShelf() {
-    // One card per song: skip extra karaoke versions of a song already shown.
+    // One card per song and, while there are enough artists, one per artist.
     const picked = [];
     const seen = new Set();
-    for (const song of state.whatsNewSongs) {
-        const key = getSongVersionKey(song);
-        if (seen.has(key)) continue;
-        seen.add(key);
-        picked.push(song);
-        if (picked.length === WHATS_NEW_SHELF_SIZE) break;
+    const artists = new Set();
+    for (const spread of [true, false]) {
+        for (const song of state.whatsNewSongs) {
+            if (picked.length === WHATS_NEW_SHELF_SIZE) break;
+            const key = getSongVersionKey(song);
+            if (seen.has(key) || (spread && artists.has(song.artistKey))) continue;
+            seen.add(key);
+            artists.add(song.artistKey);
+            picked.push(song);
+        }
     }
     const count = state.whatsNewSongs.length;
     return {
