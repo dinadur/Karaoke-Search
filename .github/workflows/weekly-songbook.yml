@@ -1,27 +1,19 @@
 name: Weekly songbook update
 
 on:
-  schedule:
-    - cron: '17 9 * * 1' # Mondays, 09:17 UTC
+  # The weekly run moved to a scheduled task in the KaraokeSearch Claude project
+  # (2026-11-23), which also tags new songs. This workflow stays as a manual
+  # fallback: it caps a run at 500 additions and adds no tags.
   workflow_dispatch:
     inputs:
       dry_run:
         description: 'Check the venue without publishing changes'
         type: boolean
         default: false
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/weekly-songbook.yml'
-      - 'scripts/sync-venue.js'
-      - 'scripts/test-sync-venue.js'
-      - 'scripts/test-venue-workflow.js'
-      - 'scripts/test-weekly-songbook.js'
 
 concurrency:
   group: weekly-songbook-update
-  # Superseded importer code should not hold up the corrected run.
-  cancel-in-progress: ${{ github.event_name == 'push' }}
+  cancel-in-progress: false
 
 permissions:
   contents: read

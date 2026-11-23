@@ -1,11 +1,31 @@
 # Weekly venue songbook update
 
-The `Weekly songbook update` GitHub Actions workflow checks
-<https://karaoke-search.onrender.com/> every Monday at **09:17 UTC**. It also runs
-when the updater itself changes on `main`, and supports **Run workflow** with a
-dry-run option. No venue password, enrichment API key, or personal GitHub token
-is required; the job uses the repository's built-in token with contents-write
-permission to publish validated additions to `main`.
+Since 2026-11-23 the weekly update runs as a scheduled task in the KaraokeSearch
+Claude project (Mondays, 5 AM New York time). It runs the importer with
+enrichment, checks and tests the result, and fast-forwards `main`:
+
+```bash
+node scripts/sync-venue.js --write --enrich --max-additions=2000
+```
+
+`--enrich` tags only the newly added rows, before they are appended: Last.fm
+`track.getTopTags` first (needs `LASTFM_API_KEY`; skipped without it), then
+MusicBrainz artist tags (search score 90 or higher, 1 request per 1.1 s) as the
+fallback. Year tags become era labels. Rows with no match stay `pending`.
+MusicBrainz tags describe the artist, not the song. Existing rows are never
+passed to the enricher. The run's counts are in the `enrichment` field of
+`metadata_cache/venue-sync-report.json`. A cloud session needs network access to
+the venue, `musicbrainz.org` and `ws.audioscrobbler.com`.
+
+`--max-additions` raises the default 500-row safety cap for a run you have
+reviewed (the dry run lists the additions first).
+
+The `Weekly songbook update` GitHub Actions workflow is now a manual fallback
+(**Run workflow**, with a dry-run option). It no longer runs on a schedule or on
+pushes. It caps a run at 500 additions and adds no tags. No venue password,
+enrichment API key, or personal GitHub token is required; the job uses the
+repository's built-in token with contents-write permission to publish validated
+additions to `main`. The rest of this section describes that workflow.
 
 ## What a run does
 
@@ -60,18 +80,22 @@ The site's What's new shelf reads `whats_new.json`, which lists recent additions
 by date. After a sync that adds songs, run `node scripts/build-whats-new.js`
 (with `--worktree` before committing the sync, or without it afterwards) and ship
 the file with the version bump. It reads only the catalog's Git history, so it
-needs a full clone. The scheduled workflow does not run it yet; until a sync
+needs a full clone (`git fetch --unshallow` in a shallow one). Rows that
+`--enrich` tagged before the commit still count, because the catalog grew by
+that many rows. The manual GitHub workflow does not run it; until a sync
 regenerates the file, What's new keeps showing the previous batch.
 
 ## Local maintenance
 
 ```bash
 node scripts/test-sync-venue.js
+node scripts/test-new-row-enrichment.js # offline enrichment fixture
 node scripts/test-venue-workflow.js # local artifact replacement regression
 node scripts/test-weekly-songbook.js # local artifacts and Git origin only
 node scripts/test-weekly-songbook.js --browser # requires installed Playwright browser
 node scripts/sync-venue.js          # live comparison, no catalog changes
 node scripts/sync-venue.js --write  # append, refresh counts, bump and validate
+node scripts/sync-venue.js --write --enrich  # same, and tag the new rows
 ```
 
 Use a clean checkout. Reports and the exclusive run lock live under ignored
