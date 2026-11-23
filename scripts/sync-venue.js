@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { identity: metadataIdentity, atomicJson } = require('./lib/music-metadata');
+const { enrichNewRows } = require('./lib/new-row-enrichment');
 
 const SOURCE = 'https://karaoke-search.onrender.com';
 // The venue's search supports regex: '.' matches every nonempty listing,
@@ -127,9 +128,16 @@ function planSync(songs, rows, { minCoverage = 0.95, maxAdditions = 500 } = {}) 
         if (exists) continue;
         const sourceArtist = sourceArtistNames(row.artist).at(-1);
         const names = aliases.get(artistKey(sourceArtist));
-        const lookupArtist = names?.size === 1 ? [...names.values()][0] : clean(sourceArtist);
+        let lookupArtist = names?.size === 1 ? [...names.values()][0] : clean(sourceArtist);
         const candidate = { artist: row.artist, song: row.song, lookupArtist,
             status: 'pending', confidence: 0, genres: [], moods: [], eras: [], flags: [], tags: [] };
+        // Unknown "Last, First" (or "Band, The") names get the natural order for
+        // metadata lookups, unless that would collide with an existing identity.
+        const flipped = lookupArtist.match(/^([^,\d]+),\s*([^,\d]+)$/);
+        if (!names?.size && flipped) {
+            const reordered = { ...candidate, lookupArtist: `${flipped[2].trim()} ${flipped[1].trim()}` };
+            if (!ids.has(appIdentity(reordered))) candidate.lookupArtist = lookupArtist = reordered.lookupArtist;
+        }
         const id = appIdentity(candidate);
         if (!normalize(row.song) || !id) throw new Error('A new song cannot be represented by the app identity rules');
         if (ids.has(id)) {
@@ -170,7 +178,8 @@ function refreshSummaries(root, songs) {
     }
 }
 
-async function syncVenue({ root = path.join(__dirname, '..'), write = false, fetchOptions } = {}) {
+async function syncVenue({ root = path.join(__dirname, '..'), write = false, fetchOptions, maxAdditions = 500,
+    enrich = false, enrichOptions } = {}) {
     const cacheDir = path.join(root, 'metadata_cache');
     fs.mkdirSync(cacheDir, { recursive: true });
     const lockPath = path.join(cacheDir, 'venue-sync.lock');
@@ -180,11 +189,14 @@ async function syncVenue({ root = path.join(__dirname, '..'), write = false, fet
         const original = fs.readFileSync(catalogPath, 'utf8');
         const songs = JSON.parse(original);
         const fetched = await fetchVenueSongs(fetchOptions);
-        const plan = planSync(songs, fetched.rows);
+        const plan = planSync(songs, fetched.rows, { maxAdditions });
+        // Enrichment only touches the new rows, before they are appended.
+        const enrichment = write && enrich && plan.additions.length ?
+            await enrichNewRows(plan.additions, enrichOptions) : null;
         const report = { source: SOURCE, checkedAt: new Date().toISOString(), write,
             requests: fetched.requests, queries: fetched.queries, venueRows: fetched.rows.length,
             before: songs.length, added: plan.additions.length, after: songs.length + plan.additions.length,
-            coverage: plan.coverage, additions: plan.additions, missing: plan.missing, identityCollisionsSkipped: plan.skipped };
+            coverage: plan.coverage, enrichment, additions: plan.additions, missing: plan.missing, identityCollisionsSkipped: plan.skipped };
         atomicJson(path.join(cacheDir, 'venue-sync-report.json'), report);
         if (write && plan.additions.length) {
             const files = ['karaoke_songs_enriched.json', 'audio_enrichment.json', 'era_enrichment.json',
@@ -221,7 +233,12 @@ async function syncVenue({ root = path.join(__dirname, '..'), write = false, fet
 
 if (require.main === module) {
     const args = process.argv.slice(2);
-    if (args.some(arg => arg !== '--write')) { console.error('Usage: node scripts/sync-venue.js [--write]'); process.exitCode = 1; }
-    else syncVenue({ write: args.includes('--write') }).catch(error => { console.error(error.message); process.exitCode = 1; });
+    const max = args.find(arg => arg.startsWith('--max-additions='));
+    const maxAdditions = max ? Number(max.split('=')[1]) : 500;
+    if (args.some(arg => !['--write', '--enrich'].includes(arg) && arg !== max) || !(maxAdditions >= 0)) {
+        console.error('Usage: node scripts/sync-venue.js [--write] [--enrich] [--max-additions=N]'); process.exitCode = 1;
+    } else syncVenue({ write: args.includes('--write'), enrich: args.includes('--enrich'), maxAdditions,
+        enrichOptions: { log: message => console.error(message) } })
+        .catch(error => { console.error(error.message); process.exitCode = 1; });
 }
 module.exports = { appIdentity, parseResponse, fetchVenueSongs, planSync, syncVenue };
