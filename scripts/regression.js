@@ -746,11 +746,14 @@ const tests = [
         await search(page, "queen");
         assert.equal(await page.locator("#resultsList .song-title").first().textContent(), "Zebra Ballad");
 
-        // Clicking Queen opens A–Z, and inline Top songs toggle switches to popularity order.
+        // Clicking Queen opens A–Z, and inline Top songs toggle switches to popularity order while keeping keyboard focus.
         await page.locator("#resultsList .song-artist").first().click();
         assert.equal(await page.evaluate(() => state.sortMode), "song");
-        await page.locator("#resultContext .context-sort button", { hasText: "Top songs" }).click();
+        const topSort = page.locator("#resultContext .context-sort button", { hasText: "Top songs" });
+        await topSort.focus();
+        await page.keyboard.press("Enter");
         assert.equal(await page.evaluate(() => state.sortMode), "popular");
+        assert.equal(await page.evaluate(() => document.activeElement?.dataset.sort), "popular");
         assert.deepEqual(await page.locator("#resultsList .song-title").allTextContents(), ["Zebra Ballad", "Alpha Track"]);
 
         // Compact view toggles body.is-compact and survives reload.

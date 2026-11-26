@@ -2733,6 +2733,7 @@ function renderStatus(totalMatches) {
 }
 
 function renderResultContext() {
+    const focusedSort = document.activeElement?.closest("#resultContext .context-sort button")?.dataset.sort || "";
     els.resultContext.innerHTML = "";
     const hasArtistSearch = state.mode === "search" && state.searchScope === "artist" && state.query;
     els.resultContext.hidden = !hasArtistSearch;
@@ -2771,6 +2772,7 @@ function renderResultContext() {
 
     const topButton = document.createElement("button");
     topButton.type = "button";
+    topButton.dataset.sort = "popular";
     topButton.className = `choice-button${state.sortMode === "popular" ? " is-active" : ""}`;
     topButton.setAttribute("aria-pressed", String(state.sortMode === "popular"));
     topButton.textContent = "Top songs";
@@ -2782,6 +2784,7 @@ function renderResultContext() {
 
     const azButton = document.createElement("button");
     azButton.type = "button";
+    azButton.dataset.sort = "song";
     azButton.className = `choice-button${state.sortMode === "song" ? " is-active" : ""}`;
     azButton.setAttribute("aria-pressed", String(state.sortMode === "song"));
     azButton.textContent = "A–Z";
@@ -2810,6 +2813,11 @@ function renderResultContext() {
         els.resultContext.appendChild(meta);
     }
     els.resultContext.appendChild(clear);
+
+    if (focusedSort) {
+        const replacement = sortGroup.querySelector(`button[data-sort="${focusedSort}"]`);
+        replacement?.focus({ preventScroll: true });
+    }
 }
 
 function renderResultActions(totalMatches) {
