@@ -98,6 +98,7 @@ function renderSetlist() {
     const focusedSongId = focusedItem?.dataset.songId;
     const focusedIndex = Number(focusedItem?.dataset.index || 0);
     const focusedTitle = document.activeElement?.title;
+    const focusedSungToggle = Boolean(document.activeElement?.classList.contains("sung-toggle"));
     els.setlist.innerHTML = "";
     els.setlistCount.textContent = getSetlistSummary();
     els.copySetlistButton.disabled = !state.setlist.length;
@@ -284,7 +285,8 @@ function renderSetlist() {
             items[Math.min(focusedIndex, items.length - 1)];
         const buttons = [...(item?.querySelectorAll("button") || [])]
             .filter((button) => !button.disabled && !button.closest("[hidden]"));
-        (buttons.find((button) => button.title === focusedTitle) ||
+        ((focusedSungToggle ? item?.querySelector(".sung-toggle:not(:disabled)") : null) ||
+            buttons.find((button) => button.title === focusedTitle) ||
             item?.querySelector(".setlist-row button:not(:disabled)"))?.focus({ preventScroll: true });
     }
 }

@@ -809,8 +809,16 @@ const tests = [
             "Quick Opener", "Standard Hit", "Epic Closer", "Bonus Encore",
         ]);
 
-        // Sung check-off updates summary, persists, and offers Save-as-sung bridge.
-        await page.locator(".setlist-item").first().locator(".sung-toggle").click();
+        // Sung check-off preserves focus on .sung-toggle, updates summary, and offers Save-as-sung bridge.
+        const sungToggle = page.locator(".setlist-item").first().locator(".sung-toggle");
+        await sungToggle.focus();
+        await page.keyboard.press("Space");
+        assert.equal(await page.locator(".setlist-item.is-sung").count(), 1);
+        assert.equal(await page.evaluate(() => document.activeElement?.classList.contains("sung-toggle")), true);
+        await page.keyboard.press("Space");
+        assert.equal(await page.locator(".setlist-item.is-sung").count(), 0);
+        assert.equal(await page.evaluate(() => document.activeElement?.classList.contains("sung-toggle")), true);
+        await page.keyboard.press("Space");
         assert.equal(await page.locator(".setlist-item.is-sung").count(), 1);
         assert.match(await page.locator("#setlistCount").textContent(), /\(1 sung\)/);
         assert.equal(await page.locator(".save-sung-link").count(), 1);
