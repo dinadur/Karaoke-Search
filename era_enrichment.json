@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-21",
+  "generatedAt": "2026-11-25",
   "summary": {
     "total": 37689,
     "before": 15318,
-    "added": 56,
-    "after": 15374,
-    "conflictsSkipped": 15
+    "added": 91,
+    "after": 15409,
+    "conflictsSkipped": 18
   },
   "entries": [
     {
@@ -20,8 +20,24 @@
       "source": {
         "type": "catalog-tag",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matchedTag": "90s",
+        "matching": "Unambiguous single decade tag present in track-level catalog tags[] (confidence >= 0.7)"
+      }
+    },
+    {
+      "artist": "AJ Mitchell",
+      "song": "Like Strangers Do",
+      "lookupArtist": "",
+      "lookupSong": "",
+      "eras": [
+        "2010s"
+      ],
+      "source": {
+        "type": "catalog-tag",
+        "confidence": "inferred",
+        "checkedAt": "2026-11-25",
+        "matchedTag": "2019",
         "matching": "Unambiguous single decade tag present in track-level catalog tags[] (confidence >= 0.7)"
       }
     },
@@ -36,7 +52,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -61,6 +77,70 @@
       }
     },
     {
+      "artist": "Band Aid 30",
+      "song": "Do They Know It's Christmas 2014",
+      "lookupArtist": "",
+      "lookupSong": "",
+      "eras": [
+        "2010s"
+      ],
+      "source": {
+        "type": "catalog-tag",
+        "confidence": "inferred",
+        "checkedAt": "2026-11-25",
+        "matchedTag": "2014",
+        "matching": "Unambiguous single decade tag present in track-level catalog tags[] (confidence >= 0.7)"
+      }
+    },
+    {
+      "artist": "Big Head Todd & Monsters",
+      "song": "Bittersweet",
+      "lookupArtist": "",
+      "lookupSong": "",
+      "eras": [
+        "90s"
+      ],
+      "source": {
+        "type": "catalog-tag",
+        "confidence": "inferred",
+        "checkedAt": "2026-11-25",
+        "matchedTag": "90's",
+        "matching": "Unambiguous single decade tag present in track-level catalog tags[] (confidence >= 0.7)"
+      }
+    },
+    {
+      "artist": "Big Head Todd & The Monsters",
+      "song": "Please Don't Tell Her [Karaoke",
+      "lookupArtist": "",
+      "lookupSong": "Please Don't Tell Her",
+      "eras": [
+        "90s"
+      ],
+      "source": {
+        "type": "catalog-tag",
+        "confidence": "inferred",
+        "checkedAt": "2026-11-25",
+        "matchedTag": "90's",
+        "matching": "Unambiguous single decade tag present in track-level catalog tags[] (confidence >= 0.7)"
+      }
+    },
+    {
+      "artist": "Brianna",
+      "song": "Lost in Istanbul",
+      "lookupArtist": "",
+      "lookupSong": "",
+      "eras": [
+        "2010s"
+      ],
+      "source": {
+        "type": "catalog-tag",
+        "confidence": "inferred",
+        "checkedAt": "2026-11-25",
+        "matchedTag": "2012",
+        "matching": "Unambiguous single decade tag present in track-level catalog tags[] (confidence >= 0.7)"
+      }
+    },
+    {
       "artist": "carpenters, The",
       "song": "Have Yourself a Merry Little Christmas",
       "lookupArtist": "The Carpenters",
@@ -71,7 +151,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -97,7 +177,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -123,7 +203,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -149,7 +229,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -175,7 +255,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -201,7 +281,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -227,7 +307,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -243,6 +323,22 @@
       }
     },
     {
+      "artist": "DJ Snake & Lil' Jon",
+      "song": "Turn Down For What",
+      "lookupArtist": "",
+      "lookupSong": "",
+      "eras": [
+        "2010s"
+      ],
+      "source": {
+        "type": "catalog-tag",
+        "confidence": "inferred",
+        "checkedAt": "2026-11-25",
+        "matchedTag": "2014",
+        "matching": "Unambiguous single decade tag present in track-level catalog tags[] (confidence >= 0.7)"
+      }
+    },
+    {
       "artist": "Dr. Dre & Snoop Doggy Dogg",
       "song": "Still D.R.E.",
       "lookupArtist": "",
@@ -253,7 +349,7 @@
       "source": {
         "type": "catalog-tag",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matchedTag": "90s",
         "matching": "Unambiguous single decade tag present in track-level catalog tags[] (confidence >= 0.7)"
       }
@@ -269,7 +365,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -295,7 +391,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -311,6 +407,102 @@
       }
     },
     {
+      "artist": "Fabulous Thunderbirds",
+      "song": "Tough Enough",
+      "lookupArtist": "",
+      "lookupSong": "",
+      "eras": [
+        "80s"
+      ],
+      "source": {
+        "type": "catalog-tag",
+        "confidence": "inferred",
+        "checkedAt": "2026-11-25",
+        "matchedTag": "80's",
+        "matching": "Unambiguous single decade tag present in track-level catalog tags[] (confidence >= 0.7)"
+      }
+    },
+    {
+      "artist": "Fabulous Thunderbirds, The",
+      "song": "Tuff Enuff",
+      "lookupArtist": "The Fabulous Thunderbirds",
+      "lookupSong": "",
+      "eras": [
+        "80s"
+      ],
+      "source": {
+        "type": "catalog-tag",
+        "confidence": "inferred",
+        "checkedAt": "2026-11-25",
+        "matchedTag": "80's",
+        "matching": "Unambiguous single decade tag present in track-level catalog tags[] (confidence >= 0.7)"
+      }
+    },
+    {
+      "artist": "Fabulous Thunderbirds, The",
+      "song": "Wrap It Up",
+      "lookupArtist": "The Fabulous Thunderbirds",
+      "lookupSong": "",
+      "eras": [
+        "80s"
+      ],
+      "source": {
+        "type": "catalog-tag",
+        "confidence": "inferred",
+        "checkedAt": "2026-11-25",
+        "matchedTag": "80's",
+        "matching": "Unambiguous single decade tag present in track-level catalog tags[] (confidence >= 0.7)"
+      }
+    },
+    {
+      "artist": "Gregory, Adam",
+      "song": "Crazy Days",
+      "lookupArtist": "Adam Gregory",
+      "lookupSong": "",
+      "eras": [
+        "2000s"
+      ],
+      "source": {
+        "type": "catalog-tag",
+        "confidence": "inferred",
+        "checkedAt": "2026-11-25",
+        "matchedTag": "2008",
+        "matching": "Unambiguous single decade tag present in track-level catalog tags[] (confidence >= 0.7)"
+      }
+    },
+    {
+      "artist": "Griffin, Alistair",
+      "song": "You and Me Tonight",
+      "lookupArtist": "Alistair Griffin",
+      "lookupSong": "",
+      "eras": [
+        "2010s"
+      ],
+      "source": {
+        "type": "catalog-tag",
+        "confidence": "inferred",
+        "checkedAt": "2026-11-25",
+        "matchedTag": "2010",
+        "matching": "Unambiguous single decade tag present in track-level catalog tags[] (confidence >= 0.7)"
+      }
+    },
+    {
+      "artist": "Headstones",
+      "song": "Hearts, Love & Honor",
+      "lookupArtist": "",
+      "lookupSong": "",
+      "eras": [
+        "90s"
+      ],
+      "source": {
+        "type": "catalog-tag",
+        "confidence": "inferred",
+        "checkedAt": "2026-11-25",
+        "matchedTag": "90's",
+        "matching": "Unambiguous single decade tag present in track-level catalog tags[] (confidence >= 0.7)"
+      }
+    },
+    {
       "artist": "Khalid & Normali",
       "song": "Love Lies [SF Karaoke]",
       "lookupArtist": "",
@@ -321,8 +513,136 @@
       "source": {
         "type": "catalog-tag",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matchedTag": "2010s",
+        "matching": "Unambiguous single decade tag present in track-level catalog tags[] (confidence >= 0.7)"
+      }
+    },
+    {
+      "artist": "King, Claude",
+      "song": "Wolverton Mountain",
+      "lookupArtist": "Claude King",
+      "lookupSong": "",
+      "eras": [
+        "60s"
+      ],
+      "source": {
+        "type": "catalog-tag",
+        "confidence": "inferred",
+        "checkedAt": "2026-11-25",
+        "matchedTag": "60's",
+        "matching": "Unambiguous single decade tag present in track-level catalog tags[] (confidence >= 0.7)"
+      }
+    },
+    {
+      "artist": "King, Pee Wee",
+      "song": "Slow Poke",
+      "lookupArtist": "Pee Wee King",
+      "lookupSong": "",
+      "eras": [
+        "50s"
+      ],
+      "source": {
+        "type": "catalog-tag",
+        "confidence": "inferred",
+        "checkedAt": "2026-11-25",
+        "matchedTag": "50's",
+        "matching": "Unambiguous single decade tag present in track-level catalog tags[] (confidence >= 0.7)"
+      }
+    },
+    {
+      "artist": "Mitsou",
+      "song": "Bye Bye Mon Cowboy",
+      "lookupArtist": "",
+      "lookupSong": "",
+      "eras": [
+        "80s"
+      ],
+      "source": {
+        "type": "catalog-tag",
+        "confidence": "inferred",
+        "checkedAt": "2026-11-25",
+        "matchedTag": "80's",
+        "matching": "Unambiguous single decade tag present in track-level catalog tags[] (confidence >= 0.7)"
+      }
+    },
+    {
+      "artist": "Nelly & City Spud",
+      "song": "Ride Wit Me [Karaoke]",
+      "lookupArtist": "",
+      "lookupSong": "Ride Wit Me",
+      "eras": [
+        "2000s"
+      ],
+      "source": {
+        "type": "catalog-tag",
+        "confidence": "inferred",
+        "checkedAt": "2026-11-25",
+        "matchedTag": "00s",
+        "matching": "Unambiguous single decade tag present in track-level catalog tags[] (confidence >= 0.7)"
+      }
+    },
+    {
+      "artist": "Nico & Vinz",
+      "song": "Am I Wrong",
+      "lookupArtist": "",
+      "lookupSong": "",
+      "eras": [
+        "2010s"
+      ],
+      "source": {
+        "type": "catalog-tag",
+        "confidence": "inferred",
+        "checkedAt": "2026-11-25",
+        "matchedTag": "2014",
+        "matching": "Unambiguous single decade tag present in track-level catalog tags[] (confidence >= 0.7)"
+      }
+    },
+    {
+      "artist": "Oliver $ & Jimi Jules",
+      "song": "Pushing On",
+      "lookupArtist": "",
+      "lookupSong": "",
+      "eras": [
+        "2010s"
+      ],
+      "source": {
+        "type": "catalog-tag",
+        "confidence": "inferred",
+        "checkedAt": "2026-11-25",
+        "matchedTag": "2014",
+        "matching": "Unambiguous single decade tag present in track-level catalog tags[] (confidence >= 0.7)"
+      }
+    },
+    {
+      "artist": "Panic Channel",
+      "song": "Why Cry [Karaoke]",
+      "lookupArtist": "",
+      "lookupSong": "Why Cry",
+      "eras": [
+        "2000s"
+      ],
+      "source": {
+        "type": "catalog-tag",
+        "confidence": "inferred",
+        "checkedAt": "2026-11-25",
+        "matchedTag": "2002",
+        "matching": "Unambiguous single decade tag present in track-level catalog tags[] (confidence >= 0.7)"
+      }
+    },
+    {
+      "artist": "Partners In Kryme",
+      "song": "Turtle Power (Theme 'Teenage M",
+      "lookupArtist": "",
+      "lookupSong": "",
+      "eras": [
+        "90s"
+      ],
+      "source": {
+        "type": "catalog-tag",
+        "confidence": "inferred",
+        "checkedAt": "2026-11-25",
+        "matchedTag": "1990",
         "matching": "Unambiguous single decade tag present in track-level catalog tags[] (confidence >= 0.7)"
       }
     },
@@ -337,7 +657,7 @@
       "source": {
         "type": "catalog-tag",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matchedTag": "90s",
         "matching": "Unambiguous single decade tag present in track-level catalog tags[] (confidence >= 0.7)"
       }
@@ -353,7 +673,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -379,7 +699,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -395,6 +715,22 @@
       }
     },
     {
+      "artist": "Saints",
+      "song": "Know Your Product",
+      "lookupArtist": "",
+      "lookupSong": "",
+      "eras": [
+        "70s"
+      ],
+      "source": {
+        "type": "catalog-tag",
+        "confidence": "inferred",
+        "checkedAt": "2026-11-25",
+        "matchedTag": "70's",
+        "matching": "Unambiguous single decade tag present in track-level catalog tags[] (confidence >= 0.7)"
+      }
+    },
+    {
       "artist": "Sean, Jay & Lil Wayne",
       "song": "Down",
       "lookupArtist": "",
@@ -405,7 +741,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -421,6 +757,86 @@
       }
     },
     {
+      "artist": "Shaggy & Ricardo 'Rikrok' Ducent",
+      "song": "It Wasn't Me",
+      "lookupArtist": "",
+      "lookupSong": "",
+      "eras": [
+        "2000s"
+      ],
+      "source": {
+        "type": "catalog-tag",
+        "confidence": "inferred",
+        "checkedAt": "2026-11-25",
+        "matchedTag": "00s",
+        "matching": "Unambiguous single decade tag present in track-level catalog tags[] (confidence >= 0.7)"
+      }
+    },
+    {
+      "artist": "Shaggy & Richard Rikrok",
+      "song": "It Wasn't Me",
+      "lookupArtist": "",
+      "lookupSong": "",
+      "eras": [
+        "2000s"
+      ],
+      "source": {
+        "type": "catalog-tag",
+        "confidence": "inferred",
+        "checkedAt": "2026-11-25",
+        "matchedTag": "00s",
+        "matching": "Unambiguous single decade tag present in track-level catalog tags[] (confidence >= 0.7)"
+      }
+    },
+    {
+      "artist": "Shaggy & Richard Rikrok Ducent",
+      "song": "It Wasn't Me",
+      "lookupArtist": "",
+      "lookupSong": "",
+      "eras": [
+        "2000s"
+      ],
+      "source": {
+        "type": "catalog-tag",
+        "confidence": "inferred",
+        "checkedAt": "2026-11-25",
+        "matchedTag": "00s",
+        "matching": "Unambiguous single decade tag present in track-level catalog tags[] (confidence >= 0.7)"
+      }
+    },
+    {
+      "artist": "Swirl 360",
+      "song": "Hey Now Now",
+      "lookupArtist": "",
+      "lookupSong": "",
+      "eras": [
+        "90s"
+      ],
+      "source": {
+        "type": "catalog-tag",
+        "confidence": "inferred",
+        "checkedAt": "2026-11-25",
+        "matchedTag": "90's",
+        "matching": "Unambiguous single decade tag present in track-level catalog tags[] (confidence >= 0.7)"
+      }
+    },
+    {
+      "artist": "Taylor, Felice",
+      "song": "I Feel Love Coming On",
+      "lookupArtist": "Felice Taylor",
+      "lookupSong": "",
+      "eras": [
+        "60s"
+      ],
+      "source": {
+        "type": "catalog-tag",
+        "confidence": "inferred",
+        "checkedAt": "2026-11-25",
+        "matchedTag": "1967",
+        "matching": "Unambiguous single decade tag present in track-level catalog tags[] (confidence >= 0.7)"
+      }
+    },
+    {
       "artist": "Toys",
       "song": "Lover's Concerto, A",
       "lookupArtist": "",
@@ -431,7 +847,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -447,6 +863,22 @@
       }
     },
     {
+      "artist": "Villa, Claudio",
+      "song": "Mamma",
+      "lookupArtist": "Claudio Villa",
+      "lookupSong": "",
+      "eras": [
+        "60s"
+      ],
+      "source": {
+        "type": "catalog-tag",
+        "confidence": "inferred",
+        "checkedAt": "2026-11-25",
+        "matchedTag": "1967",
+        "matching": "Unambiguous single decade tag present in track-level catalog tags[] (confidence >= 0.7)"
+      }
+    },
+    {
       "artist": "Vogues",
       "song": "My Special Angel",
       "lookupArtist": "",
@@ -457,7 +889,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -483,7 +915,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -509,7 +941,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -535,7 +967,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -551,6 +983,22 @@
       }
     },
     {
+      "artist": "West, Kanye Feat. Dwele",
+      "song": "Flashing Lights",
+      "lookupArtist": "Kanye Feat. Dwele West",
+      "lookupSong": "",
+      "eras": [
+        "2000s"
+      ],
+      "source": {
+        "type": "catalog-tag",
+        "confidence": "inferred",
+        "checkedAt": "2026-11-25",
+        "matchedTag": "00s",
+        "matching": "Unambiguous single decade tag present in track-level catalog tags[] (confidence >= 0.7)"
+      }
+    },
+    {
       "artist": "Destiny's Child",
       "song": "Say My Name",
       "lookupArtist": "Destiny's Child",
@@ -561,7 +1009,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -587,7 +1035,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -613,7 +1061,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -639,7 +1087,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -674,7 +1122,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -700,7 +1148,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -726,7 +1174,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -752,7 +1200,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -778,7 +1226,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -804,7 +1252,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -830,7 +1278,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -856,7 +1304,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -882,7 +1330,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -908,7 +1356,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -934,7 +1382,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -960,7 +1408,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -986,7 +1434,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -1012,7 +1460,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -1038,7 +1486,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -1064,7 +1512,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -1090,7 +1538,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -1116,7 +1564,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -1142,7 +1590,7 @@
       "source": {
         "type": "catalog-tag",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matchedTag": "2020s",
         "matching": "Unambiguous single decade tag present in track-level catalog tags[] (confidence >= 0.7)"
       }
@@ -1158,7 +1606,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -1184,7 +1632,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -1210,7 +1658,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -1236,7 +1684,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -1262,7 +1710,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -1288,7 +1736,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -1314,7 +1762,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -1340,7 +1788,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -1366,7 +1814,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -1392,7 +1840,7 @@
       "source": {
         "type": "catalog-consensus",
         "confidence": "inferred",
-        "checkedAt": "2026-11-21",
+        "checkedAt": "2026-11-25",
         "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
         "evidence": [
           {
@@ -1402,6 +1850,188 @@
             "lookupSong": "",
             "eras": [
               "80s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "cardigans",
+      "song": "Been it",
+      "lookupArtist": "cardigans",
+      "lookupSong": "",
+      "eras": [
+        "90s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-11-25",
+        "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "Cardigans, The",
+            "song": "Been It [Karaoke]",
+            "lookupArtist": "The Cardigans",
+            "lookupSong": "Been It",
+            "eras": [
+              "90s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "Cult, The",
+      "song": "Fire Woman",
+      "lookupArtist": "The Cult",
+      "lookupSong": "",
+      "eras": [
+        "80s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-11-25",
+        "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "Cult",
+            "song": "Fire Woman",
+            "lookupArtist": "",
+            "lookupSong": "",
+            "eras": [
+              "80s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "Dead Kennedys",
+      "song": "Kill the Poor",
+      "lookupArtist": "Dead Kennedys",
+      "lookupSong": "",
+      "eras": [
+        "80s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-11-25",
+        "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "Dead Kennedys, The",
+            "song": "Kill The Poor",
+            "lookupArtist": "The Dead Kennedys",
+            "lookupSong": "",
+            "eras": [
+              "80s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "Foo Fighters",
+      "song": "Everlong",
+      "lookupArtist": "Foo Fighters",
+      "lookupSong": "",
+      "eras": [
+        "90s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-11-25",
+        "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "Foo Fighters, The",
+            "song": "Everlong",
+            "lookupArtist": "The Foo Fighters",
+            "lookupSong": "",
+            "eras": [
+              "90s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "Gin Blossoms",
+      "song": "Hey Jealousy",
+      "lookupArtist": "Gin Blossoms",
+      "lookupSong": "",
+      "eras": [
+        "90s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-11-25",
+        "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "Gin Blossoms, The",
+            "song": "Hey Jealousy",
+            "lookupArtist": "The Gin Blossoms",
+            "lookupSong": "",
+            "eras": [
+              "90s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "Mighty Mighty Bosstones",
+      "song": "Impression That I Get",
+      "lookupArtist": "Mighty Mighty Bosstones",
+      "lookupSong": "",
+      "eras": [
+        "90s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-11-25",
+        "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "Mighty Mighty Bosstones, The",
+            "song": "The Impression that I Get",
+            "lookupArtist": "The Mighty Mighty Bosstones",
+            "lookupSong": "",
+            "eras": [
+              "90s"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "artist": "Smashing Pumpkins, The",
+      "song": "Eye",
+      "lookupArtist": "The Smashing Pumpkins",
+      "lookupSong": "",
+      "eras": [
+        "90s"
+      ],
+      "source": {
+        "type": "catalog-consensus",
+        "confidence": "inferred",
+        "checkedAt": "2026-11-25",
+        "matching": "Normalized lookup title and artist (leading/trailing articles, apostrophes, karaoke source codes, and truncated brackets normalized; comma-reversed artist allowed only when that exact name also exists); all dated matches agree on one decade",
+        "evidence": [
+          {
+            "artist": "Smashing Pumpkins",
+            "song": "Eye",
+            "lookupArtist": "",
+            "lookupSong": "",
+            "eras": [
+              "90s"
             ]
           }
         ]

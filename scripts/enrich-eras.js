@@ -23,10 +23,18 @@ const title = (song) => normalize(
 );
 const key = (song) => `${artist(song)}\u001f${title(song)}`;
 const valid = new Set(["50s", "60s", "70s", "80s", "90s", "2000s", "2010s", "2020s"]);
-const decadeTagPattern = /^(?:19)?([5-9]0)s$|^(20[0-2]0)s$/;
+const currentYear = new Date().getUTCFullYear();
+const decadeTagPattern = /^(?:19)?([5-9]0)['’]?s$|^(20[0-2]0)['’]?s$|^(00)['’]?s$/;
+const yearTagPattern = /^(19[5-9]\d|20[0-2]\d)$/;
 const parseDecadeTag = (tag) => {
-    const match = String(tag || "").trim().toLowerCase().match(decadeTagPattern);
-    return match ? (match[1] ? `${match[1]}s` : `${match[2]}s`) : null;
+    const text = String(tag || "").trim().toLowerCase();
+    const match = text.match(decadeTagPattern);
+    if (match) return match[1] ? `${match[1]}s` : match[2] ? `${match[2]}s` : "2000s";
+    const yearMatch = text.match(yearTagPattern);
+    if (!yearMatch) return null;
+    const year = Number(yearMatch[1]);
+    if (year < 1950 || year > currentYear) return null;
+    return year < 2000 ? `${Math.floor(year / 10) % 10}0s` : `${Math.floor(year / 10) * 10}s`;
 };
 const groups = new Map();
 for (const song of songs) {
