@@ -6,18 +6,18 @@
     <title>Karaoke Songbook</title>
     <meta name="theme-color" content="#f5f4fa" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#14121d" media="(prefers-color-scheme: dark)">
-    <link rel="icon" href="app-icon.svg?v=20261126-1" type="image/svg+xml">
-    <link rel="apple-touch-icon" href="apple-touch-icon.png?v=20261126-1">
+    <link rel="icon" href="app-icon.svg?v=20261126-2" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png?v=20261126-2">
     <link rel="manifest" href="manifest.json">
     <link rel="preload" href="fonts/space-grotesk-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="karaoke_explorer.css?v=20261126-1">
-    <script defer src="qrcode.js?v=20261126-1"></script>
-    <script defer src="personal-songbook.js?v=20261126-1"></script>
-    <script defer src="stage-effects.js?v=20261126-1"></script>
-    <script defer src="filters-panel.js?v=20261126-1"></script>
-    <script defer src="browse-discover.js?v=20261126-1"></script>
-    <script defer src="setlist-panel.js?v=20261126-1"></script>
-    <script defer src="karaoke_explorer.js?v=20261126-1"></script>
+    <link rel="stylesheet" href="karaoke_explorer.css?v=20261126-2">
+    <script defer src="qrcode.js?v=20261126-2"></script>
+    <script defer src="personal-songbook.js?v=20261126-2"></script>
+    <script defer src="stage-effects.js?v=20261126-2"></script>
+    <script defer src="filters-panel.js?v=20261126-2"></script>
+    <script defer src="browse-discover.js?v=20261126-2"></script>
+    <script defer src="setlist-panel.js?v=20261126-2"></script>
+    <script defer src="karaoke_explorer.js?v=20261126-2"></script>
 </head>
 <body>
     <svg xmlns="http://www.w3.org/2000/svg" class="icon-sprite" aria-hidden="true" focusable="false">
@@ -47,6 +47,10 @@
         <symbol id="icon-share-2" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/> <circle cx="6" cy="12" r="3"/> <circle cx="18" cy="19" r="3"/> <line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/> <line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/></symbol>
         <symbol id="icon-qr-code" viewBox="0 0 24 24"><rect width="5" height="5" x="3" y="3" rx="1"/> <rect width="5" height="5" x="16" y="3" rx="1"/> <rect width="5" height="5" x="3" y="16" rx="1"/> <path d="M21 16h-3a2 2 0 0 0-2 2v3"/> <path d="M21 21v.01"/> <path d="M12 7v3a2 2 0 0 1-2 2H7"/> <path d="M3 12h.01"/> <path d="M12 3h.01"/> <path d="M12 16v.01"/> <path d="M16 12h1"/> <path d="M21 12v.01"/> <path d="M12 21v-1"/></symbol>
         <symbol id="icon-dices" viewBox="0 0 24 24"><rect width="12" height="12" x="2" y="10" rx="2" ry="2"/> <path d="m17.92 14 3.5-3.5a2.24 2.24 0 0 0 0-3l-5-4.92a2.24 2.24 0 0 0-3 0L10 6"/> <path d="M6 18h.01"/> <path d="M10 14h.01"/> <path d="M15 6h.01"/> <path d="M18 9h.01"/></symbol>
+        <symbol id="icon-sparkles" viewBox="0 0 24 24"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/></symbol>
+        <symbol id="icon-refresh-cw" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></symbol>
+        <symbol id="icon-wand-2" viewBox="0 0 24 24"><path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72"/><path d="m14 7 3 3"/><path d="M5 6v4"/><path d="M19 14v4"/><path d="M10 2v2"/><path d="M7 8H3"/><path d="M21 16h-4"/><path d="M11 3H9"/></symbol>
+        <symbol id="icon-rows-3" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M21 9H3"/><path d="M21 15H3"/></symbol>
     </svg>
 
     <header class="topbar">
@@ -94,8 +98,9 @@
                 <div class="more-tools-panel">
                     <button id="repertoireButton" type="button" disabled><i data-lucide="star" aria-hidden="true"></i>Saved songs <span id="repertoireCount">0</span></button>
                     <button id="planSetlistButton" type="button"><i data-lucide="list-music" aria-hidden="true"></i><span id="planSetlistLabel">Plan a setlist</span></button>
-                    <button id="chooseSongButton" type="button" disabled><i data-lucide="dices" aria-hidden="true"></i>Help me choose</button>
+                    <button id="chooseSongButton" type="button" disabled><i data-lucide="sparkles" aria-hidden="true"></i>Help me choose</button>
                     <button id="randomButton" type="button" title="Random song"><i data-lucide="shuffle" aria-hidden="true"></i>Random song</button>
+                    <button id="compactViewButton" type="button" aria-pressed="false" title="Compact view"><i data-lucide="rows-3" aria-hidden="true"></i>Compact view</button>
                     <button id="themeButton" type="button" title="Dark mode" aria-label="Dark mode"><i data-lucide="moon" aria-hidden="true"></i>Dark mode</button>
                 </div>
             </details>
@@ -186,7 +191,7 @@
                         <p id="resultCount" aria-live="polite"></p>
                     </div>
                     <button id="shuffleShelvesButton" class="command subtle-command reshuffle-button" type="button" title="Deal a fresh set of shelves" hidden>
-                        <i data-lucide="dices" aria-hidden="true"></i>
+                        <i data-lucide="refresh-cw" aria-hidden="true"></i>
                         <span>Reshuffle</span>
                     </button>
                     <div class="group-actions" id="groupActions" hidden>
@@ -217,7 +222,7 @@
                         <p id="setlistCount">0 songs</p>
                     </div>
                     <button id="draftSetlistButton" class="icon-button" type="button" title="Draft songs from current results" aria-label="Draft songs from current results">
-                        <i data-lucide="dices" aria-hidden="true"></i>
+                        <i data-lucide="wand-2" aria-hidden="true"></i>
                         <span class="button-label">Draft</span>
                     </button>
                     <button id="shareSetlistButton" class="icon-button" type="button" title="Share setlist" aria-label="Share setlist" hidden>

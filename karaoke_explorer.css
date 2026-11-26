@@ -1051,6 +1051,23 @@ select:hover {
     margin-left: auto;
 }
 
+.context-sort {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+}
+
+.context-sort + .context-clear {
+    margin-left: 0;
+}
+
+.context-sort .choice-button {
+    min-height: 30px;
+    padding: 0 10px;
+    font-size: 12px;
+}
+
 /* Chips go on their own line after Clear, which stays on the first line. */
 .context-meta {
     display: flex;
@@ -3282,4 +3299,70 @@ body::before {
     to {
         box-shadow: 0 0 0 14px transparent;
     }
+}
+
+body.is-compact .results-list:not(.is-discover):not(.is-grouped) {
+    grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
+    gap: 8px;
+}
+
+body.is-compact .song-card {
+    min-height: 0;
+    padding: 9px 11px;
+    gap: 7px;
+}
+
+body.is-compact .card-head {
+    align-items: center;
+    gap: 9px;
+}
+
+body.is-compact .cover-tile {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    font-size: 12px;
+}
+
+body.is-compact .song-title {
+    font-size: 15px;
+    line-height: 1.2;
+}
+
+body.is-compact .song-artist {
+    margin-top: 2px;
+    font-size: 13px;
+}
+
+body.is-compact .song-card .meta-row {
+    gap: 4px;
+}
+
+body.is-compact .song-card .pill {
+    min-height: 20px;
+    padding: 2px 7px;
+    font-size: 11px;
+}
+
+body.is-compact .card-actions {
+    gap: 6px;
+}
+
+body.is-compact .card-actions .favorite-button,
+body.is-compact .card-actions .add-button,
+body.is-compact .card-actions .icon-button {
+    min-height: 36px;
+}
+
+body.is-compact .browse-row {
+    padding: 7px 11px;
+    gap: 8px;
+}
+
+body.is-compact .browse-title {
+    font-size: 14px;
+}
+
+body.is-compact .browse-artist {
+    font-size: 12px;
 }

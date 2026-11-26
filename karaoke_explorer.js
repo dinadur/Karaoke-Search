@@ -1,4 +1,4 @@
-const APP_VERSION = "20261126-1";
+const APP_VERSION = "20261126-2";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const TAG_CONSOLIDATION_URL = `tag_consolidation.json?v=${APP_VERSION}`;
 const MOOD_CONSOLIDATION_URL = `mood_consolidation.json?v=${APP_VERSION}`;
@@ -14,6 +14,7 @@ const ROUTE_PARAMS = ["q", "scope", "sort", "mood", "genre", "decade", "holiday"
 // MULTI_FILTER_DEFS and multiFilterControls live in filters-panel.js.
 const TAG_GENRE_MIN_COUNT = 50;
 const THEME_STORAGE_KEY = "karaokeTheme";
+const COMPACT_VIEW_STORAGE_KEY = "karaokeCompactView";
 const SVG_NS = "http://www.w3.org/2000/svg";
 const XLINK_NS = "http://www.w3.org/1999/xlink";
 const UI_STATE_STORAGE_KEY = "karaokeUiState";
@@ -257,6 +258,7 @@ const els = {
     searchInput: document.getElementById("searchInput"),
     randomButton: document.getElementById("randomButton"),
     clearButton: document.getElementById("clearButton"),
+    compactViewButton: document.getElementById("compactViewButton"),
     themeButton: document.getElementById("themeButton"),
     searchModeButton: document.getElementById("searchModeButton"),
     browseModeButton: document.getElementById("browseModeButton"),
@@ -346,6 +348,7 @@ async function init() {
     bindResultsSentinel();
     registerServiceWorker();
     renderThemeButton();
+    applyStoredCompactView();
     applyInitialState();
     await loadSongbook();
 }
@@ -404,6 +407,10 @@ async function loadSongbook() {
 
 function bindEvents() {
     els.homeButton.addEventListener("click", goToDiscover);
+
+    els.compactViewButton?.addEventListener("click", () => {
+        setCompactView(!document.body.classList.contains("is-compact"));
+    });
 
     els.themeButton.addEventListener("click", (event) => {
         setTheme(getTheme() === "dark" ? "light" : "dark");
@@ -931,6 +938,7 @@ async function useSongs(songs) {
         const songSortText = normalize(song.song);
         const artistSortText = normalize(displayArtist);
         const songSearchText = normalizeSearchText(song.song);
+        const displaySongSearchText = normalizeSearchText(getDisplaySongTitle(song));
         const artistSearchText = normalizeSearchText(artistSources);
         const displayArtistSearchText = normalizeSearchText(displayArtist);
         const normalizedArtist = artistKey || normalize(song.artist);
@@ -964,6 +972,7 @@ async function useSongs(songs) {
             songLetter: getBrowseLetterFromNormalized(songSortText),
             artistLetter: getBrowseLetterFromNormalized(artistSortText),
             songSearchText,
+            displaySongSearchText,
             artistSearchText,
             displayArtistSearchText,
             allSearchText: `${songSearchText} ${artistSearchText}`,
@@ -1655,31 +1664,52 @@ function rankSongs(songs, query, { fuzzy = state.fuzzySearch } = {}) {
                 score += fuzzyScore;
             }
 
-            if (haystack.includes(phrase)) {
+            const songText = matchesSongs ? (song.songSearchText || normalizeSearchText(song.song)) : "";
+            const displaySongText = matchesSongs ? (song.displaySongSearchText || songText) : "";
+            const artistText = matchesArtists ? (song.displayArtistSearchText || normalizeSearchText(getDisplayArtist(song))) : "";
+            const reverseOrderText = scope === "all" ? `${artistText} ${displaySongText}` : "";
+
+            if (haystack.includes(phrase) || (reverseOrderText && reverseOrderText.includes(phrase))) {
                 score += 12;
             }
 
             let songBonus = 0;
             if (matchesSongs) {
-                const songText = song.songSearchText || normalizeSearchText(song.song);
-                if (songText === phrase) {
+                if (songText === phrase || displaySongText === phrase) {
                     songBonus = 18;
-                } else if (songText.startsWith(phrase)) {
+                } else if (songText.startsWith(phrase) || displaySongText.startsWith(phrase)) {
                     songBonus = 10;
                 }
             }
 
             let artistBonus = 0;
             if (matchesArtists) {
-                const artistText = song.displayArtistSearchText || normalizeSearchText(getDisplayArtist(song));
                 if (artistText === phrase) {
-                    artistBonus = 16;
+                    artistBonus = 18;
                 } else if (artistText.startsWith(phrase)) {
-                    artistBonus = scope === "all" ? 9 : 10;
+                    artistBonus = 10;
                 }
             }
 
-            score += Math.max(songBonus, artistBonus);
+            let crossFieldBonus = 0;
+            if (scope === "all" && tokens.length >= 2) {
+                const artistHaystack = song.artistSearchText || artistText;
+                let hitSong = false;
+                let hitArtist = false;
+                for (const token of tokens) {
+                    if (songText.includes(token) || displaySongText.includes(token)) hitSong = true;
+                    if (artistHaystack.includes(token)) hitArtist = true;
+                }
+                if (hitSong && hitArtist) {
+                    const exactCombo = (reverseOrderText === phrase) ||
+                        (`${displaySongText} ${artistText}` === phrase) ||
+                        (`${artistText} ${songText}` === phrase) ||
+                        (`${songText} ${artistText}` === phrase);
+                    crossFieldBonus = exactCombo ? 22 : 6;
+                }
+            }
+
+            score += Math.max(songBonus, artistBonus, crossFieldBonus);
             return { song, score };
         })
         .filter((item) => item.score > 0)
@@ -2734,6 +2764,34 @@ function renderResultContext() {
         meta.appendChild(chip);
     }
 
+    const sortGroup = document.createElement("div");
+    sortGroup.className = "context-sort";
+    sortGroup.setAttribute("role", "group");
+    sortGroup.setAttribute("aria-label", "Order artist songs");
+
+    const topButton = document.createElement("button");
+    topButton.type = "button";
+    topButton.className = `choice-button${state.sortMode === "popular" ? " is-active" : ""}`;
+    topButton.setAttribute("aria-pressed", String(state.sortMode === "popular"));
+    topButton.textContent = "Top songs";
+    topButton.addEventListener("click", () => {
+        if (state.sortMode !== "popular") {
+            setSearchOrder("popular");
+        }
+    });
+
+    const azButton = document.createElement("button");
+    azButton.type = "button";
+    azButton.className = `choice-button${state.sortMode === "song" ? " is-active" : ""}`;
+    azButton.setAttribute("aria-pressed", String(state.sortMode === "song"));
+    azButton.textContent = "A–Z";
+    azButton.addEventListener("click", () => {
+        if (state.sortMode !== "song") {
+            setSearchOrder("song");
+        }
+    });
+    sortGroup.append(topButton, azButton);
+
     const clear = document.createElement("button");
     clear.className = "filter-clear context-clear";
     clear.type = "button";
@@ -2747,7 +2805,7 @@ function renderResultContext() {
         els.searchInput.focus();
     });
 
-    els.resultContext.append(label, artist, count);
+    els.resultContext.append(label, artist, count, sortGroup);
     if (meta.childElementCount) {
         els.resultContext.appendChild(meta);
     }
@@ -3156,6 +3214,38 @@ function renderThemeButton() {
     els.themeButton.innerHTML = `<i data-lucide="${isDark ? "sun" : "moon"}" aria-hidden="true"></i>${isDark ? "Light mode" : "Dark mode"}`;
 
     hydrateIcons();
+}
+
+function applyStoredCompactView() {
+    let compact = false;
+    try {
+        compact = localStorage.getItem(COMPACT_VIEW_STORAGE_KEY) === "1";
+    } catch {
+        // Ignore storage errors; default to comfortable density.
+    }
+    document.body.classList.toggle("is-compact", compact);
+    renderCompactViewButton();
+}
+
+function setCompactView(compact) {
+    const enabled = Boolean(compact);
+    document.body.classList.toggle("is-compact", enabled);
+    try {
+        localStorage.setItem(COMPACT_VIEW_STORAGE_KEY, enabled ? "1" : "0");
+    } catch {
+        // Density preference is a convenience; keep working if storage is unavailable.
+    }
+    renderCompactViewButton();
+}
+
+function renderCompactViewButton() {
+    if (!els.compactViewButton) return;
+    const isCompact = document.body.classList.contains("is-compact");
+    els.compactViewButton.setAttribute("aria-pressed", String(isCompact));
+    els.compactViewButton.title = isCompact ? "Comfortable view" : "Compact view";
+    els.compactViewButton.setAttribute("aria-label", isCompact ? "Switch to comfortable view" : "Switch to compact view");
+    els.compactViewButton.innerHTML = `<i data-lucide="rows-3" aria-hidden="true"></i>${isCompact ? "Comfortable view" : "Compact view"}`;
+    hydrateIcons(els.compactViewButton);
 }
 
 function updateSearchPlaceholder() {

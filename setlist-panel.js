@@ -96,7 +96,7 @@ function renderSetlist() {
         const draft = document.createElement("button");
         draft.className = "command subtle-command draft-cta";
         draft.type = "button";
-        draft.innerHTML = '<i data-lucide="dices" aria-hidden="true"></i><span>Draft 10 songs for me</span>';
+        draft.innerHTML = '<i data-lucide="wand-2" aria-hidden="true"></i><span>Draft 10 songs for me</span>';
         draft.title = "Fill the setlist from your current results";
         draft.addEventListener("click", draftSetlist);
 

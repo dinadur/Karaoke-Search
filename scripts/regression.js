@@ -732,6 +732,34 @@ const tests = [
         assert.equal(await page.locator(".pill.new").count(), 0);
         assert.equal(await page.locator("#recentFilter").evaluate((input) => input.closest("label").hidden), true);
     }],
+    ["artist view Top songs / A–Z toggle and Compact view persistence", async (page, context) => {
+        const artistCatalog = [
+            { song: "Zebra Ballad", artist: "Queen", popularity: 950000, seconds: 355 },
+            { song: "Alpha Track", artist: "Queen", popularity: 100000, seconds: 165 },
+            { song: "Queen", artist: "Other Act", popularity: 5000, seconds: 210 },
+        ].map((song) => ({ ...song, status: "ok", tags: [], genres: [], moods: [], eras: ["70s"], flags: [] }));
+        await context.route("**/karaoke_songs_enriched.json?*", (route) => route.fulfill({ json: artistCatalog }));
+        await page.goto(BASE);
+        await page.waitForFunction(() => state.songs.length && !document.querySelector(".skeleton"));
+
+        // Exact-artist vs exact-title tie-break favors Queen's popular hit.
+        await search(page, "queen");
+        assert.equal(await page.locator("#resultsList .song-title").first().textContent(), "Zebra Ballad");
+
+        // Clicking Queen opens A–Z, and inline Top songs toggle switches to popularity order.
+        await page.locator("#resultsList .song-artist").first().click();
+        assert.equal(await page.evaluate(() => state.sortMode), "song");
+        await page.locator("#resultContext .context-sort button", { hasText: "Top songs" }).click();
+        assert.equal(await page.evaluate(() => state.sortMode), "popular");
+        assert.deepEqual(await page.locator("#resultsList .song-title").allTextContents(), ["Zebra Ballad", "Alpha Track"]);
+
+        // Compact view toggles body.is-compact and survives reload.
+        await menu(page, "#compactViewButton");
+        assert.equal(await page.evaluate(() => document.body.classList.contains("is-compact")), true);
+        await page.reload();
+        await page.waitForFunction(() => state.songs.length && !document.querySelector(".skeleton"));
+        assert.equal(await page.evaluate(() => document.body.classList.contains("is-compact")), true);
+    }],
 ];
 
 (async () => {
