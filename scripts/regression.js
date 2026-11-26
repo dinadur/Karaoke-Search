@@ -745,6 +745,7 @@ const tests = [
         // Exact-artist vs exact-title tie-break favors Queen's popular hit.
         await search(page, "queen");
         assert.equal(await page.locator("#resultsList .song-title").first().textContent(), "Zebra Ballad");
+        assert.equal(await page.locator("#resultsList .song-duration").first().textContent(), "5:55");
 
         // Clicking Queen opens A–Z, and inline Top songs toggle switches to popularity order.
         await page.locator("#resultsList .song-artist").first().click();
@@ -759,6 +760,92 @@ const tests = [
         await page.reload();
         await page.waitForFunction(() => state.songs.length && !document.querySelector(".skeleton"));
         assert.equal(await page.evaluate(() => document.body.classList.contains("is-compact")), true);
+    }],
+    ["length filter, sung check-off, fair singer rotation, saved setlists, and repertoire backup", async (page, context) => {
+        const timedCatalog = [
+            { song: "Quick Opener", artist: "Alpha", seconds: 145 },
+            { song: "Standard Hit", artist: "Beta", seconds: 230 },
+            { song: "Epic Closer", artist: "Gamma", seconds: 340 },
+            { song: "Bonus Encore", artist: "Delta", seconds: 170 },
+        ].map((song) => ({ ...song, status: "ok", tags: [], genres: [], moods: [], eras: ["80s"], flags: [] }));
+        await context.route("**/karaoke_songs_enriched.json?*", (route) => route.fulfill({ json: timedCatalog }));
+        await page.goto(BASE);
+        await page.waitForFunction(() => state.songs.length && !document.querySelector(".skeleton"));
+
+        // Length filter narrows results and syncs to URL.
+        await page.click("#filtersToggleButton");
+        await page.click('.multi-filter[data-filter="length"] .multi-filter-button');
+        await page.locator('.multi-filter[data-filter="length"] .multi-option', { hasText: "Long (5+ min)" }).click();
+        await page.click("#applyFiltersButton");
+        assert.deepEqual(await page.locator("#resultsList .song-title").allTextContents(), ["Epic Closer"]);
+        assert.match(page.url(), /length=/);
+        await page.click(".active-filter-chip");
+
+        // Queue four songs, assign two singers back-to-back, and balance rotation.
+        await add(page, "Quick Opener");
+        await add(page, "Standard Hit");
+        await add(page, "Epic Closer");
+        await add(page, "Bonus Encore");
+        const assignSinger = async (index, name) => {
+            await page.locator(".setlist-item").nth(index).locator(".singer-add").click();
+            const input = page.locator(".setlist-item").nth(index).locator(".singer-input");
+            await input.fill(name);
+            await input.press("Enter");
+        };
+        await assignSinger(0, "Alex");
+        await assignSinger(1, "Alex");
+        await assignSinger(2, "Sam");
+        await assignSinger(3, "Sam");
+        assert.equal(await page.locator("#balanceSetlistButton").isVisible(), true);
+        await page.click("#balanceSetlistButton");
+        assert.deepEqual(await page.locator(".setlist-title").allTextContents(), [
+            "Quick Opener", "Epic Closer", "Standard Hit", "Bonus Encore",
+        ]);
+        await page.click("#snackbarAction");
+        assert.deepEqual(await page.locator(".setlist-title").allTextContents(), [
+            "Quick Opener", "Standard Hit", "Epic Closer", "Bonus Encore",
+        ]);
+
+        // Sung check-off updates summary, persists, and offers Save-as-sung bridge.
+        await page.locator(".setlist-item").first().locator(".sung-toggle").click();
+        assert.equal(await page.locator(".setlist-item.is-sung").count(), 1);
+        assert.match(await page.locator("#setlistCount").textContent(), /\(1 sung\)/);
+        assert.equal(await page.locator(".save-sung-link").count(), 1);
+
+        // Named setlist save, clear, load, and delete.
+        await page.click("#savedSetlistsButton");
+        await page.fill("#savedSetlistName", "Friday Night");
+        await page.click("#saveCurrentSetlistButton");
+        assert.match(await page.locator("#savedSetlistsSummary").textContent(), /Saved “Friday Night”/);
+        await page.locator('[data-close-dialog="savedSetlistsDialog"]').click();
+        await page.click("#clearSetlistButton");
+        assert.equal(await page.locator(".setlist-item").count(), 0);
+        await page.click("#savedSetlistsButton");
+        await page.locator("#savedSetlistsList button", { hasText: "Load" }).click();
+        assert.equal(await page.locator(".setlist-item").count(), 4);
+
+        // Saved songs backup import validates and merges entries.
+        await menu(page, "#repertoireButton");
+        const backupPayload = JSON.stringify({
+            schemaVersion: 1,
+            songs: {
+                "alpha\u001fquick opener": {
+                    song: { song: "Quick Opener", artist: "Alpha" },
+                    status: "sung",
+                    comfort: 5,
+                    key: "-1",
+                    notes: "Warmup favorite",
+                },
+            },
+        });
+        await page.setInputFiles("#importRepertoireFile", {
+            name: "backup.json",
+            mimeType: "application/json",
+            buffer: Buffer.from(backupPayload),
+        });
+        await page.waitForFunction(() => /Imported 1 saved song/.test(document.getElementById("repertoireBackupStatus")?.textContent || ""));
+        assert.match(await page.locator("#repertoireList").innerText(), /Quick Opener/);
+        assert.match(await page.locator("#repertoireList").innerText(), /Warmup favorite/);
     }],
 ];
 

@@ -38,6 +38,15 @@ const MULTI_FILTER_DEFS = [
         options: () => state.availableHolidays,
         matches: (song, value) => matchesFilterKey(song, "holidays", value),
     },
+    {
+        key: "lengths",
+        param: "length",
+        label: "Length",
+        anyLabel: "Any length",
+        pickHint: "Pick any song lengths",
+        options: () => state.availableLengths,
+        matches: (song, value) => matchesFilterKey(song, "lengths", value),
+    },
 ];
 const multiFilterControls = new Map();
 

@@ -1,4 +1,4 @@
-const APP_VERSION = "20261126-2";
+const APP_VERSION = "20261126-3";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const TAG_CONSOLIDATION_URL = `tag_consolidation.json?v=${APP_VERSION}`;
 const MOOD_CONSOLIDATION_URL = `mood_consolidation.json?v=${APP_VERSION}`;
@@ -8,7 +8,7 @@ const SEARCH_RENDER_DELAY = 90;
 const SEARCH_SCOPES = ["all", "song", "artist"];
 // Params that fully describe a shared view (init() runs before later consts,
 // so this must live with the top-level constants).
-const ROUTE_PARAMS = ["q", "scope", "sort", "mood", "genre", "decade", "holiday",
+const ROUTE_PARAMS = ["q", "scope", "sort", "mood", "genre", "decade", "holiday", "length",
     "duet", "popular", "new", "favorites", "fuzzy", "mode", "by", "letter", "exact"];
 
 // MULTI_FILTER_DEFS and multiFilterControls live in filters-panel.js.
@@ -222,6 +222,7 @@ const state = {
     availableGenres: [],
     availableDecades: [],
     availableHolidays: [],
+    availableLengths: [],
     defaultRankedSongs: [],
     queryScopedSongs: [],
     popularThreshold: 0,
@@ -238,6 +239,7 @@ const state = {
         genres: [],
         decades: [],
         holidays: [],
+        lengths: [],
         duet: false,
         popular: false,
         recent: false,
@@ -303,6 +305,8 @@ const els = {
     setlistCount: document.getElementById("setlistCount"),
     copySetlistButton: document.getElementById("copySetlistButton"),
     draftSetlistButton: document.getElementById("draftSetlistButton"),
+    balanceSetlistButton: document.getElementById("balanceSetlistButton"),
+    savedSetlistsButton: document.getElementById("savedSetlistsButton"),
     shareSetlistButton: document.getElementById("shareSetlistButton"),
     snackbar: document.getElementById("snackbar"),
     snackbarText: document.getElementById("snackbarText"),
@@ -345,6 +349,7 @@ async function init() {
     buildMultiFilters();
     bindEvents();
     bindPersonalFeatures();
+    bindSavedSetlistsDialog();
     bindResultsSentinel();
     registerServiceWorker();
     renderThemeButton();
@@ -928,6 +933,7 @@ async function useSongs(songs) {
     const availableGenresSet = new Set();
     const availableDecadesSet = new Set();
     const availableHolidaysSet = new Set();
+    const availableLengthsSet = new Set();
 
     // Pass 2: build each prepared & enriched song object in a single allocation,
     // keeping fuzzy word lists lazy and collecting available facets inline.
@@ -1001,11 +1007,14 @@ async function useSongs(songs) {
         // artist credits and is labelled as a guess in the UI.
         preparedSong.duetSource = detectDuetSource(song, normalizedFlags, normalizedTags, soloArtistCounts);
         preparedSong.isDuet = Boolean(preparedSong.duetSource);
+        const lengthBucket = getSongLengthBucket(song);
+        preparedSong.lengthBucket = lengthBucket;
         preparedSong.filterKeys = {
             moods: new Set(allMoods.map(normalize)),
             genres: new Set(genreKeys),
             decades: new Set(rawEras.map(normalize)),
             holidays: new Set(preparedSong.holidayValues.map(normalize)),
+            lengths: lengthBucket ? new Set([normalize(lengthBucket)]) : new Set(),
         };
 
         if (song.popularity) scores.push(song.popularity);
@@ -1013,6 +1022,7 @@ async function useSongs(songs) {
         for (const value of allGenres) if (value) availableGenresSet.add(value);
         for (const value of rawEras) if (value) availableDecadesSet.add(value);
         for (const value of preparedSong.holidayValues) if (value) availableHolidaysSet.add(value);
+        if (lengthBucket) availableLengthsSet.add(lengthBucket);
 
         return preparedSong;
     });
@@ -1034,6 +1044,8 @@ async function useSongs(songs) {
     const availableGenres = [...availableGenresSet].sort(compareText);
     const availableDecades = [...availableDecadesSet].sort(compareDecade);
     const availableHolidays = [...availableHolidaysSet].sort(compareText);
+    const availableLengths = ["Short (< 3 min)", "Standard (3–5 min)", "Long (5+ min)"]
+        .filter((value) => availableLengthsSet.has(value));
     const whatsNew = buildWhatsNew(enrichedSongs, state.whatsNewSource);
     await yieldSongbookWork();
 
@@ -1041,7 +1053,7 @@ async function useSongs(songs) {
     // never see partial songs or mismatched indexes.
     Object.assign(state, {
         promotedGenreTags, songs: enrichedSongs, popularThreshold,
-        defaultRankedSongs, availableMoods, availableGenres, availableDecades, availableHolidays,
+        defaultRankedSongs, availableMoods, availableGenres, availableDecades, availableHolidays, availableLengths,
         whatsNewSongs: whatsNew.songs, whatsNewLatest: whatsNew.latest,
     });
     migrateSavedSongs();
@@ -2221,6 +2233,30 @@ function getArtistInitials(name) {
     return words.slice(0, 2).map((word) => word[0].toUpperCase()).join("");
 }
 
+function getSongLengthBucket(song) {
+    const seconds = Number(song?.seconds);
+    if (!Number.isFinite(seconds) || seconds <= 0) {
+        return "";
+    }
+    if (seconds < 180) {
+        return "Short (< 3 min)";
+    }
+    if (seconds <= 300) {
+        return "Standard (3–5 min)";
+    }
+    return "Long (5+ min)";
+}
+
+function formatSongDuration(seconds) {
+    const total = Math.round(Number(seconds));
+    if (!Number.isFinite(total) || total <= 0) {
+        return "";
+    }
+    const mins = Math.floor(total / 60);
+    const secs = total % 60;
+    return `${mins}:${String(secs).padStart(2, "0")}`;
+}
+
 function createSongCard(song) {
     const card = document.createElement("article");
     card.className = "song-card";
@@ -2234,7 +2270,20 @@ function createSongCard(song) {
     title.className = "song-title";
     setHighlightedText(title, getDisplaySongTitle(song), getQueryTokens());
 
-    text.append(title, createArtistSearchControl(song, "song-artist"));
+    const subline = document.createElement("div");
+    subline.className = "card-subline";
+    subline.appendChild(createArtistSearchControl(song, "song-artist"));
+    const durationText = formatSongDuration(song.seconds);
+    if (durationText) {
+        const duration = document.createElement("span");
+        duration.className = "song-duration";
+        duration.textContent = durationText;
+        duration.title = "Reference track length";
+        duration.setAttribute("aria-label", `Length ${durationText}`);
+        subline.appendChild(duration);
+    }
+
+    text.append(title, subline);
     head.append(createCoverTile(song), text);
 
     const meta = document.createElement("div");

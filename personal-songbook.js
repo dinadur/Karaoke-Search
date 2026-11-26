@@ -94,6 +94,15 @@ function bindPersonalFeatures() {
     personalEl("repertoireMore").addEventListener("click", () => {
         repertoireLimit += 40; renderRepertoire();
     });
+    personalEl("exportRepertoireButton")?.addEventListener("click", exportRepertoireBackup);
+    personalEl("importRepertoireButton")?.addEventListener("click", () => {
+        personalEl("importRepertoireFile")?.click();
+    });
+    personalEl("importRepertoireFile")?.addEventListener("change", (event) => {
+        const file = event.target.files?.[0];
+        event.target.value = "";
+        if (file) importRepertoireBackup(file);
+    });
     personalEl("songNotesForm").addEventListener("submit", (event) => {
         event.preventDefault();
         if (!editingRepertoireSong) return;
@@ -129,6 +138,73 @@ function bindPersonalFeatures() {
         personalEl("pickerSummary").textContent = "Preferences changed. Choose Find my five for updated suggestions.";
     });
     updateRepertoireButtons();
+}
+
+function sanitizeRepertoireMap(raw) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+    const cleaned = {};
+    for (const [key, entry] of Object.entries(raw)) {
+        if (!entry || !["saved", "want", "sung"].includes(entry.status)) continue;
+        if (!entry.song || typeof entry.song.song !== "string" || typeof entry.song.artist !== "string") continue;
+        const id = typeof key === "string" && key ? key : getSongIdentity(entry.song);
+        cleaned[id] = {
+            song: toSetlistEntry(entry.song),
+            status: entry.status,
+            comfort: [1, 2, 3, 4, 5].includes(entry.comfort) ? entry.comfort : null,
+            key: typeof entry.key === "string" ? entry.key.slice(0, 40) : "",
+            notes: typeof entry.notes === "string" ? entry.notes.slice(0, 1000) : "",
+        };
+    }
+    return cleaned;
+}
+
+function exportRepertoireBackup() {
+    const status = personalEl("repertoireBackupStatus");
+    const count = Object.keys(repertoire).length;
+    if (!count) {
+        if (status) status.textContent = "No saved songs to export yet.";
+        return;
+    }
+    const payload = {
+        schemaVersion: 1,
+        exportedAt: new Date().toISOString(),
+        songs: repertoire,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `karaoke-saved-songs-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    if (status) status.textContent = `Exported ${count} saved ${count === 1 ? "song" : "songs"}.`;
+}
+
+async function importRepertoireBackup(file) {
+    const status = personalEl("repertoireBackupStatus");
+    try {
+        const text = await file.text();
+        const parsed = JSON.parse(text);
+        const rawSongs = parsed && typeof parsed === "object" && !Array.isArray(parsed)
+            ? (parsed.songs && typeof parsed.songs === "object" && !Array.isArray(parsed.songs) ? parsed.songs : parsed)
+            : null;
+        const imported = sanitizeRepertoireMap(rawSongs);
+        const importedCount = imported ? Object.keys(imported).length : 0;
+        if (!imported || !importedCount) {
+            if (status) status.textContent = "No valid saved songs found in that file.";
+            return;
+        }
+        const next = { ...repertoire, ...imported };
+        if (persistRepertoire(next)) {
+            repertoireLimit = 40;
+            renderRepertoire();
+            if (status) status.textContent = `Imported ${importedCount} saved ${importedCount === 1 ? "song" : "songs"}.`;
+        }
+    } catch {
+        if (status) status.textContent = "Couldn't read that backup file. Choose a saved-songs JSON backup.";
+    }
 }
 
 function persistRepertoire(next) {
@@ -177,13 +253,13 @@ function updateRepertoireButtons() {
     });
 }
 
-function openSongNotes(song, opener) {
+function openSongNotes(song, opener, { defaultStatus = "" } = {}) {
     editingRepertoireSong = song;
     repertoireOpener = opener;
     const entry = repertoire[getSongIdentity(song)];
     personalEl("songNotesTitle").textContent = getDisplaySongTitle(song);
     personalEl("songNotesArtist").textContent = getDisplayArtist(song);
-    personalEl("repertoireStatus").value = entry?.status || "saved";
+    personalEl("repertoireStatus").value = defaultStatus || entry?.status || "saved";
     personalEl("repertoireComfort").value = entry?.comfort || "";
     personalEl("repertoireKey").value = entry?.key || "";
     personalEl("repertoireNotes").value = entry?.notes || "";
