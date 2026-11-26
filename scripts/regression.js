@@ -747,11 +747,14 @@ const tests = [
         assert.equal(await page.locator("#resultsList .song-title").first().textContent(), "Zebra Ballad");
         assert.equal(await page.locator("#resultsList .song-duration").first().textContent(), "5:55");
 
-        // Clicking Queen opens A–Z, and inline Top songs toggle switches to popularity order.
+        // Clicking Queen opens A–Z, and inline Top songs toggle switches to popularity order while keeping keyboard focus.
         await page.locator("#resultsList .song-artist").first().click();
         assert.equal(await page.evaluate(() => state.sortMode), "song");
-        await page.locator("#resultContext .context-sort button", { hasText: "Top songs" }).click();
+        const topSort = page.locator("#resultContext .context-sort button", { hasText: "Top songs" });
+        await topSort.focus();
+        await page.keyboard.press("Enter");
         assert.equal(await page.evaluate(() => state.sortMode), "popular");
+        assert.equal(await page.evaluate(() => document.activeElement?.dataset.sort), "popular");
         assert.deepEqual(await page.locator("#resultsList .song-title").allTextContents(), ["Zebra Ballad", "Alpha Track"]);
 
         // Compact view toggles body.is-compact and survives reload.
@@ -806,8 +809,16 @@ const tests = [
             "Quick Opener", "Standard Hit", "Epic Closer", "Bonus Encore",
         ]);
 
-        // Sung check-off updates summary, persists, and offers Save-as-sung bridge.
-        await page.locator(".setlist-item").first().locator(".sung-toggle").click();
+        // Sung check-off preserves focus on .sung-toggle, updates summary, and offers Save-as-sung bridge.
+        const sungToggle = page.locator(".setlist-item").first().locator(".sung-toggle");
+        await sungToggle.focus();
+        await page.keyboard.press("Space");
+        assert.equal(await page.locator(".setlist-item.is-sung").count(), 1);
+        assert.equal(await page.evaluate(() => document.activeElement?.classList.contains("sung-toggle")), true);
+        await page.keyboard.press("Space");
+        assert.equal(await page.locator(".setlist-item.is-sung").count(), 0);
+        assert.equal(await page.evaluate(() => document.activeElement?.classList.contains("sung-toggle")), true);
+        await page.keyboard.press("Space");
         assert.equal(await page.locator(".setlist-item.is-sung").count(), 1);
         assert.match(await page.locator("#setlistCount").textContent(), /\(1 sung\)/);
         assert.equal(await page.locator(".save-sung-link").count(), 1);
