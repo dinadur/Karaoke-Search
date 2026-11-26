@@ -9,6 +9,8 @@ This repo is a static frontend for a karaoke songbook. It is deployed from `main
   - `karaoke_explorer.html`
   - `karaoke_explorer.css`
   - `karaoke_explorer.js`
+  - `search-ranking.js`
+  - `catalog-worker.js`
   - `personal-songbook.js`
   - `stage-effects.js`
   - `filters-panel.js`
@@ -83,27 +85,29 @@ Catalog preparation is asynchronous and time-sliced. Always await `useSongs()`, 
 - The loading lyric follows `#resultsList[aria-busy]` (set by `startLoadStatus`). The "lights up" CSS follows `html.songbook-ready`, which `useSongs` sets after a successful load.
 - Keep the script precached, and run `scripts/effects.js` (all engines in CI) when changing effects. See `STAGE_EFFECTS.md`.
 
-The frontend is split into plain `defer` scripts that share one global scope (no modules, no bundler). Load order in `karaoke_explorer.html` is `qrcode.js`, `personal-songbook.js`, `stage-effects.js`, `filters-panel.js`, `browse-discover.js`, `setlist-panel.js`, then `karaoke_explorer.js`.
+The frontend is split into plain `defer` scripts that share one global scope (no modules, no bundler). Load order in `karaoke_explorer.html` is `qrcode.js`, `personal-songbook.js`, `stage-effects.js`, `search-ranking.js`, `filters-panel.js`, `browse-discover.js`, `setlist-panel.js`, then `karaoke_explorer.js`.
 
+- `search-ranking.js`: text normalization (`normalize`, `normalizeSearchText`), relevance scoring (`rankSongs`, `sortSongs`), fuzzy edit distance, and match highlighting (`getHighlightRanges`, `setHighlightedText`). Also exports for fast Node unit tests (`node scripts/test-search-ranking.js`).
+- `catalog-worker.js`: Web Worker that decodes and parses the transferred catalog `ArrayBuffer` off the main thread (keeping `fetch()` on the main thread for service-worker and browser-route compatibility, with seamless main-thread fallback).
 - `filters-panel.js`: multi-select filter popovers (`MULTI_FILTER_DEFS`, `buildMultiFilters`), faceted counts, active-filter chips, and `applySearchFilters`.
 - `browse-discover.js`: Discover shelves (single-pass bucketing, partial Fisher-Yates sampling, What's new with its Newly added fallback), batched Song Browse, lazy Artist Browse, and result grouping.
-- `setlist-panel.js`: setlist queue, singer editing, Draft/Swap, QR sharing, snackbar, and the shared catalog index `getCatalogIndex()` (a `Map` of `song.id` to song, rebuilt only when `state.songs` changes).
-- `karaoke_explorer.js`: state, catalog loading/`useSongs()`, search and ranking, rendering, and startup.
+- `setlist-panel.js`: setlist queue, singer editing, Sung check-off, fair singer rotation, named saved setlists, Draft/Swap, QR sharing, snackbar, and the shared catalog index `getCatalogIndex()` (a `Map` of `song.id` to song, rebuilt only when `state.songs` changes).
+- `karaoke_explorer.js`: state, catalog loading/`useSongs()`, rendering, and startup.
 - Files call each other's functions at runtime (for example `personal-songbook.js` calls `getCatalogIndex()` from `setlist-panel.js`). Only call across files from event handlers or after startup, never at top level during script evaluation, since later files are not loaded yet.
 - Top-level `const`/`let` names must be unique across all of these files: a duplicate throws a `SyntaxError` and stops the later script.
 - When adding a script, add it to the HTML with the current `?v=` version, to the `sw.js` precache, and to the `node --check` list in `.github/workflows/ci.yml`.
 
-`personal-songbook.js` loads before the main script and provides `bindPersonalFeatures`, repertoire controls, the guided picker, and the optional era overlay. Keep it and `era_enrichment.json` in the service-worker precache. Personal notes are device-only and must not be added to QR or text sharing. Run `scripts/personal.js` when changing these flows. Era provenance is checked by `scripts/check-era-enrichment.js`; maintenance details are in `FEATURE_RELEASE.md`.
+`personal-songbook.js` loads before the main script and provides `bindPersonalFeatures`, repertoire controls (including local JSON export/import backup), the guided picker, and the optional era overlay. Keep it and `era_enrichment.json` in the service-worker precache. Personal notes are device-only and must not be added to QR or text sharing. Run `scripts/personal.js` when changing these flows. Era provenance is checked by `scripts/check-era-enrichment.js`; maintenance details are in `FEATURE_RELEASE.md`.
 
 ## Current App Behavior
 
 - Search scopes are `all` (songs & artists, default), `song`, and `artist`.
-- Mood, genre, decade, and holiday filters are all multi-select (OR within a category, AND across categories). State lives in `state.filters.{moods,genres,decades,holidays}` arrays, URL params are comma-separated, and the UI is a shared toggle-chip popover component (`MULTI_FILTER_DEFS` + `buildMultiFilters`) with per-option song counts that open inline in the filter sheet. There is no Explicit filter (songs still show Explicit pills).
+- Mood, genre, decade, holiday, and length filters are all multi-select (OR within a category, AND across categories). State lives in `state.filters.{moods,genres,decades,holidays,lengths}` arrays, URL params are comma-separated, and the UI is a shared toggle-chip popover component (`MULTI_FILTER_DEFS` + `buildMultiFilters`) with per-option song counts that open inline in the filter sheet. There is no Explicit filter (songs still show Explicit pills).
 - Headings and song titles use self-hosted Space Grotesk (`fonts/`, OFL license alongside); body text is the system stack.
 - The palette is violet/coral ("stage light"): `--brand` is the primary accent variable (renamed from `--teal`).
 - Fuzzy search is off by default; if an exact query has zero matches, a fuzzy pass runs automatically and a notice labels the results. Empty results offer "Include near matches (n)" only when filters hid the exact matches and near matches would pass them.
 - With no query, no filters, and relevance order, the app shows a "discover" landing view of sampled shelves (cached per session) instead of the full ranked list.
-- Filters include mood, genre, decade, holiday, popular, duet, and saved songs, plus search scope, near matches, and sort order. They live in a focus-managed sheet behind a "Filters (n)" toggle (bottom sheet on mobile, centered modal on desktop) with labeled rows and a sticky Clear filters / Show songs footer. Active-filter chips show filters and scoped queries ("Artist: …"); a plain query appears only in the search box.
+- Filters include mood, genre, decade, holiday, length, popular, duet, and saved songs, plus search scope, near matches, and sort order. They live in a focus-managed sheet behind a "Filters (n)" toggle (bottom sheet on mobile, centered modal on desktop) with labeled rows and a sticky Clear filters / Show songs footer. Active-filter chips show filters and scoped queries ("Artist: …"); a plain query appears only in the search box.
 - Results can sort by relevance, song title, or artist; song/artist sorts group into expandable sections. Further batches load automatically via an IntersectionObserver sentinel.
 - Random shows a preview card (Add / Spin again / dismiss) above results; it does not modify the setlist or the query.
 - Browse mode reads the full catalog by song title or artist letter. It shows an empty search box; the Search tab keeps and restores its query. On phones the letter strip docks under the sticky search bar, and a new letter starts at its top.
