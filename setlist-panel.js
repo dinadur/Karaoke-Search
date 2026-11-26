@@ -4,6 +4,7 @@
 let draggedSetlistIndex = null;
 let catalogIndex = { songs: null, byId: new Map() };
 const DRAFT_SETLIST_TARGET = 10;
+const SAVED_SETLISTS_STORAGE_KEY = "karaokeSavedSetlistsV1";
 
 function getCatalogIndex() {
     if (catalogIndex.songs !== state.songs) {
@@ -58,6 +59,12 @@ function toSetlistEntry(song, extra = {}) {
     if (song.singer) {
         entry.singer = song.singer;
     }
+    if (song.sung && extra.sung === undefined) {
+        entry.sung = true;
+    }
+    if (!entry.sung) {
+        delete entry.sung;
+    }
 
     for (const key of Object.keys(entry)) {
         if (entry[key] === undefined) {
@@ -68,6 +75,22 @@ function toSetlistEntry(song, extra = {}) {
     return entry;
 }
 
+function countDistinctSingers(entries) {
+    const singers = new Set();
+    for (const entry of entries) {
+        const key = normalize(entry?.singer || "");
+        if (key) singers.add(key);
+    }
+    return singers.size;
+}
+
+function syncBalanceSetlistButton() {
+    if (!els.balanceSetlistButton) return;
+    const hasMultipleSingers = countDistinctSingers(state.setlist) >= 2;
+    els.balanceSetlistButton.hidden = !hasMultipleSingers;
+    els.balanceSetlistButton.disabled = !hasMultipleSingers;
+}
+
 function renderSetlist() {
     personalEl("planSetlistLabel").textContent = state.setlist.length ? `Setlist (${state.setlist.length})` : "Plan a setlist";
     syncAddButtons();
@@ -75,10 +98,12 @@ function renderSetlist() {
     const focusedSongId = focusedItem?.dataset.songId;
     const focusedIndex = Number(focusedItem?.dataset.index || 0);
     const focusedTitle = document.activeElement?.title;
+    const focusedSungToggle = Boolean(document.activeElement?.classList.contains("sung-toggle"));
     els.setlist.innerHTML = "";
     els.setlistCount.textContent = getSetlistSummary();
     els.copySetlistButton.disabled = !state.setlist.length;
     els.clearSetlistButton.disabled = !state.setlist.length;
+    syncBalanceSetlistButton();
     els.mobileSetlistButton.querySelector("span").textContent =
         state.setlist.length ? `Setlist (${state.setlist.length})` : "Setlist";
     els.mobileSetlistButton.setAttribute(
@@ -110,7 +135,7 @@ function renderSetlist() {
     const fragment = document.createDocumentFragment();
     state.setlist.forEach((song, index) => {
         const item = document.createElement("li");
-        item.className = "setlist-item";
+        item.className = `setlist-item${song.sung ? " is-sung" : ""}`;
         item.draggable = true;
         item.dataset.index = String(index);
         item.dataset.songId = getSongIdentity(song);
@@ -218,12 +243,36 @@ function renderSetlist() {
         const head = document.createElement("div");
         head.className = "setlist-head";
         head.appendChild(heading);
+
+        const headActions = document.createElement("div");
+        headActions.className = "setlist-head-actions";
         const catalogSong = getCatalogSong(song);
-        if (catalogSong) head.appendChild(createSongTags(catalogSong));
+        if (catalogSong) headActions.appendChild(createSongTags(catalogSong));
+
+        const sungToggle = document.createElement("button");
+        sungToggle.className = `setlist-icon-button sung-toggle${song.sung ? " is-sung" : ""}`;
+        sungToggle.type = "button";
+        sungToggle.title = song.sung ? "Mark as not sung" : "Mark as sung";
+        sungToggle.setAttribute("aria-pressed", String(Boolean(song.sung)));
+        sungToggle.setAttribute("aria-label", song.sung ? `Mark ${displayTitle} as not sung` : `Mark ${displayTitle} as sung`);
+        sungToggle.innerHTML = '<i data-lucide="check" aria-hidden="true"></i>';
+        sungToggle.addEventListener("click", () => toggleSetlistSung(index));
+        headActions.appendChild(sungToggle);
+        head.appendChild(headActions);
 
         const body = document.createElement("div");
         body.className = "setlist-body";
         body.append(head, footer);
+        if (song.sung && typeof repertoire === "object" && repertoire[getSongIdentity(song)]?.status !== "sung") {
+            const saveSung = document.createElement("button");
+            saveSung.className = "save-sung-link";
+            saveSung.type = "button";
+            saveSung.textContent = "Save to Saved songs as sung";
+            saveSung.addEventListener("click", () => {
+                openSongNotes(catalogSong || song, saveSung, { defaultStatus: "sung" });
+            });
+            body.appendChild(saveSung);
+        }
         item.append(number, body);
         fragment.appendChild(item);
     });
@@ -236,7 +285,8 @@ function renderSetlist() {
             items[Math.min(focusedIndex, items.length - 1)];
         const buttons = [...(item?.querySelectorAll("button") || [])]
             .filter((button) => !button.disabled && !button.closest("[hidden]"));
-        (buttons.find((button) => button.title === focusedTitle) ||
+        ((focusedSungToggle ? item?.querySelector(".sung-toggle:not(:disabled)") : null) ||
+            buttons.find((button) => button.title === focusedTitle) ||
             item?.querySelector(".setlist-row button:not(:disabled)"))?.focus({ preventScroll: true });
     }
 }
@@ -587,11 +637,247 @@ function getSetlistSummary() {
         return label;
     }
 
+    const sungCount = state.setlist.filter((song) => song.sung).length;
+    const sungPart = sungCount ? ` (${sungCount} sung)` : "";
+
     // Average karaoke track is ~3.5 min; use real durations where known.
     const totalSeconds = state.setlist.reduce(
         (sum, song) => sum + (song.seconds || 210), 0
     );
-    return `${label} · ~${Math.max(1, Math.round(totalSeconds / 60))} min`;
+    return `${label}${sungPart} · ~${Math.max(1, Math.round(totalSeconds / 60))} min`;
+}
+
+function toggleSetlistSung(index) {
+    const song = state.setlist[index];
+    if (!song) return;
+    if (song.sung) {
+        delete song.sung;
+    } else {
+        song.sung = true;
+    }
+    saveSetlist();
+    renderSetlist();
+}
+
+function balanceSetlistSingers() {
+    if (countDistinctSingers(state.setlist) < 2) {
+        return;
+    }
+
+    const previous = [...state.setlist];
+    const buckets = new Map();
+    const order = [];
+    for (const song of state.setlist) {
+        const key = normalize(song.singer || "") || "\u001funassigned";
+        if (!buckets.has(key)) {
+            buckets.set(key, []);
+            order.push(key);
+        }
+        buckets.get(key).push(song);
+    }
+
+    const balanced = [];
+    let remaining = state.setlist.length;
+    while (remaining > 0) {
+        for (const key of order) {
+            const queue = buckets.get(key);
+            if (queue && queue.length) {
+                balanced.push(queue.shift());
+                remaining--;
+            }
+        }
+    }
+
+    const changed = balanced.some((song, index) => song !== previous[index]);
+    if (!changed) {
+        showSnackbar("Singers are already evenly rotated");
+        return;
+    }
+
+    state.setlist = balanced;
+    saveSetlist();
+    renderSetlist();
+    showSnackbar("Balanced singer rotation", () => {
+        state.setlist = previous;
+        saveSetlist();
+        renderSetlist();
+    });
+}
+
+function readSavedSetlists() {
+    try {
+        const raw = JSON.parse(localStorage.getItem(SAVED_SETLISTS_STORAGE_KEY) || "[]");
+        if (!Array.isArray(raw)) return [];
+        return raw
+            .filter((entry) => entry && typeof entry.name === "string" && entry.name.trim() && Array.isArray(entry.songs))
+            .map((entry) => ({
+                name: entry.name.trim().slice(0, 60),
+                savedAt: typeof entry.savedAt === "string" ? entry.savedAt : "",
+                songs: entry.songs
+                    .filter((song) => song && typeof song.song === "string" && typeof song.artist === "string")
+                    .map((song) => toSetlistEntry(song)),
+            }));
+    } catch {
+        return [];
+    }
+}
+
+function writeSavedSetlists(lists) {
+    try {
+        localStorage.setItem(SAVED_SETLISTS_STORAGE_KEY, JSON.stringify(lists));
+        return true;
+    } catch {
+        showSnackbar("Couldn't save setlists on this device. Free some browser storage and try again.");
+        return false;
+    }
+}
+
+function bindSavedSetlistsDialog() {
+    els.balanceSetlistButton?.addEventListener("click", balanceSetlistSingers);
+    els.savedSetlistsButton?.addEventListener("click", openSavedSetlistsDialog);
+    const form = document.getElementById("saveSetlistForm");
+    form?.addEventListener("submit", (event) => {
+        event.preventDefault();
+        const input = document.getElementById("savedSetlistName");
+        const name = input?.value.trim() || "";
+        if (!name) {
+            const summary = document.getElementById("savedSetlistsSummary");
+            if (summary) summary.textContent = "Enter a name for this setlist first.";
+            input?.focus();
+            return;
+        }
+        if (!state.setlist.length) {
+            const summary = document.getElementById("savedSetlistsSummary");
+            if (summary) summary.textContent = "Add at least one song to your setlist before saving.";
+            return;
+        }
+        const lists = readSavedSetlists();
+        const existingIndex = lists.findIndex((item) => normalize(item.name) === normalize(name));
+        const record = {
+            name: name.slice(0, 60),
+            savedAt: new Date().toISOString().slice(0, 10),
+            songs: state.setlist.map((song) => toSetlistEntry(song)),
+        };
+        if (existingIndex >= 0) {
+            lists.splice(existingIndex, 1, record);
+        } else {
+            lists.unshift(record);
+        }
+        if (writeSavedSetlists(lists)) {
+            if (input) input.value = "";
+            renderSavedSetlists(`Saved “${record.name}” (${record.songs.length} ${record.songs.length === 1 ? "song" : "songs"}).`);
+        }
+    });
+}
+
+function openSavedSetlistsDialog() {
+    const dialog = document.getElementById("savedSetlistsDialog");
+    if (!dialog) return;
+    renderSavedSetlists();
+    if (typeof dialog.showModal === "function" && !dialog.open) {
+        dialog.showModal();
+    }
+}
+
+function renderSavedSetlists(message = "") {
+    const listEl = document.getElementById("savedSetlistsList");
+    const summaryEl = document.getElementById("savedSetlistsSummary");
+    const saveButton = document.getElementById("saveCurrentSetlistButton");
+    if (!listEl || !summaryEl) return;
+
+    const lists = readSavedSetlists();
+    if (saveButton) {
+        saveButton.disabled = !state.setlist.length;
+    }
+    listEl.replaceChildren();
+
+    if (message) {
+        summaryEl.textContent = message;
+    } else if (!lists.length) {
+        summaryEl.textContent = state.setlist.length
+            ? "No saved setlists yet. Name your current queue above to save it."
+            : "No saved setlists yet. Queue songs first, then save them under a name.";
+    } else {
+        summaryEl.textContent = `${lists.length} saved ${lists.length === 1 ? "setlist" : "setlists"} on this device.`;
+    }
+
+    for (let index = 0; index < lists.length; index++) {
+        const entry = lists[index];
+        const row = document.createElement("article");
+        row.className = "personal-song-row saved-setlist-row";
+
+        const title = document.createElement("h3");
+        title.textContent = entry.name;
+
+        const meta = document.createElement("p");
+        meta.className = "personal-reason";
+        const countLabel = `${entry.songs.length} ${entry.songs.length === 1 ? "song" : "songs"}`;
+        meta.textContent = entry.savedAt ? `${countLabel} · Saved ${entry.savedAt}` : countLabel;
+
+        const actions = document.createElement("div");
+        actions.className = "personal-row-actions";
+
+        const loadButton = document.createElement("button");
+        loadButton.type = "button";
+        loadButton.className = "command";
+        loadButton.textContent = "Load";
+        loadButton.addEventListener("click", () => {
+            const previous = [...state.setlist];
+            state.setlist = entry.songs.map((song) => toSetlistEntry(song));
+            setPlanningMode(true);
+            saveSetlist();
+            renderSetlist();
+            document.getElementById("savedSetlistsDialog")?.close();
+            showSnackbar(`Loaded “${entry.name}”`, () => {
+                state.setlist = previous;
+                saveSetlist();
+                renderSetlist();
+            });
+        });
+
+        const appendButton = document.createElement("button");
+        appendButton.type = "button";
+        appendButton.className = "command subtle-command";
+        appendButton.textContent = "Add missing";
+        appendButton.addEventListener("click", () => {
+            const previous = [...state.setlist];
+            let added = 0;
+            for (const song of entry.songs) {
+                if (!state.setlist.some((existing) => isSameSong(existing, song))) {
+                    state.setlist.push(toSetlistEntry(song));
+                    added++;
+                }
+            }
+            if (!added) {
+                renderSavedSetlists(`All songs from “${entry.name}” are already in your setlist.`);
+                return;
+            }
+            setPlanningMode(true);
+            saveSetlist();
+            renderSetlist();
+            document.getElementById("savedSetlistsDialog")?.close();
+            showSnackbar(`Added ${added} ${added === 1 ? "song" : "songs"} from “${entry.name}”`, () => {
+                state.setlist = previous;
+                saveSetlist();
+                renderSetlist();
+            });
+        });
+
+        const deleteButton = document.createElement("button");
+        deleteButton.type = "button";
+        deleteButton.className = "command subtle-command";
+        deleteButton.textContent = "Delete";
+        deleteButton.addEventListener("click", () => {
+            const next = readSavedSetlists().filter((item) => normalize(item.name) !== normalize(entry.name));
+            if (writeSavedSetlists(next)) {
+                renderSavedSetlists(`Deleted “${entry.name}”.`);
+            }
+        });
+
+        actions.append(loadButton, appendButton, deleteButton);
+        row.append(title, meta, actions);
+        listEl.appendChild(row);
+    }
 }
 
 function moveSetlistItem(index, direction) {
@@ -617,6 +903,7 @@ function saveSetlist() {
     // Any subsequent edit makes a prior snapshot-based Undo unsafe. Callers
     // offering a new Undo install it after saving their own change.
     if (state.snackbarAction) hideSnackbar();
+    syncBalanceSetlistButton();
     try {
         localStorage.setItem("karaokeSetlist", JSON.stringify(state.setlist));
     } catch {

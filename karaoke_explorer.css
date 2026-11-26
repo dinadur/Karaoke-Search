@@ -3366,3 +3366,110 @@ body.is-compact .browse-title {
 body.is-compact .browse-artist {
     font-size: 12px;
 }
+
+.card-subline {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 8px;
+    margin-top: 4px;
+}
+
+.card-subline .song-artist {
+    margin-top: 0;
+}
+
+.song-duration {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+body.is-compact .card-subline {
+    margin-top: 2px;
+}
+
+.setlist-head-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    flex: 0 0 auto;
+}
+
+.setlist-item.is-sung {
+    opacity: 0.72;
+}
+
+.setlist-item.is-sung .setlist-title {
+    text-decoration: line-through;
+    text-decoration-color: var(--muted);
+}
+
+.sung-toggle.is-sung {
+    color: var(--brand);
+    background: var(--active-bg);
+}
+
+.save-sung-link {
+    justify-self: start;
+    border: 0;
+    padding: 2px 0;
+    background: transparent;
+    color: var(--brand);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+}
+
+.save-sung-link:focus-visible {
+    outline: 3px solid var(--focus-ring);
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+.personal-backup-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+}
+
+.personal-backup-bar .command {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.saved-setlist-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.saved-setlist-form label {
+    display: grid;
+    gap: 4px;
+    flex: 1 1 200px;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.saved-setlist-form input {
+    width: 100%;
+    min-height: 40px;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--ink);
+    font: inherit;
+}
