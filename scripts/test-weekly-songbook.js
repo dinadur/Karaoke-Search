@@ -12,7 +12,7 @@ const { syncVenue } = require('./sync-venue');
 const root = path.join(__dirname, '..');
 const workflow = fs.readFileSync(path.join(root, '.github/workflows/weekly-songbook.yml'), 'utf8').replaceAll('\r\n', '\n');
 const files = ['karaoke_songs_enriched.json', 'audio_enrichment.json', 'era_enrichment.json',
-    'karaoke_explorer.js', 'karaoke_explorer.html', 'manifest.json', 'sw.js'];
+    'whats_new.json', 'karaoke_explorer.js', 'karaoke_explorer.html', 'manifest.json', 'sw.js'];
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'karaoke-weekly-test-'));
 // Do not inherit a real workflow's outputs or credential into fixture commands.
 const env = { ...process.env, GH_TOKEN: 'local-fixture-token', GIT_TERMINAL_PROMPT: '0' };
@@ -140,6 +140,7 @@ async function browserCheck(dir) {
     const report = await syncVenue({ root: prepare, write: true,
         fetchOptions: { fetchImpl: async () => new Response(JSON.stringify(rows)) } });
     assert.equal(report.added, 1);
+    shellStep("Update What's new", prepare);
     shellStep('Validate updated catalog', prepare);
     const expected = snapshot(prepare);
     const packageOutput = path.join(temp, 'package-output');
@@ -169,7 +170,7 @@ async function browserCheck(dir) {
     shellStep('Publish additions', publish);
     assert.equal(remoteHead(), git(publish, 'rev-parse', 'HEAD'));
     unchanged(publish, expected);
-    console.log('ok   new-song prepare, immutable artifact, both validations, seven-file commit and local publication');
+    console.log('ok   new-song prepare, immutable artifact, both validations, eight-file commit and local publication');
     if (process.argv.includes('--browser')) await browserCheck(publish);
 
     const tampered = clone('tampered', artifact, 'publish');

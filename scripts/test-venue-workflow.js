@@ -9,7 +9,7 @@ const { spawnSync, execFileSync } = require('node:child_process');
 const workflow = fs.readFileSync(path.join(__dirname, '../.github/workflows/weekly-songbook.yml'), 'utf8').replaceAll('\r\n', '\n');
 const bash = process.env.BASH_PATH || (process.platform === 'win32' ? 'C:\\Program Files\\Git\\bin\\bash.exe' : 'bash');
 const files = ['karaoke_songs_enriched.json', 'audio_enrichment.json', 'era_enrichment.json',
-    'karaoke_explorer.js', 'karaoke_explorer.html', 'manifest.json', 'sw.js'];
+    'whats_new.json', 'karaoke_explorer.js', 'karaoke_explorer.html', 'manifest.json', 'sw.js'];
 function stepScript(name) {
     const lines = workflow.split('\n');
     const start = lines.indexOf(`      - name: ${name}`);

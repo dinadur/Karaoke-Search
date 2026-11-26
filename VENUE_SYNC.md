@@ -47,8 +47,8 @@ additions to `main`. The rest of this section describes that workflow.
    Metadata evidence and lookup timestamps are preserved. Failed validation rolls
    back all changed data and version files.
 5. Run catalog/version checks and Chromium smoke, regression, personal-songbook,
-   audio, and offline checks before committing. Publish only the seven expected
-   data/version files. A concurrent change to `main` stops the push; rerun against
+   audio, and offline checks before committing. Publish only the eight expected
+   data/version files (including regenerated `whats_new.json`). A concurrent change to `main` stops the push; rerun against
    the new head instead of rebasing or force-pushing.
 
 Preparation exports the uploaded artifact's immutable ID and the tar archive's
@@ -82,8 +82,8 @@ by date. After a sync that adds songs, run `node scripts/build-whats-new.js`
 the file with the version bump. It reads only the catalog's Git history, so it
 needs a full clone (`git fetch --unshallow` in a shallow one). Rows that
 `--enrich` tagged before the commit still count, because the catalog grew by
-that many rows. The manual GitHub workflow does not run it; until a sync
-regenerates the file, What's new keeps showing the previous batch.
+that many rows. The manual GitHub workflow also runs `build-whats-new.js --worktree`
+with a full-depth checkout and publishes `whats_new.json` alongside the catalog.
 
 ## Local maintenance
 

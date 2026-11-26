@@ -80,6 +80,7 @@
         "lounge",
         "mellow",
         "quiet storm",
+        "relaxing",
         "slow jam",
         "slow jams",
         "smooth",
@@ -120,6 +121,7 @@
       "label": "Nostalgic",
       "tags": [
         "golden oldies",
+        "musica del recuerdo",
         "oldie",
         "oldies"
       ]
@@ -128,7 +130,16 @@
       "label": "Party",
       "tags": [
         "club",
-        "party anthem"
+        "party anthem",
+        "partying"
+      ]
+    },
+    {
+      "label": "Heartbreak",
+      "tags": [
+        "canciones tristes",
+        "heartbreak",
+        "sad"
       ]
     }
   ]
