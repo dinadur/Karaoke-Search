@@ -401,12 +401,9 @@ function renderPickerResults() {
 }
 
 async function applyEraEnrichment(songs, enrichment) {
-    if (!Array.isArray(songs) || !enrichment || !Array.isArray(enrichment.entries) || !enrichment.entries.length) return songs;
-    const validEras = new Set(["50s", "60s", "70s", "80s", "90s", "2000s", "2010s", "2020s"]);
-    const byId = new Map(enrichment.entries.filter((entry) => entry && typeof entry.song === "string" &&
-        typeof entry.artist === "string" && Array.isArray(entry.eras) && entry.eras.length &&
-        entry.eras.every((era) => validEras.has(era))).map((entry) => [getSongIdentity(entry), entry]));
-    if (!byId.size) return songs;
+    if (!Array.isArray(songs)) return songs;
+    const byId = buildEraEnrichmentMap(enrichment);
+    if (!byId) return songs;
     return mapSongbookInChunks(songs, (song) => {
         if (!song || typeof song.song !== "string" || typeof song.artist !== "string" || song.eras?.length) return song;
         const match = byId.get(getSongIdentity(song));
@@ -431,26 +428,14 @@ function annotateEraSource(container, song) {
 }
 
 async function applyAudioEnrichment(songs, enrichment) {
-    if (!Array.isArray(songs) || !Array.isArray(enrichment?.entries) || !enrichment.entries.length) return songs;
+    if (!Array.isArray(songs)) return songs;
     // Overlay only explicit import targets. Favorite/setlist IDs intentionally
     // normalize artist/title variants and are too broad for source attribution.
-    const targetKey = (song) => `${song.artist}\u001f${song.song}\u001f${song.lookupArtist || ''}\u001f${song.lookupSong || ''}`;
-    const byId = new Map();
-    for (const entry of enrichment.entries) {
-        if (!entry || typeof entry.song !== 'string' || typeof entry.artist !== 'string' || entry.source?.type !== 'getsongbpm' || !Array.isArray(entry.source.records)) continue;
-        const url = entry.source.records?.find((record) => typeof record?.url === 'string' && /^https:\/\/getsongbpm\.com\/song\//.test(record.url))?.url;
-        if (!url) continue;
-        const bpm = typeof entry.bpm === 'number' && Number.isFinite(entry.bpm) && entry.bpm >= 20 && entry.bpm <= 400 ? entry.bpm : null;
-        const referenceKey = typeof entry.referenceKey === 'string' && /^[A-G](?:#|b|♯|♭)?m?$/.test(entry.referenceKey) ? entry.referenceKey : null;
-        const danceability = typeof entry.danceability === 'number' && Number.isFinite(entry.danceability) && entry.danceability >= 0 && entry.danceability <= 100 ? entry.danceability : null;
-        const acousticness = typeof entry.acousticness === 'number' && Number.isFinite(entry.acousticness) && entry.acousticness >= 0 && entry.acousticness <= 100 ? entry.acousticness : null;
-        if (bpm === null && referenceKey === null) continue;
-        byId.set(targetKey(entry), { bpm, referenceKey, danceability, acousticness, audioSource: { url, type: 'getsongbpm' } });
-    }
-    if (!byId.size) return songs;
+    const byId = buildAudioEnrichmentMap(enrichment);
+    if (!byId) return songs;
     return mapSongbookInChunks(songs, (song) => {
         if (!song || typeof song.song !== 'string' || typeof song.artist !== 'string') return song;
-        const match = byId.get(targetKey(song));
+        const match = byId.get(getAudioTargetKey(song));
         return match ? { ...song, ...match } : song;
     });
 }
