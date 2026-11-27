@@ -6,20 +6,21 @@
     <title>Karaoke Songbook</title>
     <meta name="theme-color" content="#f5f4fa" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#14121d" media="(prefers-color-scheme: dark)">
-    <link rel="icon" href="app-icon.svg?v=20261127-1" type="image/svg+xml">
-    <link rel="apple-touch-icon" href="apple-touch-icon.png?v=20261127-1">
+    <link rel="icon" href="app-icon.svg?v=20261127-2" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png?v=20261127-2">
     <link rel="manifest" href="manifest.json">
     <link rel="preload" href="fonts/space-grotesk-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="karaoke_explorer.css?v=20261127-1">
-    <script defer src="qrcode.js?v=20261127-1"></script>
-    <script defer src="personal-songbook.js?v=20261127-1"></script>
-    <script defer src="stage-effects.js?v=20261127-1"></script>
-    <script defer src="search-ranking.js?v=20261127-1"></script>
-    <script defer src="catalog-prep.js?v=20261127-1"></script>
-    <script defer src="filters-panel.js?v=20261127-1"></script>
-    <script defer src="browse-discover.js?v=20261127-1"></script>
-    <script defer src="setlist-panel.js?v=20261127-1"></script>
-    <script defer src="karaoke_explorer.js?v=20261127-1"></script>
+    <link rel="stylesheet" href="karaoke_explorer.css?v=20261127-2">
+    <script defer src="qrcode.js?v=20261127-2"></script>
+    <script defer src="personal-songbook.js?v=20261127-2"></script>
+    <script defer src="stage-effects.js?v=20261127-2"></script>
+    <script defer src="search-ranking.js?v=20261127-2"></script>
+    <script defer src="catalog-prep.js?v=20261127-2"></script>
+    <script defer src="filters-panel.js?v=20261127-2"></script>
+    <script defer src="browse-discover.js?v=20261127-2"></script>
+    <script defer src="setlist-panel.js?v=20261127-2"></script>
+    <script defer src="karaoke-night.js?v=20261127-2"></script>
+    <script defer src="karaoke_explorer.js?v=20261127-2"></script>
 </head>
 <body>
     <svg xmlns="http://www.w3.org/2000/svg" class="icon-sprite" aria-hidden="true" focusable="false">
@@ -59,6 +60,12 @@
         <symbol id="icon-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
         <symbol id="icon-bookmark" viewBox="0 0 24 24"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></symbol>
         <symbol id="icon-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
+        <symbol id="icon-mic" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></symbol>
+        <symbol id="icon-tv" viewBox="0 0 24 24"><rect width="20" height="15" x="2" y="7" rx="2" ry="2"/><polyline points="17 2 12 7 7 2"/></symbol>
+        <symbol id="icon-skip-forward" viewBox="0 0 24 24"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" x2="19" y1="5" y2="19"/></symbol>
+        <symbol id="icon-external-link" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
+        <symbol id="icon-arrow-left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></symbol>
+        <symbol id="icon-user-plus" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/></symbol>
     </svg>
 
     <header class="topbar">
@@ -106,6 +113,7 @@
                 <div class="more-tools-panel">
                     <button id="repertoireButton" type="button" disabled><i data-lucide="star" aria-hidden="true"></i>Saved songs <span id="repertoireCount">0</span></button>
                     <button id="planSetlistButton" type="button"><i data-lucide="list-music" aria-hidden="true"></i><span id="planSetlistLabel">Plan a setlist</span></button>
+                    <button id="karaokeNightButton" type="button"><i data-lucide="mic" aria-hidden="true"></i>Host karaoke night</button>
                     <button id="chooseSongButton" type="button" disabled><i data-lucide="sparkles" aria-hidden="true"></i>Help me choose</button>
                     <button id="randomButton" type="button" title="Random song"><i data-lucide="shuffle" aria-hidden="true"></i>Random song</button>
                     <button id="compactViewButton" type="button" aria-pressed="false" title="Compact view"><i data-lucide="rows-3" aria-hidden="true"></i>Compact view</button>
@@ -230,6 +238,10 @@
                         <h2 id="setlistTitle">Setlist</h2>
                         <p id="setlistCount">0 songs</p>
                     </div>
+                    <button id="hostNightFromSetlistButton" class="icon-button" type="button" title="Host karaoke night" aria-label="Host karaoke night">
+                        <i data-lucide="mic" aria-hidden="true"></i>
+                        <span class="button-label">Host</span>
+                    </button>
                     <button id="draftSetlistButton" class="icon-button" type="button" title="Draft songs from current results" aria-label="Draft songs from current results">
                         <i data-lucide="wand-2" aria-hidden="true"></i>
                         <span class="button-label">Draft</span>
@@ -264,6 +276,165 @@
                 </div>
                 <ol class="setlist" id="setlist" role="list"></ol>
             </aside>
+        </section>
+
+        <section id="karaokeNightPanel" class="karaoke-night" aria-labelledby="karaokeNightTitle" hidden>
+            <div class="night-topbar">
+                <div class="night-topbar-left">
+                    <button id="nightBackButton" class="command subtle-command" type="button">
+                        <i data-lucide="arrow-left" aria-hidden="true"></i>
+                        <span>Songbook</span>
+                    </button>
+                    <div>
+                        <h2 id="karaokeNightTitle" tabindex="-1">Karaoke Night</h2>
+                        <p id="nightStats" class="night-stats" aria-live="polite">0 singers · 0 songs up</p>
+                    </div>
+                </div>
+                <div class="night-topbar-actions">
+                    <button id="nightImportSetlistButton" class="command subtle-command" type="button" hidden>
+                        <i data-lucide="list-music" aria-hidden="true"></i>
+                        <span>Import setlist</span>
+                    </button>
+                    <button id="nightPopoutStageButton" class="command" type="button">
+                        <i data-lucide="tv" aria-hidden="true"></i>
+                        <span>Pop out TV stage</span>
+                    </button>
+                    <button id="nightResetButton" class="command subtle-command" type="button">
+                        <i data-lucide="trash-2" aria-hidden="true"></i>
+                        <span>Reset night</span>
+                    </button>
+                </div>
+            </div>
+
+            <section class="night-request-card" aria-label="Add singer and pick song">
+                <div class="night-roster-bar">
+                    <span class="night-field-label">1. Who's singing?</span>
+                    <div id="nightSingerRoster" class="night-singer-roster" role="group" aria-label="Select singer"></div>
+                    <form id="nightAddSingerForm" class="night-add-singer">
+                        <label class="sr-only" for="nightSingerInput">New singer name</label>
+                        <input id="nightSingerInput" type="text" maxlength="40" placeholder="Add singer name" autocomplete="off">
+                        <button class="command subtle-command" type="submit">
+                            <i data-lucide="user-plus" aria-hidden="true"></i>
+                            <span>Add</span>
+                        </button>
+                    </form>
+                </div>
+
+                <div class="night-picker-bar">
+                    <label class="night-field-label" for="nightSongSearch">2. Pick a song from the songbook (or add any YouTube track)</label>
+                    <div class="search-box night-search-box">
+                        <i data-lucide="search" aria-hidden="true"></i>
+                        <input id="nightSongSearch" type="search" autocomplete="off" placeholder="Search 37,000+ songs or type “Artist - Song” for YouTube">
+                    </div>
+                    <ul id="nightSearchResults" class="night-search-results" role="list" hidden></ul>
+                    <details class="night-custom-details">
+                        <summary>Request a song not in the songbook</summary>
+                        <form id="nightCustomSongForm" class="night-custom-form">
+                            <label>
+                                <span>Song title</span>
+                                <input id="nightCustomTitle" type="text" maxlength="140" required placeholder="e.g. Pink Pony Club">
+                            </label>
+                            <label>
+                                <span>Artist (optional)</span>
+                                <input id="nightCustomArtist" type="text" maxlength="120" placeholder="e.g. Chappell Roan">
+                            </label>
+                            <button class="command" type="submit">Queue for YouTube</button>
+                        </form>
+                    </details>
+                </div>
+            </section>
+
+            <div class="night-workspace">
+                <section class="night-stage-card" aria-label="Now performing">
+                    <div id="nightStageEmpty" class="night-stage-empty">
+                        <i data-lucide="mic" aria-hidden="true"></i>
+                        <h3>Stage is open</h3>
+                        <p>Add a singer and pick a song above (or import your setlist) to pull up the best YouTube karaoke version.</p>
+                    </div>
+
+                    <div id="nightStageActive" class="night-stage-active" hidden>
+                        <div class="night-stage-head">
+                            <div class="night-stage-info">
+                                <div class="night-stage-badges">
+                                    <span class="night-now-pill">Now performing</span>
+                                    <span id="nightCurrentSinger" class="night-singer-badge"></span>
+                                    <span id="nightTvStatus" class="night-tv-badge" hidden></span>
+                                </div>
+                                <h3 id="nightCurrentTitle"></h3>
+                                <p id="nightCurrentArtist" class="night-stage-artist"></p>
+                                <p id="nightCurrentMeta" class="night-stage-meta" hidden></p>
+                            </div>
+                            <div class="night-transport">
+                                <button id="nightPlayToggleButton" class="command" type="button">
+                                    <i data-lucide="play-circle" aria-hidden="true"></i>
+                                    <span>Play on stage</span>
+                                </button>
+                                <button id="nightNextSingerButton" class="command night-primary-action" type="button">
+                                    <i data-lucide="skip-forward" aria-hidden="true"></i>
+                                    <span>Done · Next singer</span>
+                                </button>
+                                <button id="nightSkipSingerButton" class="command subtle-command" type="button">
+                                    <span>Push back</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <label id="nightTvOnlyLabel" class="night-tv-only-toggle" hidden>
+                            <input id="nightTvOnlyAudio" type="checkbox">
+                            <span>Play video on TV Stage only (keep host laptop quiet)</span>
+                        </label>
+
+                        <div id="nightVideoWrap" class="night-video-wrap">
+                            <iframe
+                                id="nightVideoFrame"
+                                class="night-video-frame"
+                                title="Karaoke YouTube player"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+                                allowfullscreen
+                                hidden
+                            ></iframe>
+                            <div id="nightVideoPlaceholder" class="night-video-placeholder"></div>
+                        </div>
+
+                        <p id="nightLookupStatus" class="night-lookup-status" role="status" hidden></p>
+
+                        <div id="nightCandidates" class="night-candidates" role="group" aria-label="YouTube karaoke versions" hidden></div>
+
+                        <div class="night-youtube-fallback">
+                            <form id="nightYoutubeUrlForm" class="night-url-form">
+                                <label class="sr-only" for="nightYoutubeUrlInput">Paste YouTube link or video ID</label>
+                                <input id="nightYoutubeUrlInput" type="text" placeholder="Paste any YouTube karaoke URL or video ID">
+                                <button class="command subtle-command" type="submit">Load video</button>
+                            </form>
+                            <a id="nightYoutubeSearchLink" class="command subtle-command night-yt-link" href="https://www.youtube.com/" target="_blank" rel="noopener noreferrer">
+                                <i data-lucide="external-link" aria-hidden="true"></i>
+                                <span>Search YouTube</span>
+                            </a>
+                        </div>
+                    </div>
+                </section>
+
+                <aside class="night-queue-card" aria-labelledby="nightQueueHeading">
+                    <div class="night-queue-head">
+                        <h3 id="nightQueueHeading">Up next</h3>
+                        <div class="night-queue-tools">
+                            <label class="night-auto-toggle">
+                                <input id="nightAutoBalance" type="checkbox" checked>
+                                <span>Auto-rotate</span>
+                            </label>
+                            <button id="nightRotateNowButton" class="command subtle-command night-mini-btn" type="button">
+                                <i data-lucide="users" aria-hidden="true"></i>
+                                <span>Rotate</span>
+                            </button>
+                        </div>
+                    </div>
+                    <ol id="nightQueueList" class="night-queue-list" role="list"></ol>
+                    <details id="nightHistoryDetails" class="night-history" hidden>
+                        <summary id="nightHistorySummary">Sung tonight (0)</summary>
+                        <ul id="nightHistoryList" class="night-history-list" role="list"></ul>
+                    </details>
+                </aside>
+            </div>
         </section>
     </main>
     <footer class="data-sources" aria-label="Music metadata resources">

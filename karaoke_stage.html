@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Karaoke Night · TV Stage</title>
+    <link rel="preload" href="fonts/space-grotesk-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+    <style>
+        @font-face {
+            font-family: "Space Grotesk";
+            font-style: normal;
+            font-weight: 300 700;
+            font-display: swap;
+            src: url("fonts/space-grotesk-latin-wght-normal.woff2") format("woff2");
+        }
+        :root {
+            color-scheme: dark;
+            --bg: #110f1a;
+            --panel: #1c1829;
+            --line: #342e4d;
+            --ink: #f4f2fc;
+            --muted: #b0a9cc;
+            --brand: #a795ff;
+            --accent: #ef6a55;
+            --accent-ink: #1c120f;
+            --gold: #f0be59;
+        }
+        * { box-sizing: border-box; }
+        html, body {
+            margin: 0;
+            height: 100%;
+            background:
+                radial-gradient(ellipse 65% 50% at 15% 0%, rgba(167, 149, 255, 0.16), transparent 65%),
+                radial-gradient(ellipse 55% 45% at 88% 100%, rgba(239, 106, 85, 0.14), transparent 65%),
+                var(--bg);
+            color: var(--ink);
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        .stage-shell {
+            display: grid;
+            grid-template-rows: auto minmax(0, 1fr) auto;
+            height: 100vh;
+            padding: 18px 24px;
+            gap: 14px;
+        }
+        .stage-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+        .stage-now {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            min-width: 0;
+        }
+        .singer-pill {
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 14px;
+            border-radius: 999px;
+            background: var(--accent);
+            color: var(--accent-ink);
+            font-family: "Space Grotesk", system-ui, sans-serif;
+            font-size: clamp(15px, 2vw, 22px);
+            font-weight: 700;
+            white-space: nowrap;
+        }
+        .song-meta {
+            min-width: 0;
+        }
+        .song-title {
+            margin: 0;
+            font-family: "Space Grotesk", system-ui, sans-serif;
+            font-size: clamp(20px, 2.6vw, 34px);
+            font-weight: 700;
+            line-height: 1.15;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .song-artist {
+            margin: 2px 0 0;
+            color: var(--muted);
+            font-size: clamp(14px, 1.6vw, 20px);
+        }
+        .fullscreen-btn {
+            min-height: 40px;
+            padding: 0 14px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: var(--panel);
+            color: var(--ink);
+            font: inherit;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .fullscreen-btn:hover {
+            border-color: var(--brand);
+        }
+        .stage-main {
+            position: relative;
+            display: grid;
+            place-items: center;
+            min-height: 0;
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            background: #0a0810;
+            overflow: hidden;
+        }
+        .stage-video {
+            width: 100%;
+            height: 100%;
+            border: 0;
+        }
+        .stage-interstitial {
+            display: grid;
+            gap: 14px;
+            text-align: center;
+            padding: 32px;
+            max-width: 780px;
+        }
+        .stage-eyebrow {
+            margin: 0;
+            color: var(--brand);
+            font-size: 15px;
+            font-weight: 700;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+        }
+        .stage-hero-singer {
+            margin: 0;
+            font-family: "Space Grotesk", system-ui, sans-serif;
+            font-size: clamp(36px, 6vw, 72px);
+            font-weight: 700;
+            line-height: 1.05;
+            color: var(--gold);
+        }
+        .stage-hero-song {
+            margin: 0;
+            font-family: "Space Grotesk", system-ui, sans-serif;
+            font-size: clamp(24px, 3.6vw, 44px);
+            font-weight: 700;
+            line-height: 1.15;
+        }
+        .stage-hero-sub {
+            margin: 0;
+            color: var(--muted);
+            font-size: clamp(16px, 2vw, 24px);
+        }
+        .stage-ticker {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: var(--panel);
+            overflow-x: auto;
+        }
+        .ticker-label {
+            flex: 0 0 auto;
+            color: var(--brand);
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+        .ticker-list {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            flex: 1 1 auto;
+            min-width: 0;
+        }
+        .ticker-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            border-radius: 999px;
+            background: rgba(167, 149, 255, 0.12);
+            border: 1px solid rgba(167, 149, 255, 0.25);
+            font-size: 14px;
+            white-space: nowrap;
+        }
+        .ticker-singer {
+            color: var(--gold);
+            font-weight: 700;
+        }
+        .ticker-wait {
+            color: var(--muted);
+            font-size: 13px;
+        }
+        .ticker-empty {
+            color: var(--muted);
+            font-size: 14px;
+        }
+        [hidden] { display: none !important; }
+    </style>
+</head>
+<body>
+    <div class="stage-shell">
+        <header class="stage-header">
+            <div class="stage-now" id="stageHeaderNow" hidden>
+                <span class="singer-pill" id="headerSinger"></span>
+                <div class="song-meta">
+                    <h1 class="song-title" id="headerTitle"></h1>
+                    <p class="song-artist" id="headerArtist"></p>
+                </div>
+            </div>
+            <div class="stage-now" id="stageHeaderIdle">
+                <div class="song-meta">
+                    <h1 class="song-title">Karaoke Night · TV Stage</h1>
+                    <p class="song-artist">Synced with the host window</p>
+                </div>
+            </div>
+            <button id="fullscreenButton" class="fullscreen-btn" type="button">Fullscreen</button>
+        </header>
+
+        <main class="stage-main">
+            <iframe
+                id="stageFrame"
+                class="stage-video"
+                title="Karaoke video player"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+                allowfullscreen
+                hidden
+            ></iframe>
+            <div class="stage-interstitial" id="stageInterstitial">
+                <p class="stage-eyebrow" id="interstitialEyebrow">Karaoke Night</p>
+                <p class="stage-hero-singer" id="interstitialSinger">Ready for the first singer</p>
+                <p class="stage-hero-song" id="interstitialSong"></p>
+                <p class="stage-hero-sub" id="interstitialSub">Queue songs on the host screen to start the show.</p>
+            </div>
+        </main>
+
+        <footer class="stage-ticker" aria-label="Up next">
+            <span class="ticker-label">Up next</span>
+            <ol class="ticker-list" id="tickerList"></ol>
+        </footer>
+    </div>
+
+    <script>
+        (function () {
+            const STAGE_STORAGE_KEY = "karaokeNightStageV1";
+            const CHANNEL_NAME = "karaoke-night-stage";
+            const VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
+
+            const headerNow = document.getElementById("stageHeaderNow");
+            const headerIdle = document.getElementById("stageHeaderIdle");
+            const headerSinger = document.getElementById("headerSinger");
+            const headerTitle = document.getElementById("headerTitle");
+            const headerArtist = document.getElementById("headerArtist");
+            const stageFrame = document.getElementById("stageFrame");
+            const interstitial = document.getElementById("stageInterstitial");
+            const interstitialEyebrow = document.getElementById("interstitialEyebrow");
+            const interstitialSinger = document.getElementById("interstitialSinger");
+            const interstitialSong = document.getElementById("interstitialSong");
+            const interstitialSub = document.getElementById("interstitialSub");
+            const tickerList = document.getElementById("tickerList");
+            const fullscreenButton = document.getElementById("fullscreenButton");
+
+            let loadedVideoId = "";
+
+            fullscreenButton.addEventListener("click", () => {
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen?.().catch(() => {});
+                } else {
+                    document.exitFullscreen?.().catch(() => {});
+                }
+            });
+
+            document.addEventListener("fullscreenchange", () => {
+                fullscreenButton.textContent = document.fullscreenElement ? "Exit fullscreen" : "Fullscreen";
+            });
+
+            function renderStage(payload) {
+                const current = payload?.current || null;
+                const upNext = Array.isArray(payload?.upNext) ? payload.upNext : [];
+                const videoId = current && VIDEO_ID_PATTERN.test(String(current.youtubeId || "")) ? current.youtubeId : "";
+                const showVideo = Boolean(current && payload?.playing && videoId);
+
+                if (current) {
+                    headerNow.hidden = false;
+                    headerIdle.hidden = true;
+                    headerSinger.textContent = current.singer || "Open mic";
+                    headerTitle.textContent = current.title || "Untitled";
+                    headerArtist.textContent = current.artist || "";
+                } else {
+                    headerNow.hidden = true;
+                    headerIdle.hidden = false;
+                }
+
+                if (showVideo) {
+                    interstitial.hidden = true;
+                    stageFrame.hidden = false;
+                    if (loadedVideoId !== videoId) {
+                        loadedVideoId = videoId;
+                        stageFrame.src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1`;
+                    }
+                } else {
+                    stageFrame.hidden = true;
+                    if (loadedVideoId) {
+                        loadedVideoId = "";
+                        stageFrame.src = "about:blank";
+                    }
+                    interstitial.hidden = false;
+                    if (current) {
+                        interstitialEyebrow.textContent = "Get ready on stage";
+                        interstitialSinger.textContent = current.singer || "Open mic";
+                        interstitialSong.textContent = current.title || "";
+                        interstitialSub.textContent = current.artist
+                            ? `${current.artist} · Waiting for host to start track`
+                            : "Waiting for host to start track";
+                    } else if (upNext.length) {
+                        interstitialEyebrow.textContent = "Up next";
+                        interstitialSinger.textContent = upNext[0].singer || "Open mic";
+                        interstitialSong.textContent = upNext[0].title || "";
+                        interstitialSub.textContent = upNext[0].artist || "";
+                    } else {
+                        interstitialEyebrow.textContent = "Karaoke Night";
+                        interstitialSinger.textContent = "Ready for the first singer";
+                        interstitialSong.textContent = "";
+                        interstitialSub.textContent = "Queue songs on the host screen to start the show.";
+                    }
+                }
+
+                tickerList.replaceChildren();
+                if (!upNext.length) {
+                    const empty = document.createElement("li");
+                    empty.className = "ticker-empty";
+                    empty.textContent = "No singers waiting yet";
+                    tickerList.appendChild(empty);
+                } else {
+                    for (const item of upNext.slice(0, 4)) {
+                        const li = document.createElement("li");
+                        li.className = "ticker-item";
+                        const singer = document.createElement("span");
+                        singer.className = "ticker-singer";
+                        singer.textContent = item.singer || "Open mic";
+                        const song = document.createElement("span");
+                        song.textContent = `${item.title || "Untitled"}${item.artist ? ` — ${item.artist}` : ""}`;
+                        li.append(singer, song);
+                        if (Number.isFinite(item.waitMin) && item.waitMin > 0) {
+                            const wait = document.createElement("span");
+                            wait.className = "ticker-wait";
+                            wait.textContent = `~${item.waitMin}m`;
+                            li.appendChild(wait);
+                        }
+                        tickerList.appendChild(li);
+                    }
+                }
+            }
+
+            try {
+                const stored = JSON.parse(localStorage.getItem(STAGE_STORAGE_KEY) || "null");
+                if (stored) renderStage(stored);
+            } catch {
+                // Ignore corrupt stage snapshot.
+            }
+
+            window.addEventListener("storage", (event) => {
+                if (event.key !== STAGE_STORAGE_KEY || !event.newValue) return;
+                try {
+                    renderStage(JSON.parse(event.newValue));
+                } catch {
+                    // Ignore malformed updates.
+                }
+            });
+
+            if (typeof BroadcastChannel === "function") {
+                const channel = new BroadcastChannel(CHANNEL_NAME);
+                channel.addEventListener("message", (event) => {
+                    if (event.data?.type === "stage-state") {
+                        renderStage(event.data.payload);
+                    }
+                });
+                channel.postMessage({ type: "stage-ready" });
+            }
+        })();
+    </script>
+</body>
+</html>
