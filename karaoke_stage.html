@@ -405,10 +405,22 @@
             if (typeof BroadcastChannel === "function") {
                 const channel = new BroadcastChannel(CHANNEL_NAME);
                 channel.addEventListener("message", (event) => {
+                    if (event.data?.type === "stage-ready") {
+                        return;
+                    }
                     if (event.data?.type === "stage-state") {
                         renderStage(event.data.payload);
                     }
                 });
+                const notifyClosed = () => {
+                    try {
+                        channel.postMessage({ type: "stage-closed" });
+                    } catch {
+                        // Ignore closed channel.
+                    }
+                };
+                window.addEventListener("pagehide", notifyClosed);
+                window.addEventListener("beforeunload", notifyClosed);
                 channel.postMessage({ type: "stage-ready" });
             }
         })();

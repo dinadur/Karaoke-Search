@@ -196,8 +196,8 @@ const mockYoutubeBySong = {
         const secondTrackKey = await stagePage.locator("#stageFrame").getAttribute("data-track-key");
         assert.ok(secondTrackKey.endsWith(":SingKingDQ1") && secondTrackKey !== initialTrackKey);
         await stagePage.close();
-        await page.uncheck("#nightTvOnlyAudio");
-        await page.waitForFunction(() => document.getElementById("nightVideoFrame").src.includes("SingKingDQ1"));
+        // Closing the TV stage must clear tvConnected and restore local playback automatically
+        await page.waitForFunction(() => document.getElementById("nightTvStatus").hidden && document.getElementById("nightVideoFrame").src.includes("SingKingDQ1"));
 
         // 6. Push back Cara's track (returns Alice's Dancing Queen to stage), then put Pink Pony Club on stage for manual URL paste
         await page.click("#nightSkipSingerButton");

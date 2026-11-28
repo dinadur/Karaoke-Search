@@ -274,6 +274,13 @@ function ensureSingersFromQueue() {
     }
 }
 
+function syncTvWindowState() {
+    if (nightStageWindow?.closed) {
+        nightStageWindow = null;
+        nightState.tvConnected = false;
+    }
+}
+
 function ensureStageChannel() {
     if (nightStageChannel || typeof BroadcastChannel !== "function") return;
     nightStageChannel = new BroadcastChannel(NIGHT_STAGE_CHANNEL);
@@ -281,7 +288,11 @@ function ensureStageChannel() {
         if (event.data?.type === "stage-ready") {
             nightState.tvConnected = true;
             broadcastStageState();
-            renderNightStageControls();
+            renderNightStage();
+        } else if (event.data?.type === "stage-closed") {
+            nightStageWindow = null;
+            nightState.tvConnected = false;
+            renderNightStage();
         }
     });
 }
@@ -313,6 +324,7 @@ function buildStagePayload() {
 }
 
 function broadcastStageState() {
+    syncTvWindowState();
     const payload = buildStagePayload();
     try {
         localStorage.setItem(NIGHT_STAGE_STORAGE_KEY, JSON.stringify(payload));
@@ -431,21 +443,22 @@ async function resolveYoutubeForCurrent({ autoplay = false } = {}) {
     renderNightStage();
 
     const data = await lookupYoutubeKaraoke(current);
-    // Guard against the host switching songs, resetting, or leaving Karaoke Night
-    // while the lookup was in flight.
-    if (lookupToken !== nightLookupToken || !nightState.active || getNightCurrent()?.uid !== current.uid) {
+    // Reacquire the live queue entry so cloned Undo snapshots still receive the
+    // lookup results, while cancelling if the track changed or host mode closed.
+    const liveCurrent = getNightCurrent();
+    if (lookupToken !== nightLookupToken || !nightState.active || liveCurrent?.uid !== current.uid) {
         return;
     }
 
     nightState.lookupStatus = "";
     const candidates = Array.isArray(data?.candidates) ? data.candidates : [];
-    current.candidates = candidates;
-    if (!current.youtubeId && candidates.length) {
-        current.youtubeId = candidates[0].id;
-        current.youtubeTitle = candidates[0].title;
-        current.youtubeChannel = candidates[0].channel;
+    liveCurrent.candidates = candidates;
+    if (!liveCurrent.youtubeId && candidates.length) {
+        liveCurrent.youtubeId = candidates[0].id;
+        liveCurrent.youtubeTitle = candidates[0].title;
+        liveCurrent.youtubeChannel = candidates[0].channel;
     }
-    if (autoplay && nightState.active && current.youtubeId) {
+    if (autoplay && nightState.active && liveCurrent.youtubeId) {
         nightState.playing = true;
     }
     if (!candidates.length) {
@@ -917,6 +930,7 @@ function renderNightRoster() {
 }
 
 function renderNightStageControls() {
+    syncTvWindowState();
     const current = getNightCurrent();
     const tvOnlyLabel = nightEl("nightTvOnlyLabel");
     const tvOnlyCheck = nightEl("nightTvOnlyAudio");
