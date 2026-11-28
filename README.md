@@ -23,7 +23,7 @@ Live site: https://karaokesearch.uk
 - Installable PWA that works fully offline after the first visit.
 - Search-match highlighting, gradient cover tiles per artist, and skeleton loading states.
 - A light layer of stage effects: songs fly into the setlist, saves sparkle, random picks spin like a slot reel, Draft throws confetti, and switching theme sends a bloom of stage light from the button. All of it respects reduced motion and never blocks input. See [STAGE_EFFECTS.md](STAGE_EFFECTS.md).
-- **Karaoke Night host mode** (via **More → Host karaoke night** or the Setlist **Host** button): singer roster chips, fair round-robin rotation that slots newcomers ahead of regulars' later rounds, catalog + custom YouTube requests, automatic embeddable YouTube karaoke finder (`/api/youtube-search`) with top-5 version switcher and manual YouTube URL fallback, and a dual-screen **TV Stage** pop-out window (`karaoke_stage.html`) synced live via `BroadcastChannel`.
+- **Karaoke Night host mode & Live Multi-Phone Rooms** (via **More → Host karaoke night** or **More → Join live room**): singer roster chips, fair round-robin rotation that slots newcomers ahead of regulars' later rounds, catalog + custom YouTube requests, automatic embeddable YouTube karaoke finder (`/api/youtube-search`) with top-5 version switcher and manual YouTube URL fallback, dual-screen **TV Stage** pop-out window (`karaoke_stage.html`) with live QR code, and multi-phone guest rooms (`/api/night-room`) where guests scan the TV QR code to request songs from their own phones and track their place in line.
 - No external runtime dependencies: icons ship as an inline SVG sprite.
 
 ## Data
@@ -48,12 +48,12 @@ The requested weekly venue updater is the maintained exception: GitHub Actions c
 - `filters-panel.js` contains the multi-select filter popovers, faceted counts, and active filter chips.
 - `browse-discover.js` contains the Discover shelves, batched Song Browse, lazy Artist Browse, and result grouping.
 - `setlist-panel.js` contains the setlist queue, singer editing, Draft/Swap, QR sharing, and snackbar logic.
-- `karaoke-night.js`, `karaoke_stage.html`, and `api/youtube-search.js` power Karaoke Night host mode, the dual-screen TV stage window, and automatic YouTube karaoke lookup (set `YOUTUBE_API_KEY` in Vercel Environment Variables to enable automatic lookup; cached at the Vercel edge for 7 days, with YouTube search link and URL paste fallback when unset).
+- `karaoke-night.js`, `night-room.js`, `karaoke_stage.html`, `api/youtube-search.js`, and `api/night-room.js` power Karaoke Night host mode, Live Multi-Phone Rooms, the dual-screen TV stage window, and automatic YouTube karaoke lookup (set `YOUTUBE_API_KEY` in Vercel Environment Variables for automatic YouTube lookup, and connect **Upstash Redis** in Vercel Storage to enable live multi-phone rooms).
 - `personal-songbook.js` contains the saved-songs notes/repertoire, guided picker, and era/audio overlay logic.
 - `stage-effects.js` contains the decorative effects (`window.StageFx`).
 - `vercel.json` rewrites `/` to `karaoke_explorer.html`.
 
-There is no build step. The app is plain HTML/CSS/JavaScript served as static files, with one zero-dependency Vercel serverless route (`api/youtube-search.js`).
+There is no build step. The app is plain HTML/CSS/JavaScript served as static files, with two zero-dependency Vercel serverless routes (`api/youtube-search.js` and `api/night-room.js`).
 
 ## Local Use
 

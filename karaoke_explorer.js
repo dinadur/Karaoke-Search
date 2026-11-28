@@ -1,4 +1,4 @@
-const APP_VERSION = "20261128-1";
+const APP_VERSION = "20261128-2";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const TAG_CONSOLIDATION_URL = `tag_consolidation.json?v=${APP_VERSION}`;
 const MOOD_CONSOLIDATION_URL = `mood_consolidation.json?v=${APP_VERSION}`;
@@ -189,6 +189,7 @@ async function init() {
     bindPersonalFeatures();
     bindSavedSetlistsDialog();
     bindKaraokeNight();
+    bindNightRooms();
     bindResultsSentinel();
     registerServiceWorker();
     renderThemeButton();
@@ -1074,6 +1075,9 @@ function commitPreparedCatalog(prepared) {
     document.documentElement.classList.add("songbook-ready");
     personalEl("repertoireButton").disabled = false;
     personalEl("chooseSongButton").disabled = false;
+    if (typeof renderGuestSearchMatches === "function" && typeof guestRoomState !== "undefined" && guestRoomState.panelOpen) {
+        renderGuestSearchMatches();
+    }
     offerSharedSetlistImport();
 }
 
@@ -1813,6 +1817,14 @@ function updateFavoriteButton(button, song) {
     button.setAttribute("aria-pressed", String(active));
 }
 
+function handleSongCardPrimaryAction(song, button) {
+    if (typeof getActiveGuestRoomCode === "function" && getActiveGuestRoomCode()) {
+        submitGuestSongRequest(song, { custom: false });
+        return;
+    }
+    addToSetlist(song, button);
+}
+
 function createMiniAddButton(song) {
     const button = document.createElement("button");
     button.className = "mini-add";
@@ -1821,11 +1833,22 @@ function createMiniAddButton(song) {
     button.textContent = "+";
     ADD_BUTTON_SONGS.set(button, song);
     updateAddButton(button, song);
-    button.addEventListener("click", () => addToSetlist(song, button));
+    button.addEventListener("click", () => handleSongCardPrimaryAction(song, button));
     return button;
 }
 
 function updateAddButton(button, song, queuedIds = new Set(state.setlist.map(getSongIdentity))) {
+    const inGuestRoom = typeof getActiveGuestRoomCode === "function" && Boolean(getActiveGuestRoomCode());
+    if (inGuestRoom) {
+        const requested = typeof isSongRequestedByGuest === "function" && isSongRequestedByGuest(song);
+        button.textContent = requested
+            ? (button.classList.contains("mini-add") ? "✓" : "Requested")
+            : (button.classList.contains("mini-add") ? "+" : "Request");
+        button.setAttribute("aria-disabled", String(requested));
+        button.title = requested ? "Already requested in this room" : "Request song in live room";
+        button.setAttribute("aria-label", `${button.title}: ${getDisplaySongTitle(song)}`);
+        return;
+    }
     const queued = queuedIds.has(getSongIdentity(song));
     button.textContent = queued ? "Added" : button.classList.contains("mini-add") ? "+" : "Add";
     button.setAttribute("aria-disabled", String(queued));
@@ -1962,7 +1985,7 @@ function createSongCard(song) {
     button.textContent = "Add";
     ADD_BUTTON_SONGS.set(button, song);
     updateAddButton(button, song);
-    button.addEventListener("click", () => addToSetlist(song, button));
+    button.addEventListener("click", () => handleSongCardPrimaryAction(song, button));
 
     actions.append(cardTools, button);
     card.append(head, meta, actions);
@@ -2744,6 +2767,11 @@ function syncUrlState() {
         if (state.filters.recent) params.set("new", "1");
         if (state.favoriteOnly) params.set("favorites", "1");
         if (state.fuzzySearch) params.set("fuzzy", "1");
+    }
+
+    const activeRoom = typeof getGuestRoomUrlCode === "function" ? getGuestRoomUrlCode() : "";
+    if (activeRoom) {
+        params.set("room", activeRoom);
     }
 
     const search = params.toString() ? `?${params.toString()}` : "";
