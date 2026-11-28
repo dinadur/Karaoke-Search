@@ -268,12 +268,17 @@ function sanitizeSetlistSong(raw) {
     if (!raw || typeof raw !== "object") return null;
     const song = cleanSingleLine(raw.song || raw.title || "", 160);
     const artist = cleanSingleLine(raw.artist || "", 140);
-    if (!song) return null;
+    if (!song && !raw.lookupSong) return null;
     const out = {
         id: cleanSongId(raw.id || "", 200),
         song,
         artist,
     };
+    if (raw.legacyId) out.legacyId = cleanSongId(raw.legacyId, 200);
+    if (raw.lookupSong) out.lookupSong = cleanSingleLine(raw.lookupSong, 160);
+    if (raw.lookupArtist) out.lookupArtist = cleanSingleLine(raw.lookupArtist, 140);
+    if (raw.displayArtist) out.displayArtist = cleanSingleLine(raw.displayArtist, 140);
+    if (raw.artistKey) out.artistKey = cleanSingleLine(raw.artistKey, 140);
     if (raw.singer) out.singer = cleanSingleLine(raw.singer, 40);
     if (raw.sung) out.sung = true;
     if (Number.isFinite(Number(raw.seconds)) && Number(raw.seconds) > 0) {

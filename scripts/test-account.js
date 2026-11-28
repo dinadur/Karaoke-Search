@@ -322,5 +322,17 @@ async function call(handler, { method = "GET", headers = {}, body } = {}) {
     assert.equal(mergedDeletion.repertoireTombstones.s1, 4000);
     assert.equal("s2" in mergedDeletion.repertoire, true, "Newer re-save must beat older tombstone");
 
+    // Cleared singerName with newer timestamp must override older non-empty singerName
+    const clearedSinger = mergeAccountData(
+        { preferences: { theme: "dark", compactView: false, singerName: "", updatedAt: 5000 } },
+        { preferences: { theme: "dark", compactView: false, singerName: "Neal", updatedAt: 2000 } },
+        { isInitialSignIn: false, nowMs: 6000 }
+    );
+    assert.equal(clearedSinger.preferences.singerName, "");
+
+    // Saved-setlist name normalization folds accents & punctuation identically to normalize()
+    const { normalizeAccountSetlistName } = require("../account-sync");
+    assert.equal(normalizeAccountSetlistName("Café & Tea!"), normalizeAccountSetlistName("Cafe and Tea"));
+
     console.log("ok   api/account.js & account-sync.js unit tests passed");
 })();

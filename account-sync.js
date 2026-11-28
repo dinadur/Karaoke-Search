@@ -30,6 +30,8 @@ const accountState = {
 let accountSyncTimer = 0;
 let accountSyncInflight = false;
 let accountSyncQueued = false;
+let accountSyncPromise = null;
+let accountDeleteInflight = false;
 let accountApplyingRemote = false;
 let accountBound = false;
 let accountGsiPromise = null;
@@ -41,7 +43,16 @@ function accountEl(id) {
 }
 
 function normalizeAccountSetlistName(name) {
-    return String(name || "").trim().toLowerCase().replace(/\s+/g, " ");
+    if (typeof normalize === "function") return normalize(name);
+    const raw = String(name || "");
+    const folded = /[^\x00-\x7f]/.test(raw)
+        ? raw.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        : raw.toLowerCase();
+    return folded
+        .replace(/&/g, " and ")
+        .replace(/[^a-z0-9]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
 }
 
 function readAccountMeta() {
@@ -234,12 +245,15 @@ function mergeAccountData(localRaw, remoteRaw, { isInitialSignIn = false, nowMs 
     const preferRemote = isInitialSignIn ? (rPrefTs > 0 || !lPrefTs) : (rPrefTs >= lPrefTs);
     const primary = preferRemote ? rPrefs : lPrefs;
     const fallback = preferRemote ? lPrefs : rPrefs;
+    const primaryHasTimestamp = preferRemote ? rPrefTs > 0 : lPrefTs > 0;
     const mergedPrefs = {
         theme: primary.theme || fallback.theme || "",
         compactView: typeof primary.compactView === "boolean"
             ? primary.compactView
             : (typeof fallback.compactView === "boolean" ? fallback.compactView : null),
-        singerName: primary.singerName || fallback.singerName || "",
+        singerName: primaryHasTimestamp && typeof primary.singerName === "string"
+            ? primary.singerName
+            : (primary.singerName || fallback.singerName || ""),
         updatedAt: Math.max(lPrefTs, rPrefTs),
     };
 
@@ -300,6 +314,7 @@ function applyMergedAccountDataLocally(merged) {
             savedSetlistTombstones: merged.savedSetlistTombstones || {},
             setlistUpdatedAt: merged.setlistUpdatedAt || 0,
             prefsUpdatedAt: merged.preferences?.updatedAt || 0,
+            pendingLogout: false,
         });
 
         // 1. Saved songs (repertoire)
@@ -311,12 +326,18 @@ function applyMergedAccountDataLocally(merged) {
             }
         }
 
-        // 2. Current setlist
+        // 2. Current setlist (skip saveSetlist on no-op refreshes so pending Undo stays intact)
         if (typeof state === "object" && Array.isArray(merged.setlist)) {
-            state.setlist = merged.setlist.map((song) => toSetlistEntry(song));
-            if (typeof saveSetlist === "function") saveSetlist();
-            if (typeof renderSetlist === "function") renderSetlist();
-            if (typeof syncAddButtons === "function") syncAddButtons();
+            const nextSetlist = merged.setlist.map((song) => toSetlistEntry(song));
+            const currentCompact = Array.isArray(state.setlist)
+                ? state.setlist.map((song) => toSetlistEntry(song))
+                : [];
+            if (JSON.stringify(nextSetlist) !== JSON.stringify(currentCompact)) {
+                state.setlist = nextSetlist;
+                if (typeof saveSetlist === "function") saveSetlist();
+                if (typeof renderSetlist === "function") renderSetlist();
+                if (typeof syncAddButtons === "function") syncAddButtons();
+            }
         }
 
         // 3. Named saved setlists
@@ -338,7 +359,7 @@ function applyMergedAccountDataLocally(merged) {
             try { localStorage.setItem(COMPACT_VIEW_STORAGE_KEY, prefs.compactView ? "1" : "0"); } catch { /* ignore */ }
             if (typeof applyStoredCompactView === "function") applyStoredCompactView();
         }
-        if (prefs.singerName && typeof saveGuestSingerName === "function") {
+        if (typeof prefs.singerName === "string" && (prefs.updatedAt > 0 || prefs.singerName) && typeof saveGuestSingerName === "function") {
             saveGuestSingerName(prefs.singerName);
             if (typeof renderGuestRoom === "function") renderGuestRoom();
         }
@@ -394,7 +415,7 @@ function accountNotifyLocalChange(kind, details = {}) {
 }
 
 function scheduleAccountSync() {
-    if (!accountState.signedIn) return;
+    if (!accountState.signedIn || accountDeleteInflight) return;
     if (accountSyncTimer) window.clearTimeout(accountSyncTimer);
     accountSyncTimer = window.setTimeout(() => {
         accountSyncTimer = 0;
@@ -403,7 +424,7 @@ function scheduleAccountSync() {
 }
 
 async function syncAccountNow({ allowConflictRetry = true } = {}) {
-    if (!accountState.signedIn) return false;
+    if (!accountState.signedIn || accountDeleteInflight) return false;
     if (accountSyncTimer) {
         window.clearTimeout(accountSyncTimer);
         accountSyncTimer = 0;
@@ -423,70 +444,82 @@ async function syncAccountNow({ allowConflictRetry = true } = {}) {
     accountState.error = "";
     renderAccountUi();
 
-    try {
-        const localData = collectLocalAccountData();
-        const res = await fetch(ACCOUNT_API_ENDPOINT, {
-            method: "POST",
-            credentials: "same-origin",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                action: "save",
-                expectedRevision: accountState.revision,
-                data: localData,
-            }),
-        });
-        const data = await res.json();
-        if (res.status === 401) {
-            accountState.signedIn = false;
-            accountState.user = null;
-            accountState.error = "Your session expired — sign in again to resume syncing.";
-            renderAccountUi();
-            return false;
-        }
-        if (res.status === 409 && data.conflict) {
-            const serverRecord = data.record;
-            accountState.revision = Number(serverRecord?.revision) || 0;
-            if (serverRecord?.data) {
-                const merged = mergeAccountData(collectLocalAccountData(), serverRecord.data, { isInitialSignIn: false });
-                applyMergedAccountDataLocally(merged);
+    const run = (async () => {
+        try {
+            const localData = collectLocalAccountData();
+            const res = await fetch(ACCOUNT_API_ENDPOINT, {
+                method: "POST",
+                credentials: "same-origin",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    action: "save",
+                    expectedRevision: accountState.revision,
+                    data: localData,
+                }),
+            });
+            const data = await res.json();
+            if (accountDeleteInflight) return false;
+            if (res.status === 401) {
+                accountState.signedIn = false;
+                accountState.user = null;
+                accountState.error = "Your session expired — sign in again to resume syncing.";
+                renderAccountUi();
+                return false;
             }
+            if (res.status === 409 && data.conflict) {
+                const serverRecord = data.record;
+                accountState.revision = Number(serverRecord?.revision) || 0;
+                if (serverRecord?.data) {
+                    const merged = mergeAccountData(collectLocalAccountData(), serverRecord.data, { isInitialSignIn: false });
+                    applyMergedAccountDataLocally(merged);
+                }
+                accountSyncInflight = false;
+                accountState.syncing = false;
+                if (allowConflictRetry && !accountDeleteInflight) {
+                    return syncAccountNow({ allowConflictRetry: false });
+                }
+                accountState.dirty = true;
+                accountState.error = "Another device updated at the same moment — click Sync now to retry.";
+                renderAccountUi();
+                return false;
+            }
+            if (!res.ok) {
+                accountState.dirty = true;
+                accountState.error = data.error || "Sync paused — will retry automatically.";
+                renderAccountUi();
+                return false;
+            }
+
+            accountState.revision = Number(data.revision) || (accountState.revision + 1);
+            accountState.lastSyncedAt = Number(data.updatedAt) || Date.now();
+            accountState.dirty = false;
+            accountState.error = "";
+            accountState.statusText = "Synced to your account.";
+            renderAccountUi();
+            return true;
+        } catch {
+            if (!accountDeleteInflight) {
+                accountState.dirty = true;
+                accountState.error = "Couldn’t reach sync service — will retry automatically.";
+                renderAccountUi();
+            }
+            return false;
+        } finally {
             accountSyncInflight = false;
             accountState.syncing = false;
-            if (allowConflictRetry) {
-                return syncAccountNow({ allowConflictRetry: false });
+            renderAccountUi();
+            if (accountSyncQueued && accountState.signedIn && !accountDeleteInflight) {
+                accountSyncQueued = false;
+                syncAccountNow();
             }
-            accountState.dirty = true;
-            accountState.error = "Another device updated at the same moment — click Sync now to retry.";
-            renderAccountUi();
-            return false;
         }
-        if (!res.ok) {
-            accountState.dirty = true;
-            accountState.error = data.error || "Sync paused — will retry automatically.";
-            renderAccountUi();
-            return false;
-        }
+    })();
 
-        accountState.revision = Number(data.revision) || (accountState.revision + 1);
-        accountState.lastSyncedAt = Number(data.updatedAt) || Date.now();
-        accountState.dirty = false;
-        accountState.error = "";
-        accountState.statusText = "Synced to your account.";
-        renderAccountUi();
-        return true;
-    } catch {
-        accountState.dirty = true;
-        accountState.error = "Couldn’t reach sync service — will retry automatically.";
-        renderAccountUi();
-        return false;
+    accountSyncPromise = run;
+    try {
+        return await run;
     } finally {
-        accountSyncInflight = false;
-        accountState.syncing = false;
-        renderAccountUi();
-        if (accountSyncQueued && accountState.signedIn) {
-            accountSyncQueued = false;
-            syncAccountNow();
-        }
+        if (accountSyncPromise === run) accountSyncPromise = null;
     }
 }
 
@@ -688,8 +721,17 @@ async function signOutAccount() {
 }
 
 async function deleteCloudAccountCopy() {
-    if (!accountState.signedIn) return;
+    if (!accountState.signedIn || accountDeleteInflight) return;
+    accountDeleteInflight = true;
+    accountSyncQueued = false;
+    if (accountSyncTimer) {
+        window.clearTimeout(accountSyncTimer);
+        accountSyncTimer = 0;
+    }
     try {
+        if (accountSyncPromise) {
+            try { await accountSyncPromise; } catch { /* ignore */ }
+        }
         const res = await fetch(ACCOUNT_API_ENDPOINT, {
             method: "POST",
             credentials: "same-origin",
@@ -718,6 +760,8 @@ async function deleteCloudAccountCopy() {
     } catch {
         accountState.error = "Couldn’t delete cloud data — check your connection and try again.";
         renderAccountUi();
+    } finally {
+        accountDeleteInflight = false;
     }
 }
 
