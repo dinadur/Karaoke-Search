@@ -370,6 +370,7 @@
             const stageInterstitialHint = document.getElementById("stageInterstitialHint");
 
             let loadedTrackKey = "";
+            let pendingFrameUrl = "";
             let renderedRoomUrl = "";
             let appliedPlayingState = null;
             let desiredPlayingState = null;
@@ -531,6 +532,7 @@
                 stopReadyHandshake();
                 loadGeneration += 1;
                 loadedTrackKey = "";
+                pendingFrameUrl = "";
                 appliedPlayingState = null;
                 desiredPlayingState = null;
                 frameLoaded = false;
@@ -550,6 +552,19 @@
 
             stageFrame.addEventListener("load", () => {
                 if (!loadedTrackKey) return;
+                let landedOnBlank = false;
+                try {
+                    landedOnBlank = stageFrame.contentWindow?.location?.href === "about:blank";
+                } catch {
+                    landedOnBlank = false;
+                }
+                if (landedOnBlank && pendingFrameUrl) {
+                    const retryUrl = pendingFrameUrl;
+                    pendingFrameUrl = "";
+                    stageFrame.src = retryUrl;
+                    return;
+                }
+                pendingFrameUrl = "";
                 frameLoaded = true;
                 startReadyHandshake(loadGeneration);
                 if (hadPendingStateChange || desiredPlayingState !== appliedPlayingState) {
@@ -763,7 +778,8 @@
                         lastAppliedSyncSeq = -1;
                         stageFrame.dataset.trackKey = trackKey;
                         const initialStart = getTargetSyncTime(syncData);
-                        stageFrame.src = buildEmbedUrl(videoId, isPlaying, loadGeneration, initialStart);
+                        pendingFrameUrl = buildEmbedUrl(videoId, isPlaying, loadGeneration, initialStart);
+                        stageFrame.src = pendingFrameUrl;
                     } else if (syncData) {
                         applyPlaybackSync({
                             ...syncData,
