@@ -244,62 +244,8 @@ function getSeasonalHoliday() {
 const WHATS_NEW_SHELF_SIZE = 12;
 
 function buildWhatsNew(songs, source) {
-    const addedOn = new Map();
-    for (const batch of Array.isArray(source?.batches) ? source.batches : []) {
-        if (!batch || !/^\d{4}-\d{2}-\d{2}$/.test(batch.date) || !Array.isArray(batch.ids)) continue;
-        for (const id of batch.ids) {
-            if (typeof id === "string" && !addedOn.has(id)) addedOn.set(id, batch.date);
-        }
-    }
-    if (!addedOn.size) return { songs: [], latest: "" };
-
-    const versionBest = new Map();
-    const artistRanks = new Map();
-    for (const song of songs) {
-        const rank = song.popularity || 0;
-        if (rank <= 0) continue;
-        const versionKey = getSongVersionKey(song);
-        versionBest.set(versionKey, Math.max(versionBest.get(versionKey) || 0, rank));
-        if (song.artistKey) {
-            if (!artistRanks.has(song.artistKey)) artistRanks.set(song.artistKey, []);
-            artistRanks.get(song.artistKey).push(rank);
-        }
-    }
-
-    const artistMedian = new Map();
-    const artistUses = new Map();
-    const fresh = [];
-    let latest = "";
-    for (const song of songs) {
-        const date = addedOn.get(song.id);
-        if (!date) continue;
-        let score = song.popularity || 0;
-        let basis = score ? "song" : "";
-        if (!score) {
-            score = versionBest.get(getSongVersionKey(song)) || 0;
-            if (score) basis = "version";
-        }
-        if (!score && artistRanks.has(song.artistKey)) {
-            if (!artistMedian.has(song.artistKey)) {
-                const ranks = artistRanks.get(song.artistKey).sort((a, b) => a - b);
-                const mid = ranks.length >> 1;
-                artistMedian.set(song.artistKey, ranks.length % 2 ? ranks[mid] : (ranks[mid - 1] + ranks[mid]) / 2);
-            }
-            const uses = artistUses.get(song.artistKey) || 0;
-            artistUses.set(song.artistKey, uses + 1);
-            score = Math.round(artistMedian.get(song.artistKey) * 0.9 ** uses);
-            basis = "artist";
-        }
-        song.whatsNew = { addedOn: date, score, basis };
-        if (date > latest) latest = date;
-        fresh.push(song);
-    }
-
-    fresh.sort((a, b) => b.whatsNew.score - a.whatsNew.score ||
-        b.whatsNew.addedOn.localeCompare(a.whatsNew.addedOn) ||
-        compareArtistSort(a, b) ||
-        compareSongSort(a, b));
-    return { songs: fresh, latest };
+    const result = buildWhatsNewIndex(songs, source);
+    return { songs: result.songs, latest: result.latest };
 }
 
 function createWhatsNewShelf() {

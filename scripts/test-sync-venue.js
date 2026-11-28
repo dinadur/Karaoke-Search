@@ -16,6 +16,7 @@ delete process.env.GITHUB_STEP_SUMMARY;
 (async () => {
     const frontend = [
         fs.readFileSync(path.join(root, 'search-ranking.js'), 'utf8'),
+        fs.readFileSync(path.join(root, 'catalog-prep.js'), 'utf8'),
         fs.readFileSync(path.join(root, 'karaoke_explorer.js'), 'utf8'),
     ].join('\n');
     const context = vm.createContext({ CLEAN_DISPLAY_CACHE: new Map(), NORMALIZE_CACHE: new Map() });
