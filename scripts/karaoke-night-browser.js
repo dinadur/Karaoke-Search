@@ -247,6 +247,21 @@ const mockYoutubeBySong = {
         assert.equal(afterClose.iframeSrc, "about:blank", "Hidden panel must not load an autoplaying iframe after closing");
         assert.equal(afterClose.stagePlaying, false, "TV stage must stay stopped after closing Karaoke Night");
 
+        // 10. Launching Host mode from the mobile setlist drawer must close the drawer and clear backdrop/inert state
+        await page.setViewportSize({ width: 390, height: 844 });
+        await plan(page);
+        await page.click("#mobileSetlistButton");
+        await page.waitForSelector("body.setlist-open");
+        await page.click("#hostNightFromSetlistButton");
+        await page.waitForSelector("#karaokeNightPanel:not([hidden])");
+        const mobileHostState = await page.evaluate(() => ({
+            drawerOpen: document.body.classList.contains("setlist-open"),
+            backdropHidden: document.getElementById("sheetBackdrop").hidden,
+            panelInert: Boolean(document.getElementById("karaokeNightPanel").inert),
+        }));
+        assert.deepEqual(mobileHostState, { drawerOpen: false, backdropHidden: true, panelInert: false });
+        await page.click("#nightBackButton");
+
         assert.deepEqual(errors, []);
         console.log(`ok   ${browserName}: Karaoke Night host mode, rotation, YouTube finder, pause/resume, TV stage sync, close-cancel, persistence, and accessibility passed`);
     } finally {

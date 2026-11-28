@@ -819,9 +819,19 @@ function applyManualYoutubeUrl(rawInput) {
 }
 
 function openKaraokeNight() {
-    if (typeof closeMoreTools === "function") closeMoreTools();
-    if (typeof closeActiveSheet === "function") closeActiveSheet();
-    nightLastFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const more = nightEl("moreTools");
+    const rawTrigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    if (rawTrigger?.closest("#moreTools")) {
+        nightLastFocused = nightEl("moreToolsButton");
+    } else if (rawTrigger?.closest(".setlist-panel") && window.matchMedia?.("(max-width: 720px)")?.matches) {
+        nightLastFocused = nightEl("mobileSetlistButton");
+    } else {
+        nightLastFocused = rawTrigger;
+    }
+    if (more) more.open = false;
+    if (typeof closeSetlistDrawer === "function") closeSetlistDrawer({ restoreFocus: false });
+    if (typeof closeFiltersSheet === "function") closeFiltersSheet({ restoreFocus: false });
+
     nightState.active = true;
     document.body.classList.add("karaoke-night-active");
     const panel = nightEl("karaokeNightPanel");
@@ -848,7 +858,7 @@ function closeKaraokeNight() {
     const panel = nightEl("karaokeNightPanel");
     if (panel) panel.hidden = true;
     broadcastStageState();
-    if (nightLastFocused?.isConnected) {
+    if (nightLastFocused?.isConnected && !nightLastFocused.hidden) {
         nightLastFocused.focus({ preventScroll: true });
     } else {
         els.homeButton?.focus?.({ preventScroll: true });
