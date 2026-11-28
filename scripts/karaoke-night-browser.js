@@ -5,6 +5,7 @@
 // TV Stage BroadcastChannel sync, setlist import, persistence, and accessibility.
 const assert = require("node:assert/strict");
 const { menu, plan } = require("./ui-helpers");
+const { createRoomHandler, createMemoryStore } = require("../api/night-room");
 let playwright;
 try { playwright = require("playwright"); } catch { playwright = require("playwright-core"); }
 
@@ -43,6 +44,29 @@ const mockYoutubeBySong = {
 };
 
 (async () => {
+    const roomHandler = createRoomHandler({ store: createMemoryStore() });
+    async function attachRoomRoute(ctx) {
+        await ctx.route("**/api/night-room*", async (route) => {
+            const request = route.request();
+            const headers = await request.allHeaders();
+            const req = {
+                method: request.method(),
+                url: request.url(),
+                headers,
+                body: request.postData() || "",
+            };
+            const resHeaders = {};
+            let body = "";
+            const res = {
+                statusCode: 200,
+                setHeader(k, v) { resHeaders[k] = v; },
+                end(chunk = "") { body += chunk; },
+            };
+            await roomHandler(req, res);
+            return route.fulfill({ status: res.statusCode, headers: resHeaders, body });
+        });
+    }
+
     const browser = await playwright[browserName].launch(options);
     try {
         const context = await browser.newContext({ serviceWorkers: "block", viewport: { width: 1280, height: 900 } });
@@ -54,6 +78,7 @@ const mockYoutubeBySong = {
         await context.route("**/era_enrichment.json?*", (route) => route.fulfill({ json: { entries: [] } }));
         await context.route("**/audio_enrichment.json?*", (route) => route.fulfill({ json: { entries: [] } }));
         await context.route("**/whats_new.json?*", (route) => route.fulfill({ json: { batches: [] } }));
+        await attachRoomRoute(context);
         const mockYoutubeHtml = `<!doctype html><html><body><script>
 window.__ytReady = false;
 window.__ytListeningId = null;
@@ -306,10 +331,125 @@ window.__markYtReady = () => {
             panelInert: Boolean(document.getElementById("karaokeNightPanel").inert),
         }));
         assert.deepEqual(mobileHostState, { drawerOpen: false, backdropHidden: true, panelInert: false });
+
+        // 11. Live Multi-Phone Rooms: host starts room -> TV stage displays QR ->
+        //     guest scans ?room=CODE on separate mobile context -> auto-queue +
+        //     full songbook Request button + Approve-first inbox + 320px axe-core + End room.
+        await page.setViewportSize({ width: 1280, height: 900 });
+        await page.click("#nightStartRoomButton");
+        await page.waitForSelector("#nightRoomActive:not([hidden])");
+        const roomCode = (await page.locator("#nightRoomCode").textContent()).trim();
+        assert.match(roomCode, /^[A-Z0-9]{6}$/, "Host room code should be 6 uppercase alphanumeric characters");
+
+        // Verify TV Stage shows the scannable QR code & room code
+        const roomStagePage = await context.newPage();
+        await roomStagePage.route(/^https:\/\/www\.youtube-nocookie\.com\//, mockYoutubeEmbed);
+        roomStagePage.on("pageerror", (error) => errors.push(error.message));
+        await roomStagePage.goto(BASE.replace("karaoke_explorer.html", "karaoke_stage.html"));
+        await roomStagePage.waitForSelector("#stageRoomBadge:not([hidden])");
+        assert.equal((await roomStagePage.locator("#stageRoomCode").textContent()).trim(), roomCode);
+        assert.equal(await roomStagePage.locator("#stageQrMini svg").count(), 1, "TV Stage header should render room QR SVG");
+
+        // Guest phone joins via ?room=CODE in an isolated browser context
+        const guestContext = await browser.newContext({ serviceWorkers: "block", viewport: { width: 390, height: 844 } });
+        await guestContext.route("**/karaoke_songs_enriched.json?*", (route) => route.fulfill({ json: fixtureSongs }));
+        await guestContext.route("**/era_enrichment.json?*", (route) => route.fulfill({ json: { entries: [] } }));
+        await guestContext.route("**/audio_enrichment.json?*", (route) => route.fulfill({ json: { entries: [] } }));
+        await guestContext.route("**/whats_new.json?*", (route) => route.fulfill({ json: { batches: [] } }));
+        await attachRoomRoute(guestContext);
+        const guestPage = await guestContext.newPage();
+        guestPage.on("pageerror", (error) => errors.push(error.message));
+
+        await guestPage.goto(`${BASE}?room=${roomCode}`);
+        await guestPage.waitForSelector("#guestRoomPanel:not([hidden])");
+        await guestPage.waitForFunction(() => state.songs.length === 4 && !songbookLoadPending);
+        assert.ok(guestPage.url().includes(`room=${roomCode}`), "Guest URL must preserve ?room=CODE");
+
+        // Guest sets name and requests a catalog song (auto-queue mode by default)
+        await guestPage.fill("#guestSingerInput", "Sam");
+        await guestPage.fill("#guestSongSearch", "Mr. Brightside");
+        await guestPage.locator("#guestSearchResults .night-queue-btn").first().click();
+        await guestPage.waitForFunction(() => document.getElementById("guestMySpots").textContent.includes("Mr. Brightside"));
+
+        // Host polls and auto-queues Sam's request into the rotation
+        await page.evaluate(() => pollHostRoom());
+        await page.waitForFunction(() => nightState.queue.some((item) => item.singer === "Sam" && item.title === "Mr. Brightside"));
+        await guestPage.evaluate(() => pollGuestRoom());
+        await guestPage.waitForFunction(() => document.getElementById("guestQueueList").textContent.includes("Mr. Brightside"));
+
+        // Guest browses full songbook and requests via song card primary button
+        await guestPage.click("#guestBrowseCatalogButton");
+        await guestPage.waitForSelector("#guestRoomBanner:not([hidden])");
+        await guestPage.fill("#searchInput", "Bohemian");
+        await guestPage.waitForFunction(() => state.query === "Bohemian" && !searchRenderTimer);
+        const cardReqBtn = guestPage.locator(".add-button").first();
+        assert.equal(await cardReqBtn.isVisible(), true, "Request button must be visible on song cards in guest room mode");
+        assert.equal(await cardReqBtn.textContent(), "Request");
+        await cardReqBtn.click();
+        await guestPage.waitForFunction(() => document.querySelector(".add-button")?.textContent === "Requested");
+        await page.evaluate(() => pollHostRoom());
+        await page.waitForFunction(() => nightState.queue.some((item) => item.singer === "Sam" && item.title === "Bohemian Rhapsody"));
+
+        // Switch host to Approve-first mode and verify inbox approve flow
+        await page.check("#nightRoomApprovalToggle");
+        await page.waitForFunction(() => !hostRoomDirty && !hostRoomSyncInflight);
+        await guestPage.click("#guestBannerOpenButton");
+        await guestPage.waitForSelector("#guestRoomPanel:not([hidden])");
+        await guestPage.fill("#guestSongSearch", "Robyn - Dancing On My Own");
+        await guestPage.locator("#guestSearchResults .night-search-custom button").click();
+        await page.evaluate(() => pollHostRoom());
+        await page.waitForSelector("#nightRoomInbox:not([hidden])");
+        const customInboxRow = page.locator("#nightRoomInboxList .night-inbox-item", { hasText: "Dancing On My Own" });
+        await customInboxRow.waitFor({ state: "visible" });
+        await customInboxRow.locator("button", { hasText: "Approve" }).click();
+        await page.waitForFunction(() => nightState.queue.some((item) => item.title === "Dancing On My Own"));
+        await page.waitForFunction(() => !hostRoomDirty && !hostRoomSyncInflight);
+
+        // A failed host write (e.g. toggling Lock requests during a transient outage) must retry on the next poll
+        let failNextHostSync = true;
+        const failOnceRoute = async (route) => {
+            if (failNextHostSync && route.request().method() === "POST") {
+                failNextHostSync = false;
+                return route.fulfill({ status: 502, contentType: "application/json", body: JSON.stringify({ configured: true, error: "Temporary outage" }) });
+            }
+            return route.fallback();
+        };
+        await page.route("**/api/night-room*", failOnceRoute);
+        await page.check("#nightRoomLockToggle");
+        await page.waitForFunction(() => hostRoomDirty && hostRoomState.error.length > 0);
+        await page.evaluate(() => pollHostRoom());
+        await page.waitForFunction(() => !hostRoomDirty && !hostRoomState.error);
+        await guestPage.evaluate(() => pollGuestRoom());
+        await guestPage.waitForFunction(() => Boolean(guestRoomState.room?.locked));
+        await page.unroute("**/api/night-room*", failOnceRoute);
+        await page.uncheck("#nightRoomLockToggle");
+        await page.waitForFunction(() => !hostRoomDirty && !hostRoomSyncInflight);
+
+        // Accessibility & 320px reflow check on Guest Room panel
+        await guestPage.addScriptTag({ path: require.resolve("axe-core/axe.min.js") });
+        await guestPage.setViewportSize({ width: 320, height: 844 });
+        assert.ok(await guestPage.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "No horizontal overflow on guest room at 320px");
+        const guestViolations = await guestPage.evaluate(async () => {
+            const res = await axe.run(document.getElementById("guestRoomPanel"), {
+                runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"] },
+            });
+            return res.violations.map((v) => ({ id: v.id, targets: v.nodes.map((n) => n.target) }));
+        });
+        assert.deepEqual(guestViolations, [], "No accessibility violations in guest room at 320px");
+
+        // Host ends room -> TV Stage hides QR badge and guest sees room ended
+        await page.click("#nightEndRoomButton");
+        await page.waitForSelector("#nightRoomIdle:not([hidden])");
+        await roomStagePage.waitForFunction(() => document.getElementById("stageRoomBadge").hidden);
+        await guestPage.evaluate(() => pollGuestRoom());
+        await guestPage.waitForFunction(() => document.getElementById("guestRoomStatus").textContent.includes("ended"));
+
+        await guestContext.close();
+        await roomStagePage.close();
         await page.click("#nightBackButton");
 
         assert.deepEqual(errors, []);
-        console.log(`ok   ${browserName}: Karaoke Night host mode, rotation, YouTube finder, pause/resume, TV stage sync, close-cancel, persistence, and accessibility passed`);
+        console.log(`ok   ${browserName}: Karaoke Night host mode, rotation, YouTube finder, pause/resume, TV stage sync, live multi-phone rooms, close-cancel, persistence, and accessibility passed`);
     } finally {
         await browser.close();
     }

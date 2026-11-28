@@ -273,6 +273,7 @@ function loadNightSession() {
                     youtubeChannel: String(item.youtubeChannel || ""),
                     candidates: Array.isArray(item.candidates) ? item.candidates.slice(0, 5) : [],
                     custom: Boolean(item.custom),
+                    requestId: typeof item.requestId === "string" ? item.requestId : "",
                 }));
         }
         if (typeof stored.autoBalance === "boolean") {
@@ -305,6 +306,9 @@ function saveNightSession() {
         // Session stays in memory if storage quota is full.
     }
     broadcastStageState();
+    if (typeof scheduleHostRoomSync === "function") {
+        scheduleHostRoomSync();
+    }
 }
 
 function ensureSingersFromQueue() {
@@ -365,6 +369,7 @@ function buildStagePayload() {
         playing: Boolean(nightState.playing && current && current.youtubeId),
         lookupStatus: nightState.lookupStatus || "",
         upNext,
+        room: typeof getHostRoomStageInfo === "function" ? getHostRoomStageInfo() : null,
         updatedAt: Date.now(),
     };
 }
@@ -555,7 +560,7 @@ function addNightSinger(rawName) {
     renderNightRoster();
 }
 
-function queueNightSong(songLike, { custom = false, singer = nightState.selectedSinger } = {}) {
+function queueNightSong(songLike, { custom = false, singer = nightState.selectedSinger, requestId = "", silent = false } = {}) {
     const title = custom
         ? String(songLike.title || songLike.song || "").trim().slice(0, 140)
         : getDisplaySongTitle(songLike);
@@ -587,6 +592,7 @@ function queueNightSong(songLike, { custom = false, singer = nightState.selected
         youtubeChannel: "",
         candidates: [],
         custom: Boolean(custom),
+        requestId: typeof requestId === "string" ? requestId : "",
     };
 
     const hadCurrent = Boolean(getNightCurrent());
@@ -601,7 +607,9 @@ function queueNightSong(songLike, { custom = false, singer = nightState.selected
             saveNightSession();
             renderKaraokeNight();
             resolveYoutubeForCurrent({ autoplay: false });
-            showSnackbar(`On deck: ${firstQueued.singer || "Open mic"} — “${firstQueued.title}”`);
+            if (!silent) {
+                showSnackbar(`On deck: ${firstQueued.singer || "Open mic"} — “${firstQueued.title}”`);
+            }
             return;
         }
     }
@@ -609,8 +617,10 @@ function queueNightSong(songLike, { custom = false, singer = nightState.selected
     saveNightSession();
     renderKaraokeNight();
     prefetchNextYoutube();
-    const who = cleanedSinger ? ` for ${cleanedSinger}` : "";
-    showSnackbar(`Queued “${title}”${who}`);
+    if (!silent) {
+        const who = cleanedSinger ? ` for ${cleanedSinger}` : "";
+        showSnackbar(`Queued “${title}”${who}`);
+    }
 }
 
 function importSetlistToNight() {
@@ -870,11 +880,19 @@ function openKaraokeNight() {
     if (typeof closeSetlistDrawer === "function") closeSetlistDrawer({ restoreFocus: false });
     if (typeof closeFiltersSheet === "function") closeFiltersSheet({ restoreFocus: false });
 
+    if (typeof guestRoomState !== "undefined" && guestRoomState.panelOpen) {
+        guestRoomState.panelOpen = false;
+        document.body.classList.remove("guest-room-active");
+        const guestPanel = nightEl("guestRoomPanel");
+        if (guestPanel) guestPanel.hidden = true;
+    }
+
     nightState.active = true;
     document.body.classList.add("karaoke-night-active");
     const panel = nightEl("karaokeNightPanel");
     if (panel) panel.hidden = false;
     ensureStageChannel();
+    if (typeof syncHostRoomLifecycle === "function") syncHostRoomLifecycle();
     renderKaraokeNight();
     if (getNightCurrent() && !getNightCurrent().youtubeId) {
         resolveYoutubeForCurrent({ autoplay: false });
@@ -894,6 +912,7 @@ function closeKaraokeNight() {
     document.body.classList.remove("karaoke-night-active");
     const panel = nightEl("karaokeNightPanel");
     if (panel) panel.hidden = true;
+    if (typeof syncHostRoomLifecycle === "function") syncHostRoomLifecycle();
     broadcastStageState();
     if (nightLastFocused?.isConnected && !nightLastFocused.hidden) {
         nightLastFocused.focus({ preventScroll: true });
@@ -908,6 +927,7 @@ function renderKaraokeNight() {
     renderNightRoster();
     renderNightStage();
     renderNightQueue();
+    if (typeof renderHostRoomControls === "function") renderHostRoomControls();
     hydrateIcons(nightEl("karaokeNightPanel"));
 }
 

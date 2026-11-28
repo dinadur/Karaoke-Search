@@ -6,21 +6,22 @@
     <title>Karaoke Songbook</title>
     <meta name="theme-color" content="#f5f4fa" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#14121d" media="(prefers-color-scheme: dark)">
-    <link rel="icon" href="app-icon.svg?v=20261128-1" type="image/svg+xml">
-    <link rel="apple-touch-icon" href="apple-touch-icon.png?v=20261128-1">
+    <link rel="icon" href="app-icon.svg?v=20261128-2" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png?v=20261128-2">
     <link rel="manifest" href="manifest.json">
     <link rel="preload" href="fonts/space-grotesk-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="karaoke_explorer.css?v=20261128-1">
-    <script defer src="qrcode.js?v=20261128-1"></script>
-    <script defer src="personal-songbook.js?v=20261128-1"></script>
-    <script defer src="stage-effects.js?v=20261128-1"></script>
-    <script defer src="search-ranking.js?v=20261128-1"></script>
-    <script defer src="catalog-prep.js?v=20261128-1"></script>
-    <script defer src="filters-panel.js?v=20261128-1"></script>
-    <script defer src="browse-discover.js?v=20261128-1"></script>
-    <script defer src="setlist-panel.js?v=20261128-1"></script>
-    <script defer src="karaoke-night.js?v=20261128-1"></script>
-    <script defer src="karaoke_explorer.js?v=20261128-1"></script>
+    <link rel="stylesheet" href="karaoke_explorer.css?v=20261128-2">
+    <script defer src="qrcode.js?v=20261128-2"></script>
+    <script defer src="personal-songbook.js?v=20261128-2"></script>
+    <script defer src="stage-effects.js?v=20261128-2"></script>
+    <script defer src="search-ranking.js?v=20261128-2"></script>
+    <script defer src="catalog-prep.js?v=20261128-2"></script>
+    <script defer src="filters-panel.js?v=20261128-2"></script>
+    <script defer src="browse-discover.js?v=20261128-2"></script>
+    <script defer src="setlist-panel.js?v=20261128-2"></script>
+    <script defer src="karaoke-night.js?v=20261128-2"></script>
+    <script defer src="night-room.js?v=20261128-2"></script>
+    <script defer src="karaoke_explorer.js?v=20261128-2"></script>
 </head>
 <body>
     <svg xmlns="http://www.w3.org/2000/svg" class="icon-sprite" aria-hidden="true" focusable="false">
@@ -66,6 +67,7 @@
         <symbol id="icon-external-link" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
         <symbol id="icon-arrow-left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></symbol>
         <symbol id="icon-user-plus" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/></symbol>
+        <symbol id="icon-smartphone" viewBox="0 0 24 24"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></symbol>
     </svg>
 
     <header class="topbar">
@@ -114,6 +116,7 @@
                     <button id="repertoireButton" type="button" disabled><i data-lucide="star" aria-hidden="true"></i>Saved songs <span id="repertoireCount">0</span></button>
                     <button id="planSetlistButton" type="button"><i data-lucide="list-music" aria-hidden="true"></i><span id="planSetlistLabel">Plan a setlist</span></button>
                     <button id="karaokeNightButton" type="button"><i data-lucide="mic" aria-hidden="true"></i>Host karaoke night</button>
+                    <button id="joinRoomMenuButton" type="button"><i data-lucide="smartphone" aria-hidden="true"></i>Join live room</button>
                     <button id="chooseSongButton" type="button" disabled><i data-lucide="sparkles" aria-hidden="true"></i>Help me choose</button>
                     <button id="randomButton" type="button" title="Random song"><i data-lucide="shuffle" aria-hidden="true"></i>Random song</button>
                     <button id="compactViewButton" type="button" aria-pressed="false" title="Compact view"><i data-lucide="rows-3" aria-hidden="true"></i>Compact view</button>
@@ -122,6 +125,13 @@
             </details>
         </section>
         <div id="planningNotice" class="planning-notice" hidden><span>Planning a setlist · Add songs as you browse.</span><button id="finishPlanningButton" class="filter-clear" type="button">Done planning</button></div>
+        <div id="guestRoomBanner" class="guest-room-banner" hidden>
+            <span id="guestBannerText">Live room</span>
+            <div class="guest-banner-actions">
+                <button id="guestBannerOpenButton" class="command night-mini-btn" type="button">View queue</button>
+                <button id="guestBannerLeaveButton" class="filter-clear" type="button">Leave</button>
+            </div>
+        </div>
 
         <section class="search-filters" id="searchFilters" aria-label="Filter search results">
             <div class="sheet-head">
@@ -306,6 +316,68 @@
                 </div>
             </div>
 
+            <section id="nightRoomBar" class="night-room-bar" aria-label="Live multi-phone room">
+                <div id="nightRoomIdle" class="night-room-idle">
+                    <div class="night-room-idle-copy">
+                        <strong><i data-lucide="smartphone" aria-hidden="true"></i> Let guests request from their phones</strong>
+                        <span>Start a live room to put a QR code on the TV Stage so anyone can queue songs into your rotation.</span>
+                    </div>
+                    <button id="nightStartRoomButton" class="command" type="button">
+                        <i data-lucide="qr-code" aria-hidden="true"></i>
+                        <span>Start live room</span>
+                    </button>
+                </div>
+
+                <div id="nightRoomActive" class="night-room-active" hidden>
+                    <div class="night-room-summary">
+                        <span class="night-room-live-pill">Live room</span>
+                        <span id="nightRoomCode" class="night-room-code" aria-label="Room code"></span>
+                        <div class="night-room-share-actions">
+                            <button id="nightRoomQrButton" class="command subtle-command night-mini-btn" type="button">
+                                <i data-lucide="qr-code" aria-hidden="true"></i>
+                                <span>Show QR</span>
+                            </button>
+                            <button id="nightRoomCopyButton" class="command subtle-command night-mini-btn" type="button">
+                                <i data-lucide="copy" aria-hidden="true"></i>
+                                <span>Copy link</span>
+                            </button>
+                            <button id="nightEndRoomButton" class="command subtle-command night-mini-btn" type="button">
+                                <span>End room</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="night-room-settings">
+                        <label class="night-room-toggle">
+                            <input id="nightRoomApprovalToggle" type="checkbox">
+                            <span>Approve requests first</span>
+                        </label>
+                        <label class="night-room-toggle">
+                            <input id="nightRoomLockToggle" type="checkbox">
+                            <span>Lock requests</span>
+                        </label>
+                        <label class="night-room-limit">
+                            <span>Limit per singer</span>
+                            <select id="nightRoomLimitSelect">
+                                <option value="0">Unlimited</option>
+                                <option value="1">1 song</option>
+                                <option value="2">2 songs</option>
+                                <option value="3">3 songs</option>
+                                <option value="5">5 songs</option>
+                            </select>
+                        </label>
+                    </div>
+                </div>
+
+                <p id="nightRoomStatus" class="night-room-status" role="status" hidden></p>
+
+                <div id="nightRoomInbox" class="night-room-inbox" hidden>
+                    <div class="night-room-inbox-head">
+                        <strong>Pending guest requests (<span id="nightRoomInboxCount">0</span>)</strong>
+                    </div>
+                    <ul id="nightRoomInboxList" class="night-inbox-list" role="list"></ul>
+                </div>
+            </section>
+
             <section class="night-request-card" aria-label="Add singer and pick song">
                 <div class="night-roster-bar">
                     <span class="night-field-label">1. Who's singing?</span>
@@ -436,6 +508,76 @@
                 </aside>
             </div>
         </section>
+
+        <section id="guestRoomPanel" class="guest-room" aria-labelledby="guestRoomTitle" hidden>
+            <div class="night-topbar guest-topbar">
+                <div class="night-topbar-left">
+                    <div>
+                        <div class="guest-room-badges">
+                            <span id="guestRoomCodeBadge" class="night-room-code">Room</span>
+                            <span id="guestRoomLiveBadge" class="guest-state-pill">Live</span>
+                        </div>
+                        <h2 id="guestRoomTitle" tabindex="-1">Request a song</h2>
+                    </div>
+                </div>
+                <div class="night-topbar-actions">
+                    <button id="guestBrowseCatalogButton" class="command subtle-command" type="button">
+                        <i data-lucide="search" aria-hidden="true"></i>
+                        <span>Browse full songbook</span>
+                    </button>
+                    <button id="guestLeaveRoomButton" class="command subtle-command" type="button">
+                        <span>Leave room</span>
+                    </button>
+                </div>
+            </div>
+
+            <p id="guestRoomStatus" class="night-lookup-status" role="status" hidden></p>
+
+            <section class="guest-card" aria-label="Your name and live stage">
+                <form id="guestSingerForm" class="guest-singer-form">
+                    <label for="guestSingerInput">Your name</label>
+                    <div class="guest-singer-row">
+                        <input id="guestSingerInput" type="text" maxlength="40" autocomplete="name" placeholder="Enter your name to request">
+                        <button class="command subtle-command" type="submit">Save</button>
+                    </div>
+                </form>
+                <p id="guestNowPlaying" class="guest-now-playing" aria-live="polite">Stage is open</p>
+                <div id="guestMySpotsSection" class="guest-my-spots" hidden>
+                    <h3>Your songs</h3>
+                    <ul id="guestMySpots" class="guest-spots-list" role="list"></ul>
+                </div>
+            </section>
+
+            <div class="guest-workspace">
+                <section class="guest-card" aria-label="Search and request a song">
+                    <label class="night-field-label" for="guestSongSearch">Search the songbook or type any YouTube song</label>
+                    <div class="search-box night-search-box">
+                        <i data-lucide="search" aria-hidden="true"></i>
+                        <input id="guestSongSearch" type="search" autocomplete="off" placeholder="Search 37,000+ songs or type “Artist - Song”">
+                    </div>
+                    <ul id="guestSearchResults" class="night-search-results" role="list" hidden></ul>
+                    <details class="night-custom-details">
+                        <summary>Request a song not in the songbook</summary>
+                        <form id="guestCustomSongForm" class="night-custom-form">
+                            <label>
+                                <span>Song title</span>
+                                <input id="guestCustomTitle" type="text" maxlength="140" required placeholder="e.g. Pink Pony Club">
+                            </label>
+                            <label>
+                                <span>Artist (optional)</span>
+                                <input id="guestCustomArtist" type="text" maxlength="120" placeholder="e.g. Chappell Roan">
+                            </label>
+                            <button class="command" type="submit">Send request</button>
+                        </form>
+                    </details>
+                </section>
+
+                <aside class="guest-card" aria-labelledby="guestQueueHeading">
+                    <h3 id="guestQueueHeading">Up next</h3>
+                    <ol id="guestQueueList" class="night-queue-list" role="list"></ol>
+                </aside>
+            </div>
+        </section>
     </main>
     <footer class="data-sources" aria-label="Music metadata resources">
         <span>Music metadata resources:</span>
@@ -521,6 +663,21 @@
             <div class="qr-holder" id="qrHolder"></div>
             <p id="qrCaption"></p>
             <button class="command" type="submit">Close</button>
+        </form>
+    </dialog>
+
+    <dialog id="joinRoomDialog" class="personal-dialog" aria-labelledby="joinRoomTitle" aria-describedby="joinRoomIntro">
+        <form id="joinRoomForm" class="dialog-body join-room-form">
+            <h2 id="joinRoomTitle">Join a karaoke room</h2>
+            <p id="joinRoomIntro">Enter the 6-character code shown on the host screen or TV Stage.</p>
+            <label for="joinRoomCodeInput">Room code
+                <input id="joinRoomCodeInput" type="text" maxlength="10" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="e.g. K7M4P2" required>
+            </label>
+            <p id="joinRoomError" class="personal-error" role="alert" hidden></p>
+            <div class="join-room-actions">
+                <button class="command" type="submit">Join room</button>
+                <button class="command subtle-command" type="submit" formmethod="dialog" formnovalidate>Cancel</button>
+            </div>
         </form>
     </dialog>
 

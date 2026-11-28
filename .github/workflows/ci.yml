@@ -34,13 +34,16 @@ jobs:
           node --check browse-discover.js
           node --check setlist-panel.js
           node --check karaoke-night.js
+          node --check night-room.js
           node --check api/youtube-search.js
+          node --check api/night-room.js
           node --check sw.js
           node --check qrcode.js
           node scripts/test-search-ranking.js
           node scripts/test-catalog-prep.js
           node scripts/test-youtube-search.js
           node scripts/test-karaoke-night.js
+          node scripts/test-night-room.js
           node --check scripts/karaoke-night-browser.js
           node --check scripts/bump-version.js
           node --check scripts/check-versions.js

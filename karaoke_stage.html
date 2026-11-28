@@ -201,6 +201,87 @@
             color: var(--muted);
             font-size: 14px;
         }
+        .stage-header-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .stage-room-badge {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 5px 12px 5px 6px;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            background: var(--panel);
+        }
+        .stage-qr-mini {
+            width: 46px;
+            height: 46px;
+            padding: 3px;
+            border-radius: 6px;
+            background: #ffffff;
+            display: grid;
+            place-items: center;
+            flex-shrink: 0;
+        }
+        .stage-qr-mini svg,
+        .stage-qr-large svg {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        .stage-room-copy {
+            display: grid;
+            gap: 1px;
+        }
+        .stage-room-label {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--muted);
+        }
+        .stage-room-code {
+            font-family: "Space Grotesk", ui-monospace, monospace;
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            color: var(--gold);
+        }
+        .stage-interstitial-qr {
+            display: inline-grid;
+            justify-items: center;
+            gap: 10px;
+            margin: 12px auto 0;
+            padding: 16px 20px;
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            background: rgba(28, 24, 41, 0.9);
+        }
+        .stage-qr-large {
+            width: 152px;
+            height: 152px;
+            padding: 8px;
+            border-radius: 10px;
+            background: #ffffff;
+            display: grid;
+            place-items: center;
+        }
+        .stage-interstitial-code {
+            margin: 0;
+            font-family: "Space Grotesk", ui-monospace, monospace;
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            color: var(--gold);
+        }
+        .stage-interstitial-hint {
+            margin: 0;
+            font-size: 14px;
+            color: var(--muted);
+        }
         [hidden] { display: none !important; }
     </style>
 </head>
@@ -220,7 +301,16 @@
                     <p class="song-artist">Synced with the host window</p>
                 </div>
             </div>
-            <button id="fullscreenButton" class="fullscreen-btn" type="button">Fullscreen</button>
+            <div class="stage-header-right">
+                <div id="stageRoomBadge" class="stage-room-badge" hidden>
+                    <div id="stageQrMini" class="stage-qr-mini" aria-hidden="true"></div>
+                    <div class="stage-room-copy">
+                        <span id="stageRoomLabel" class="stage-room-label">Scan to request</span>
+                        <span id="stageRoomCode" class="stage-room-code"></span>
+                    </div>
+                </div>
+                <button id="fullscreenButton" class="fullscreen-btn" type="button">Fullscreen</button>
+            </div>
         </header>
 
         <main class="stage-main">
@@ -237,6 +327,11 @@
                 <p class="stage-hero-singer" id="interstitialSinger">Ready for the first singer</p>
                 <p class="stage-hero-song" id="interstitialSong"></p>
                 <p class="stage-hero-sub" id="interstitialSub">Queue songs on the host screen to start the show.</p>
+                <div id="stageInterstitialQr" class="stage-interstitial-qr" hidden>
+                    <div id="stageQrLarge" class="stage-qr-large" aria-hidden="true"></div>
+                    <p id="stageInterstitialCode" class="stage-interstitial-code"></p>
+                    <p id="stageInterstitialHint" class="stage-interstitial-hint">Scan with your phone to request a song</p>
+                </div>
             </div>
         </main>
 
@@ -265,8 +360,17 @@
             const interstitialSub = document.getElementById("interstitialSub");
             const tickerList = document.getElementById("tickerList");
             const fullscreenButton = document.getElementById("fullscreenButton");
+            const stageRoomBadge = document.getElementById("stageRoomBadge");
+            const stageQrMini = document.getElementById("stageQrMini");
+            const stageRoomLabel = document.getElementById("stageRoomLabel");
+            const stageRoomCode = document.getElementById("stageRoomCode");
+            const stageInterstitialQr = document.getElementById("stageInterstitialQr");
+            const stageQrLarge = document.getElementById("stageQrLarge");
+            const stageInterstitialCode = document.getElementById("stageInterstitialCode");
+            const stageInterstitialHint = document.getElementById("stageInterstitialHint");
 
             let loadedTrackKey = "";
+            let renderedRoomUrl = "";
             let appliedPlayingState = null;
             let desiredPlayingState = null;
             let frameLoaded = false;
@@ -375,12 +479,76 @@
                 fullscreenButton.textContent = document.fullscreenElement ? "Exit fullscreen" : "Fullscreen";
             });
 
+            function createQrSvgElement(matrix) {
+                if (!matrix || typeof matrix.bits !== "string") return null;
+                const size = Number(matrix.size);
+                if (!Number.isInteger(size) || size < 15 || size > 177 || matrix.bits.length !== size * size) {
+                    return null;
+                }
+                const svgNs = "http://www.w3.org/2000/svg";
+                const margin = 1;
+                const total = size + margin * 2;
+                const svg = document.createElementNS(svgNs, "svg");
+                svg.setAttribute("viewBox", `0 0 ${total} ${total}`);
+                svg.setAttribute("shape-rendering", "crispEdges");
+                const bg = document.createElementNS(svgNs, "rect");
+                bg.setAttribute("width", String(total));
+                bg.setAttribute("height", String(total));
+                bg.setAttribute("fill", "#ffffff");
+                svg.appendChild(bg);
+                const d = [];
+                for (let r = 0; r < size; r++) {
+                    for (let c = 0; c < size; c++) {
+                        if (matrix.bits[r * size + c] === "1") {
+                            d.push(`M${c + margin},${r + margin}h1v1h-1z`);
+                        }
+                    }
+                }
+                const path = document.createElementNS(svgNs, "path");
+                path.setAttribute("d", d.join(""));
+                path.setAttribute("fill", "#110f1a");
+                svg.appendChild(path);
+                return svg;
+            }
+
+            function renderRoomQr(room) {
+                const code = room && typeof room.code === "string" ? room.code.trim() : "";
+                const joinUrl = room && typeof room.joinUrl === "string" ? room.joinUrl.trim() : "";
+                if (!code || !joinUrl) {
+                    stageRoomBadge.hidden = true;
+                    stageInterstitialQr.hidden = true;
+                    renderedRoomUrl = "";
+                    stageQrMini.replaceChildren();
+                    stageQrLarge.replaceChildren();
+                    return;
+                }
+                stageRoomBadge.hidden = false;
+                stageInterstitialQr.hidden = false;
+                stageRoomCode.textContent = code;
+                stageInterstitialCode.textContent = `Room ${code}`;
+                stageRoomLabel.textContent = room.locked ? "Requests paused" : "Scan to request";
+                stageInterstitialHint.textContent = room.locked
+                    ? "Guest requests are paused by the host"
+                    : "Scan with your phone to request a song";
+                if (renderedRoomUrl !== joinUrl) {
+                    renderedRoomUrl = joinUrl;
+                    const miniSvg = createQrSvgElement(room.qrMatrix);
+                    const largeSvg = createQrSvgElement(room.qrMatrix);
+                    stageQrMini.replaceChildren();
+                    stageQrLarge.replaceChildren();
+                    if (miniSvg) stageQrMini.appendChild(miniSvg);
+                    if (largeSvg) stageQrLarge.appendChild(largeSvg);
+                }
+            }
+
             function renderStage(payload) {
                 const current = payload?.current || null;
                 const upNext = Array.isArray(payload?.upNext) ? payload.upNext : [];
                 const videoId = current && VIDEO_ID_PATTERN.test(String(current.youtubeId || "")) ? current.youtubeId : "";
                 const trackKey = current && videoId ? `${current.uid || ""}:${videoId}` : "";
                 const isPlaying = Boolean(payload?.playing);
+
+                renderRoomQr(payload?.room || null);
 
                 if (current) {
                     headerNow.hidden = false;

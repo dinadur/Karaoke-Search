@@ -4094,3 +4094,454 @@ body.karaoke-night-active .mobile-setlist-button {
         justify-content: flex-end;
     }
 }
+
+/* Live Multi-Phone Rooms (host bar, approval inbox, guest view, sticky banner) */
+body.karaoke-night-active .guest-room-banner,
+body.guest-room-active .toolbar,
+body.guest-room-active .search-hint,
+body.guest-room-active .control-row,
+body.guest-room-active .planning-notice,
+body.guest-room-active .guest-room-banner,
+body.guest-room-active .search-filters,
+body.guest-room-active .active-filters,
+body.guest-room-active .browse-tools,
+body.guest-room-active .letter-strip,
+body.guest-room-active .content-grid,
+body.guest-room-active .mobile-setlist-button {
+    display: none !important;
+}
+
+body.guest-room-connected .add-button,
+body.guest-room-connected .mini-add {
+    display: inline-flex;
+}
+
+.guest-room-banner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin: 12px 0;
+    padding: 10px 14px;
+    border: 1px solid var(--brand);
+    border-radius: 10px;
+    background: var(--active-bg);
+    color: var(--active-ink);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.guest-room-banner[hidden] {
+    display: none;
+}
+
+.guest-banner-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.night-room-bar {
+    display: grid;
+    gap: 12px;
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--panel);
+}
+
+.night-room-idle {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.night-room-idle-copy {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+}
+
+.night-room-idle-copy strong {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 15px;
+}
+
+.night-room-idle-copy strong svg {
+    width: 17px;
+    height: 17px;
+    color: var(--brand);
+    flex-shrink: 0;
+}
+
+.night-room-idle-copy span {
+    font-size: 13px;
+    color: var(--muted);
+}
+
+.night-room-active {
+    display: grid;
+    gap: 12px;
+}
+
+.night-room-summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+}
+
+.night-room-live-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.night-room-code {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel-strong);
+    color: var(--ink);
+    font-family: "Space Grotesk", ui-monospace, monospace;
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+}
+
+.night-room-share-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+}
+
+.night-room-settings {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px;
+    padding-top: 10px;
+    border-top: 1px solid var(--line);
+    font-size: 13px;
+}
+
+.night-room-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 36px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.night-room-toggle input {
+    accent-color: var(--brand);
+    width: 16px;
+    height: 16px;
+    margin: 0;
+}
+
+.night-room-limit {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+}
+
+.night-room-limit select {
+    min-height: 36px;
+    padding: 4px 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel-strong);
+    color: var(--ink);
+    font: inherit;
+    font-size: 13px;
+}
+
+.night-room-status {
+    margin: 0;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: var(--panel-strong);
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.night-room-inbox {
+    display: grid;
+    gap: 8px;
+    padding-top: 10px;
+    border-top: 1px solid var(--line);
+}
+
+.night-room-inbox-head {
+    font-size: 14px;
+}
+
+.night-inbox-list {
+    display: grid;
+    gap: 8px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.night-inbox-item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--panel-strong);
+}
+
+.night-inbox-info {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    font-size: 14px;
+}
+
+.night-inbox-singer {
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--active-bg);
+    color: var(--active-ink);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.night-inbox-song {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.night-inbox-badge {
+    padding: 2px 7px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--muted);
+}
+
+.night-inbox-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.guest-room {
+    display: grid;
+    gap: 16px;
+}
+
+.guest-room-badges {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.guest-state-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: var(--active-bg);
+    color: var(--active-ink);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.guest-state-pill.is-paused,
+.guest-state-pill.is-ended {
+    background: var(--panel-strong);
+    color: var(--muted);
+    border: 1px solid var(--line);
+}
+
+.guest-card {
+    display: grid;
+    gap: 12px;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--panel);
+    min-width: 0;
+}
+
+.guest-card h3 {
+    margin: 0;
+    font-size: 16px;
+}
+
+.guest-singer-form {
+    display: grid;
+    gap: 6px;
+}
+
+.guest-singer-form label {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--muted);
+}
+
+.guest-singer-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.guest-singer-row input {
+    flex: 1 1 180px;
+    min-width: 0;
+    min-height: 44px;
+    padding: 0 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--panel-strong);
+    color: var(--ink);
+    font: inherit;
+    font-size: 16px;
+}
+
+.guest-now-playing {
+    margin: 0;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: var(--panel-strong);
+    font-size: 14px;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.guest-my-spots {
+    display: grid;
+    gap: 8px;
+}
+
+.guest-spots-list {
+    display: grid;
+    gap: 8px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.guest-spot-item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--panel-strong);
+    font-size: 14px;
+}
+
+.guest-spot-item.is-live {
+    border-color: var(--accent);
+}
+
+.guest-spot-badge {
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--active-bg);
+    color: var(--active-ink);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.guest-spot-item.is-live .guest-spot-badge {
+    background: var(--accent);
+    color: var(--accent-ink);
+}
+
+.guest-spot-song {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.guest-workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 0.9fr);
+    gap: 16px;
+    align-items: start;
+}
+
+.guest-queue-item {
+    display: grid;
+    grid-template-columns: 24px minmax(0, 1fr);
+    gap: 8px;
+    align-items: center;
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--panel-strong);
+}
+
+.guest-queue-item.is-mine {
+    border-color: var(--brand);
+    background: var(--active-bg);
+}
+
+.night-queue-sub {
+    color: var(--muted);
+    font-size: 13px;
+    overflow-wrap: anywhere;
+}
+
+.join-room-form {
+    display: grid;
+    gap: 14px;
+}
+
+.join-room-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+@media (max-width: 820px) {
+    .guest-workspace {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .night-room-share-actions {
+        margin-left: 0;
+    }
+}
+
+@media (max-width: 520px) {
+    .night-room-bar,
+    .guest-card {
+        padding: 12px;
+    }
+}
