@@ -1,6 +1,6 @@
 // Bump CACHE_VERSION together with APP_VERSION in karaoke_explorer.js so a
 // deploy invalidates the previous offline cache.
-const CACHE_VERSION = "20261127-1";
+const CACHE_VERSION = "20261127-2";
 const CACHE_NAME = `karaoke-${CACHE_VERSION}`;
 
 const PRECACHE_URLS = [
@@ -14,6 +14,8 @@ const PRECACHE_URLS = [
     `/filters-panel.js?v=${CACHE_VERSION}`,
     `/browse-discover.js?v=${CACHE_VERSION}`,
     `/setlist-panel.js?v=${CACHE_VERSION}`,
+    `/karaoke-night.js?v=${CACHE_VERSION}`,
+    "/karaoke_stage.html",
     `/qrcode.js?v=${CACHE_VERSION}`,
     `/personal-songbook.js?v=${CACHE_VERSION}`,
     `/stage-effects.js?v=${CACHE_VERSION}`,
@@ -63,6 +65,9 @@ self.addEventListener("fetch", (event) => {
     if (url.origin !== self.location.origin) {
         return;
     }
+    if (url.pathname.startsWith("/api/")) {
+        return;
+    }
 
     if (request.mode === "navigate") {
         // App shell: prefer the network so deploys land, fall back to cache offline.
@@ -75,7 +80,8 @@ self.addEventListener("fetch", (event) => {
                 // our known-good offline fallback with that release's HTML.
                 return response;
             } catch {
-                const cached = await cache.match("/") ||
+                const cached = await cache.match(url.pathname) ||
+                    await cache.match("/") ||
                     await cache.match("/karaoke_explorer.html");
                 return cached || Response.error();
             }

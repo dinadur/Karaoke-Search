@@ -3473,3 +3473,624 @@ body.is-compact .card-subline {
     color: var(--ink);
     font: inherit;
 }
+
+/* Karaoke Night host mode */
+body.karaoke-night-active .toolbar,
+body.karaoke-night-active .search-hint,
+body.karaoke-night-active .control-row,
+body.karaoke-night-active .planning-notice,
+body.karaoke-night-active .search-filters,
+body.karaoke-night-active .active-filters,
+body.karaoke-night-active .browse-tools,
+body.karaoke-night-active .letter-strip,
+body.karaoke-night-active .content-grid,
+body.karaoke-night-active .mobile-setlist-button {
+    display: none !important;
+}
+
+.karaoke-night {
+    display: grid;
+    gap: 16px;
+}
+
+.night-topbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--line);
+}
+
+.night-topbar-left {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+}
+
+.night-topbar h2 {
+    margin: 0;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: clamp(22px, 3vw, 28px);
+    line-height: 1.15;
+}
+
+.night-stats {
+    margin: 2px 0 0;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.night-topbar-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.night-request-card,
+.night-stage-card,
+.night-queue-card {
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--panel);
+    box-shadow: var(--shadow);
+    padding: 16px;
+    min-width: 0;
+}
+
+.night-request-card {
+    display: grid;
+    gap: 14px;
+}
+
+.night-field-label {
+    display: block;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 6px;
+}
+
+.night-roster-bar {
+    display: grid;
+    gap: 8px;
+}
+
+.night-singer-roster {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.night-singer-chip {
+    min-height: 36px;
+    padding: 0 13px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--panel-strong);
+    color: var(--chip-ink);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.night-singer-chip:hover {
+    border-color: var(--brand);
+    background: var(--hover-bg);
+}
+
+.night-singer-chip.is-selected {
+    border-color: var(--brand);
+    background: var(--active-bg);
+    color: var(--active-ink);
+}
+
+.night-add-singer {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    max-width: 360px;
+}
+
+.night-add-singer input,
+.night-custom-form input,
+.night-url-form input {
+    flex: 1 1 180px;
+    min-width: 0;
+    min-height: 44px;
+    padding: 8px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--ink);
+    font: inherit;
+}
+
+.night-search-results {
+    display: grid;
+    gap: 6px;
+    list-style: none;
+    margin: 10px 0 0;
+    padding: 0;
+}
+
+.night-search-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--panel-strong);
+}
+
+.night-search-custom {
+    border-style: dashed;
+}
+
+.night-search-info {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+    flex: 1 1 200px;
+}
+
+.night-search-title {
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+
+.night-search-artist {
+    color: var(--muted);
+    font-size: 13px;
+    overflow-wrap: anywhere;
+}
+
+.night-queue-btn {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--accent-ink);
+}
+
+.night-custom-details {
+    margin-top: 8px;
+}
+
+.night-custom-details summary {
+    cursor: pointer;
+    color: var(--brand);
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.night-custom-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.night-custom-form label {
+    display: grid;
+    gap: 4px;
+    flex: 1 1 180px;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.night-workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1.45fr) minmax(290px, 1fr);
+    gap: 16px;
+    align-items: start;
+}
+
+.night-stage-empty {
+    display: grid;
+    place-items: center;
+    text-align: center;
+    gap: 8px;
+    padding: 48px 20px;
+    color: var(--muted);
+}
+
+.night-stage-empty svg {
+    width: 36px;
+    height: 36px;
+    color: var(--brand);
+}
+
+.night-stage-empty h3 {
+    margin: 4px 0 0;
+    color: var(--ink);
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 20px;
+}
+
+.night-stage-empty p {
+    margin: 0;
+    max-width: 420px;
+}
+
+.night-stage-active {
+    display: grid;
+    gap: 12px;
+}
+
+.night-stage-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.night-stage-info {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+    flex: 1 1 240px;
+}
+
+.night-stage-badges {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.night-now-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: var(--active-bg);
+    color: var(--active-ink);
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.night-singer-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.night-tv-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: var(--soft-bg);
+    color: var(--brand);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.night-stage-info h3 {
+    margin: 2px 0 0;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: clamp(20px, 2.5vw, 26px);
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+}
+
+.night-stage-artist {
+    margin: 0;
+    color: var(--muted);
+    font-size: 15px;
+}
+
+.night-stage-meta {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.night-transport {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.night-primary-action {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--accent-ink);
+}
+
+.night-tv-only-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+}
+
+.night-video-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    background: #100d19;
+    overflow: hidden;
+    display: grid;
+    place-items: center;
+}
+
+.night-video-frame {
+    width: 100%;
+    height: 100%;
+    border: 0;
+}
+
+.night-video-placeholder {
+    padding: 20px;
+    text-align: center;
+    color: #d6d2ea;
+    font-size: 14px;
+    max-width: 440px;
+}
+
+.night-lookup-status {
+    margin: 0;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: var(--soft-bg);
+    color: var(--ink);
+    font-size: 13px;
+}
+
+.night-candidates {
+    display: grid;
+    gap: 8px;
+}
+
+.night-candidate {
+    display: grid;
+    gap: 2px;
+    text-align: left;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--panel-strong);
+    color: var(--ink);
+    font: inherit;
+    cursor: pointer;
+}
+
+.night-candidate:hover {
+    border-color: var(--brand);
+    background: var(--hover-bg);
+}
+
+.night-candidate.is-selected {
+    border-color: var(--brand);
+    background: var(--active-bg);
+    color: var(--active-ink);
+}
+
+.night-candidate-title {
+    font-size: 14px;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+
+.night-candidate-sub {
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.night-candidate.is-selected .night-candidate-sub {
+    color: var(--active-ink);
+}
+
+.night-youtube-fallback {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--line);
+}
+
+.night-url-form {
+    display: flex;
+    flex-wrap: wrap;
+    flex: 1 1 260px;
+    gap: 8px;
+}
+
+.night-yt-link {
+    text-decoration: none;
+}
+
+.night-queue-card {
+    display: grid;
+    gap: 12px;
+}
+
+.night-queue-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.night-queue-head h3 {
+    margin: 0;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 19px;
+}
+
+.night-queue-tools {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.night-auto-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.night-mini-btn {
+    min-height: 36px;
+    padding: 0 10px;
+    font-size: 13px;
+}
+
+.night-queue-list {
+    display: grid;
+    gap: 8px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.night-queue-empty {
+    color: var(--muted);
+    font-size: 14px;
+    padding: 12px 0;
+}
+
+.night-queue-item {
+    display: grid;
+    grid-template-columns: 24px minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--panel-strong);
+}
+
+.night-queue-num {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 700;
+    color: var(--muted);
+    text-align: center;
+}
+
+.night-queue-body {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.night-queue-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.night-queue-singer {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: var(--active-bg);
+    color: var(--active-ink);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.night-queue-wait {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.night-queue-title {
+    font-weight: 700;
+    font-size: 14px;
+    overflow-wrap: anywhere;
+}
+
+.night-queue-artist {
+    color: var(--muted);
+    font-size: 13px;
+    overflow-wrap: anywhere;
+}
+
+.night-queue-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.night-history {
+    border-top: 1px solid var(--line);
+    padding-top: 10px;
+}
+
+.night-history summary {
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--muted);
+}
+
+.night-history-list {
+    display: grid;
+    gap: 8px;
+    list-style: none;
+    margin: 10px 0 0;
+    padding: 0;
+}
+
+.night-history-item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--muted);
+}
+
+@media (max-width: 960px) {
+    .night-workspace {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+@media (max-width: 520px) {
+    .night-request-card,
+    .night-stage-card,
+    .night-queue-card {
+        padding: 12px;
+    }
+
+    .night-queue-item {
+        grid-template-columns: 20px minmax(0, 1fr);
+    }
+
+    .night-queue-actions {
+        grid-column: 1 / -1;
+        justify-content: flex-end;
+    }
+}

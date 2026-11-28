@@ -1,4 +1,4 @@
-const APP_VERSION = "20261127-1";
+const APP_VERSION = "20261127-2";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const TAG_CONSOLIDATION_URL = `tag_consolidation.json?v=${APP_VERSION}`;
 const MOOD_CONSOLIDATION_URL = `mood_consolidation.json?v=${APP_VERSION}`;
@@ -188,6 +188,7 @@ async function init() {
     bindEvents();
     bindPersonalFeatures();
     bindSavedSetlistsDialog();
+    bindKaraokeNight();
     bindResultsSentinel();
     registerServiceWorker();
     renderThemeButton();
@@ -1223,6 +1224,9 @@ function render() {
 }
 
 function goToDiscover() {
+    if (typeof nightState !== "undefined" && nightState.active && typeof closeKaraokeNight === "function") {
+        closeKaraokeNight();
+    }
     state.pushHistory = true;
     clearSearchQuery();
     clearSearchFilters();
