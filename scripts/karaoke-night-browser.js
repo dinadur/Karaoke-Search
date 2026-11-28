@@ -104,7 +104,7 @@ const mockYoutubeBySong = {
         await page.click("#hostNightFromSetlistButton");
         await page.waitForSelector("#karaokeNightPanel:not([hidden])");
 
-        // 2. Import setlist into Karaoke Night and verify auto YouTube lookup + version switcher
+        // 2. Import setlist into Karaoke Night and verify auto YouTube lookup + TV stage mirrors host box immediately
         await page.click("#nightImportSetlistButton");
         await page.waitForFunction(() => {
             const frame = document.getElementById("nightVideoFrame");
@@ -112,6 +112,17 @@ const mockYoutubeBySong = {
         });
         assert.equal(await page.locator("#nightCurrentTitle").textContent(), "Bohemian Rhapsody");
         assert.equal(await page.locator("#nightCandidates .night-candidate").count(), 2);
+
+        // Pop-out TV Stage must show the same video box even before clicking Play on stage
+        const previewStage = await context.newPage();
+        await previewStage.route(/^https:\/\/www\.youtube-nocookie\.com\//, mockYoutubeEmbed);
+        previewStage.on("pageerror", (error) => errors.push(error.message));
+        await previewStage.goto(BASE.replace("karaoke_explorer.html", "karaoke_stage.html"));
+        await previewStage.waitForFunction(() => {
+            const frame = document.getElementById("stageFrame");
+            return frame && !frame.hidden && frame.src.includes("SingKingBR1") && !frame.src.includes("autoplay=1");
+        });
+        await previewStage.close();
 
         // Switch to 2nd ranked YouTube karaoke version
         await page.locator("#nightCandidates .night-candidate").nth(1).click();

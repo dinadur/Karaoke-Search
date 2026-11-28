@@ -318,6 +318,7 @@ function buildStagePayload() {
             }
             : null,
         playing: Boolean(nightState.playing && current && current.youtubeId),
+        lookupStatus: nightState.lookupStatus || "",
         upNext,
         updatedAt: Date.now(),
     };
@@ -440,6 +441,7 @@ async function resolveYoutubeForCurrent({ autoplay = false } = {}) {
 
     nightState.lookupStatus = `Finding the best YouTube karaoke track for “${current.title}”…`;
     nightState.lookupError = "";
+    broadcastStageState();
     renderNightStage();
 
     const data = await lookupYoutubeKaraoke(current);

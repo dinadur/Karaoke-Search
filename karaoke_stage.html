@@ -269,11 +269,11 @@
             let loadedTrackKey = "";
             let lastPlayingState = null;
 
-            function buildEmbedUrl(videoId) {
+            function buildEmbedUrl(videoId, autoplay) {
                 const origin = window.location.origin && window.location.origin !== "null"
                     ? `&origin=${encodeURIComponent(window.location.origin)}`
                     : "";
-                return `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&enablejsapi=1${origin}`;
+                return `https://www.youtube-nocookie.com/embed/${videoId}?rel=0&modestbranding=1&enablejsapi=1${origin}${autoplay ? "&autoplay=1" : ""}`;
             }
 
             function sendPlayerCommand(func) {
@@ -305,7 +305,6 @@
                 const videoId = current && VIDEO_ID_PATTERN.test(String(current.youtubeId || "")) ? current.youtubeId : "";
                 const trackKey = current && videoId ? `${current.uid || ""}:${videoId}` : "";
                 const isPlaying = Boolean(payload?.playing);
-                const keepPausedPlayer = Boolean(trackKey && loadedTrackKey === trackKey);
 
                 if (current) {
                     headerNow.hidden = false;
@@ -318,14 +317,14 @@
                     headerIdle.hidden = false;
                 }
 
-                if (trackKey && (isPlaying || keepPausedPlayer)) {
+                if (trackKey) {
                     interstitial.hidden = true;
                     stageFrame.hidden = false;
                     if (loadedTrackKey !== trackKey) {
                         loadedTrackKey = trackKey;
-                        lastPlayingState = true;
+                        lastPlayingState = isPlaying;
                         stageFrame.dataset.trackKey = trackKey;
-                        stageFrame.src = buildEmbedUrl(videoId);
+                        stageFrame.src = buildEmbedUrl(videoId, isPlaying);
                     } else if (lastPlayingState !== isPlaying) {
                         lastPlayingState = isPlaying;
                         sendPlayerCommand(isPlaying ? "playVideo" : "pauseVideo");
@@ -340,12 +339,13 @@
                     }
                     interstitial.hidden = false;
                     if (current) {
-                        interstitialEyebrow.textContent = "Get ready on stage";
+                        interstitialEyebrow.textContent = "Now performing";
                         interstitialSinger.textContent = current.singer || "Open mic";
                         interstitialSong.textContent = current.title || "";
-                        interstitialSub.textContent = current.artist
-                            ? `${current.artist} · Waiting for host to start track`
-                            : "Waiting for host to start track";
+                        interstitialSub.textContent = payload?.lookupStatus
+                            || (current.artist
+                                ? `${current.artist} · Pick a YouTube karaoke track on the host screen`
+                                : "Pick a YouTube karaoke track on the host screen");
                     } else if (upNext.length) {
                         interstitialEyebrow.textContent = "Up next";
                         interstitialSinger.textContent = upNext[0].singer || "Open mic";
