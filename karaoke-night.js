@@ -243,6 +243,11 @@ function loadNightSession() {
 }
 
 function saveNightSession() {
+    // Any subsequent edit makes a prior snapshot-based Undo unsafe. Callers
+    // offering a new Undo install it after saving their own change.
+    if (typeof state !== "undefined" && state.snackbarAction && typeof hideSnackbar === "function") {
+        hideSnackbar();
+    }
     try {
         localStorage.setItem(NIGHT_STORAGE_KEY, JSON.stringify({
             singers: nightState.singers,

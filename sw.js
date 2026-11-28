@@ -80,7 +80,8 @@ self.addEventListener("fetch", (event) => {
                 // our known-good offline fallback with that release's HTML.
                 return response;
             } catch {
-                const cached = await cache.match("/") ||
+                const cached = await cache.match(url.pathname) ||
+                    await cache.match("/") ||
                     await cache.match("/karaoke_explorer.html");
                 return cached || Response.error();
             }
