@@ -277,6 +277,19 @@ local allReqs = redis.call("HGETALL", KEYS[2])
 return {"ok", metaRaw, allReqs}
 `;
 
+const SYNC_ROOM_LUA = `
+if redis.call("EXISTS", KEYS[1]) == 0 then
+    return {"not_found"}
+end
+local ttlSec = tonumber(ARGV[2]) or 86400
+redis.call("SET", KEYS[1], ARGV[1], "EX", ttlSec)
+for i = 3, #ARGV do
+    redis.call("HDEL", KEYS[2], ARGV[i])
+end
+redis.call("EXPIRE", KEYS[2], ttlSec)
+return {"ok", redis.call("HGETALL", KEYS[2])}
+`;
+
 function createUpstashStore({ url, token, fetchImpl = fetch }) {
     const baseUrl = String(url || "").replace(/\/+$/, "");
 
@@ -337,17 +350,21 @@ function createUpstashStore({ url, token, fetchImpl = fetch }) {
 
         async syncRoom(code, meta, ackedIds, ttlSec = ROOM_TTL_SECONDS) {
             const { metaKey, reqKey } = roomKeys(code);
-            const commands = [
-                ["SET", metaKey, JSON.stringify(meta), "EX", String(ttlSec)],
-            ];
-            if (ackedIds.length) {
-                commands.push(["HDEL", reqKey, ...ackedIds]);
+            const [res] = await pipeline([[
+                "EVAL",
+                SYNC_ROOM_LUA,
+                "2",
+                metaKey,
+                reqKey,
+                JSON.stringify(meta),
+                String(ttlSec),
+                ...ackedIds,
+            ]]);
+            if (!Array.isArray(res) || !res.length) {
+                throw new Error("Invalid Upstash sync EVAL response");
             }
-            commands.push(["EXPIRE", reqKey, String(ttlSec)]);
-            commands.push(["HGETALL", reqKey]);
-            const results = await pipeline(commands);
-            const reqRaw = results[results.length - 1];
-            return { meta, pendingRequests: parseHgetallResult(reqRaw) };
+            if (res[0] === "not_found") return null;
+            return { meta, pendingRequests: parseHgetallResult(res[1]) };
         },
 
         async submitRequest(code, reqObj, { singerKey, songKey, maxPending = MAX_PENDING_REQUESTS, ttlSec = ROOM_TTL_SECONDS }) {
@@ -427,15 +444,11 @@ function createMemoryStore({ now = () => Date.now() } = {}) {
         },
         async syncRoom(code, meta, ackedIds, ttlSec = ROOM_TTL_SECONDS) {
             const entry = getLive(code);
-            const requests = entry ? entry.requests : new Map();
-            for (const id of ackedIds) requests.delete(id);
-            const nextEntry = {
-                meta: JSON.stringify(meta),
-                requests,
-                expiresAt: now() + ttlSec * 1000,
-            };
-            rooms.set(code, nextEntry);
-            return { meta, pendingRequests: listPending(nextEntry) };
+            if (!entry) return null;
+            for (const id of ackedIds) entry.requests.delete(id);
+            entry.meta = JSON.stringify(meta);
+            entry.expiresAt = now() + ttlSec * 1000;
+            return { meta, pendingRequests: listPending(entry) };
         },
         async submitRequest(code, reqObj, { singerKey, songKey, maxPending = MAX_PENDING_REQUESTS, ttlSec = ROOM_TTL_SECONDS }) {
             // Executed synchronously without awaiting so concurrent submissions cannot interleave.
@@ -753,6 +766,9 @@ function createRoomHandler({ store, env = process.env, fetchImpl = fetch, now = 
                 };
 
                 const synced = await activeStore.syncRoom(code, nextMeta, ackedIds, ROOM_TTL_SECONDS);
+                if (!synced) {
+                    return sendJson(res, 404, { configured: true, error: "Room not found or expired." });
+                }
                 return sendJson(res, 200, {
                     configured: true,
                     room: toPublicRoom(synced.meta, synced.pendingRequests),

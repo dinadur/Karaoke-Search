@@ -228,6 +228,11 @@ async function call(handler, { method = "GET", url = "/api/night-room", headers 
     const missing = await call(handler, { method: "GET", url: `/api/night-room?code=${code}` });
     assert.equal(missing.status, 404);
 
+    // An in-flight sync after close must never recreate the deleted room
+    const ghostSync = await store.syncRoom(code, { code, revision: 99 }, [], 86400);
+    assert.equal(ghostSync, null);
+    assert.equal(await store.exists(code), false);
+
     // 4. Verify Upstash REST store pipeline & atomic EVAL command format
     const sentPipelines = [];
     const upstashStore = createUpstashStore({

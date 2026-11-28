@@ -300,13 +300,23 @@ function processHostInbox(pendingRequests) {
     const queuedRequestIds = new Set(
         nightState.queue.map((item) => item.requestId).filter(Boolean)
     );
-    const fresh = incoming.filter((req) => (
-        req &&
-        req.id &&
-        !hostRoomHandledIds.has(req.id) &&
-        !queuedRequestIds.has(req.id) &&
-        !hostRoomState.declinedIds.includes(req.id)
-    ));
+    const declinedSet = new Set(hostRoomState.declinedIds);
+    const fresh = [];
+    let recoveredAcks = 0;
+
+    for (const req of incoming) {
+        if (!req || !req.id) continue;
+        const alreadyHandled = hostRoomHandledIds.has(req.id) || queuedRequestIds.has(req.id) || declinedSet.has(req.id);
+        if (alreadyHandled) {
+            hostRoomHandledIds.add(req.id);
+            if (!hostRoomQueuedAckIds.has(req.id)) {
+                hostRoomQueuedAckIds.add(req.id);
+                recoveredAcks += 1;
+            }
+        } else {
+            fresh.push(req);
+        }
+    }
 
     if (!hostRoomState.approvalRequired) {
         if (hostRoomState.pendingInbox.length) {
@@ -324,12 +334,17 @@ function processHostInbox(pendingRequests) {
                 showSnackbar(`${fresh.length} guest requests added to the queue`);
             }
             syncHostRoomNow();
+        } else if (recoveredAcks > 0) {
+            syncHostRoomNow({ markDirty: false });
         }
         renderHostRoomControls();
         return;
     }
 
     hostRoomState.pendingInbox = fresh;
+    if (recoveredAcks > 0) {
+        syncHostRoomNow({ markDirty: false });
+    }
     renderHostRoomControls();
 }
 
