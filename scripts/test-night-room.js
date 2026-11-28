@@ -178,14 +178,29 @@ async function call(handler, { method = "GET", url = "/api/night-room", headers 
     });
     assert.equal(capped.status, 429);
 
-    // Host declines req2 and locks requests
+    // Concurrent submissions for a brand-new singer under maxPerSinger: 1 must admit strictly one
+    const [raceA, raceB] = await Promise.all([
+        call(handler, {
+            method: "POST",
+            body: { action: "request", code, singer: "Jordan", title: "Africa", artist: "Toto" },
+        }),
+        call(handler, {
+            method: "POST",
+            body: { action: "request", code, singer: "Jordan", title: "Take On Me", artist: "a-ha" },
+        }),
+    ]);
+    assert.deepEqual([raceA.status, raceB.status].sort((a, b) => a - b), [201, 429]);
+    const admittedJordan = raceA.status === 201 ? raceA.data.request : raceB.data.request;
+    assert.equal("singerKey" in admittedJordan, false, "Public request must not expose internal singerKey");
+
+    // Host declines req2 and Jordan's request, then locks requests
     const declined = await call(handler, {
         method: "POST",
         headers: { "x-host-token": hostToken },
         body: {
             action: "sync",
             code,
-            ackedRequestIds: [req2.data.request.id],
+            ackedRequestIds: [req2.data.request.id, admittedJordan.id],
             declinedIds: [req2.data.request.id],
             locked: true,
         },
@@ -213,7 +228,7 @@ async function call(handler, { method = "GET", url = "/api/night-room", headers 
     const missing = await call(handler, { method: "GET", url: `/api/night-room?code=${code}` });
     assert.equal(missing.status, 404);
 
-    // 4. Verify Upstash REST store pipeline command format
+    // 4. Verify Upstash REST store pipeline & atomic EVAL command format
     const sentPipelines = [];
     const upstashStore = createUpstashStore({
         url: "https://fake-upstash.example/",
@@ -229,6 +244,15 @@ async function call(handler, { method = "GET", url = "/api/night-room", headers 
                     return cmds.map((cmd) => {
                         if (cmd[0] === "GET") return { result: JSON.stringify({ code: "TEST99", revision: 1 }) };
                         if (cmd[0] === "HGETALL") return { result: ["r1", JSON.stringify({ id: "r1", title: "Song", createdAt: 1 })] };
+                        if (cmd[0] === "EVAL") {
+                            return {
+                                result: [
+                                    "ok",
+                                    JSON.stringify({ code: "TEST99", revision: 1 }),
+                                    ["r2", JSON.stringify({ id: "r2", title: "Africa", singer: "Alex", createdAt: 2 })],
+                                ],
+                            };
+                        }
                         return { result: "OK" };
                     });
                 },
@@ -242,6 +266,18 @@ async function call(handler, { method = "GET", url = "/api/night-room", headers 
         ["GET", "karaoke:room:TEST99:meta"],
         ["HGETALL", "karaoke:room:TEST99:requests"],
     ]);
+
+    const evalOutcome = await upstashStore.submitRequest(
+        "TEST99",
+        { id: "r2", title: "Africa", singer: "Alex", createdAt: 2 },
+        { singerKey: "alex", songKey: "africa||toto", maxPending: 50, ttlSec: 86400 }
+    );
+    assert.equal(evalOutcome.status, "ok");
+    assert.equal(evalOutcome.pendingRequests.length, 1);
+    assert.equal(sentPipelines[1][0][0], "EVAL");
+    assert.equal(sentPipelines[1][0][2], "2");
+    assert.equal(sentPipelines[1][0][3], "karaoke:room:TEST99:meta");
+    assert.equal(sentPipelines[1][0][4], "karaoke:room:TEST99:requests");
 
     console.log("ok   api/night-room.js unit tests passed");
 })();

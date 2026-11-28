@@ -33,6 +33,8 @@ let hostRoomPollTimer = 0;
 let hostRoomSyncTimer = 0;
 let hostRoomSyncInflight = false;
 let hostRoomSyncQueued = false;
+let hostRoomDirty = false;
+let hostRoomSyncSeq = 0;
 
 const guestRoomState = {
     code: "",
@@ -210,6 +212,11 @@ function stopHostRoomPolling() {
     }
 }
 
+function markHostRoomDirty() {
+    hostRoomDirty = true;
+    hostRoomSyncSeq += 1;
+}
+
 function clearHostRoomLocalState() {
     stopHostRoomPolling();
     hostRoomState.code = "";
@@ -218,6 +225,8 @@ function clearHostRoomLocalState() {
     hostRoomState.declinedIds = [];
     hostRoomState.error = "";
     hostRoomState.lastSyncedAt = 0;
+    hostRoomDirty = false;
+    hostRoomSyncSeq += 1;
     hostRoomHandledIds.clear();
     hostRoomQueuedAckIds.clear();
     saveHostRoomSession();
@@ -251,10 +260,11 @@ function syncHostRoomLifecycle() {
 
 function scheduleHostRoomSync() {
     if (!hostRoomState.code || !hostRoomState.hostToken) return;
+    markHostRoomDirty();
     if (hostRoomSyncTimer) window.clearTimeout(hostRoomSyncTimer);
     hostRoomSyncTimer = window.setTimeout(() => {
         hostRoomSyncTimer = 0;
-        syncHostRoomNow();
+        syncHostRoomNow({ markDirty: false });
     }, 250);
 }
 
@@ -355,6 +365,8 @@ async function startHostRoom() {
         hostRoomState.pendingInbox = [];
         hostRoomState.declinedIds = [];
         hostRoomState.lastSyncedAt = Date.now();
+        hostRoomDirty = false;
+        hostRoomSyncSeq += 1;
         hostRoomHandledIds.clear();
         hostRoomQueuedAckIds.clear();
         saveHostRoomSession();
@@ -369,13 +381,21 @@ async function startHostRoom() {
     }
 }
 
-async function syncHostRoomNow() {
+async function syncHostRoomNow({ markDirty = true } = {}) {
     if (!hostRoomState.code || !hostRoomState.hostToken) return;
+    if (hostRoomSyncTimer) {
+        window.clearTimeout(hostRoomSyncTimer);
+        hostRoomSyncTimer = 0;
+    }
+    if (markDirty) {
+        markHostRoomDirty();
+    }
     if (hostRoomSyncInflight) {
         hostRoomSyncQueued = true;
         return;
     }
     hostRoomSyncInflight = true;
+    const attemptSeq = hostRoomSyncSeq;
     const ackBatch = Array.from(hostRoomQueuedAckIds);
     const activeCode = hostRoomState.code;
 
@@ -407,28 +427,36 @@ async function syncHostRoomNow() {
             return;
         }
         if (!res.ok) {
+            hostRoomDirty = true;
             hostRoomState.error = data.error || "Room sync paused — retrying automatically.";
             renderHostRoomControls();
             return;
         }
         for (const id of ackBatch) hostRoomQueuedAckIds.delete(id);
+        if (hostRoomSyncSeq === attemptSeq && hostRoomQueuedAckIds.size === 0) {
+            hostRoomDirty = false;
+        }
         hostRoomState.error = "";
         hostRoomState.lastSyncedAt = Date.now();
         processHostInbox(data.room?.pendingRequests || []);
     } catch {
+        hostRoomDirty = true;
         hostRoomState.error = "Connection hiccup — will retry sync shortly.";
         renderHostRoomControls();
     } finally {
         hostRoomSyncInflight = false;
         if (hostRoomSyncQueued && hostRoomState.code) {
             hostRoomSyncQueued = false;
-            syncHostRoomNow();
+            syncHostRoomNow({ markDirty: false });
         }
     }
 }
 
 async function pollHostRoom() {
     if (!hostRoomState.code || hostRoomSyncInflight) return;
+    if (hostRoomDirty || hostRoomQueuedAckIds.size > 0) {
+        return syncHostRoomNow({ markDirty: false });
+    }
     const activeCode = hostRoomState.code;
     try {
         const res = await fetch(`${ROOM_API_ENDPOINT}?code=${encodeURIComponent(activeCode)}`, {
@@ -447,7 +475,9 @@ async function pollHostRoom() {
             return;
         }
         if (!res.ok || !data.room) return;
-        hostRoomState.error = "";
+        if (!hostRoomDirty) {
+            hostRoomState.error = "";
+        }
         processHostInbox(data.room.pendingRequests || []);
     } catch {
         // Keep silent during transient network drops; next poll retries.

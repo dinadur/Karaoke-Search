@@ -96,13 +96,17 @@ function sanitizeQueueEntry(raw) {
     if (!raw || typeof raw !== "object") return null;
     const title = cleanText(raw.title, 140);
     if (!title) return null;
+    const artist = cleanText(raw.artist, 120);
+    const singer = cleanText(raw.singer, 40);
     const seconds = Number(raw.seconds);
     const waitMin = Number(raw.waitMin);
     return {
         uid: cleanText(raw.uid, 64),
         title,
-        artist: cleanText(raw.artist, 120),
-        singer: cleanText(raw.singer, 40),
+        artist,
+        singer,
+        singerKey: normalizeSingerKey(singer),
+        songKey: normalizeSongKey(title, artist),
         seconds: Number.isFinite(seconds) && seconds > 0 ? Math.min(3600, Math.round(seconds)) : 0,
         waitMin: Number.isFinite(waitMin) && waitMin >= 0 ? Math.min(999, Math.round(waitMin)) : 0,
         requestId: cleanText(raw.requestId, 64),
@@ -133,6 +137,12 @@ function sanitizeIdList(rawList, limit) {
         }
     }
     return out;
+}
+
+function stripInternalKeys(item) {
+    if (!item || typeof item !== "object") return item;
+    const { singerKey: _sk, songKey: _tk, ...pub } = item;
+    return pub;
 }
 
 function parseHgetallResult(raw) {
@@ -170,10 +180,10 @@ function toPublicRoom(meta, pendingRequests) {
         revision: Number(meta.revision) || 1,
         updatedAt: Number(meta.updatedAt) || 0,
         current: meta.current || null,
-        upNext: Array.isArray(meta.upNext) ? meta.upNext : [],
+        upNext: Array.isArray(meta.upNext) ? meta.upNext.map(stripInternalKeys) : [],
         sungCount: Number(meta.sungCount) || 0,
-        recentSung: Array.isArray(meta.recentSung) ? meta.recentSung : [],
-        pendingRequests: Array.isArray(pendingRequests) ? pendingRequests : [],
+        recentSung: Array.isArray(meta.recentSung) ? meta.recentSung.map(stripInternalKeys) : [],
+        pendingRequests: Array.isArray(pendingRequests) ? pendingRequests.map(stripInternalKeys) : [],
         declinedIds: Array.isArray(meta.declinedIds) ? meta.declinedIds : [],
     };
 }
@@ -184,6 +194,88 @@ function roomKeys(code) {
         reqKey: `karaoke:room:${code}:requests`,
     };
 }
+
+// Atomic check-and-insert Lua script executed inside Redis so concurrent guest
+// requests cannot bypass lock, inbox cap, duplicate, or per-singer limits.
+const SUBMIT_REQUEST_LUA = `
+local metaRaw = redis.call("GET", KEYS[1])
+if not metaRaw then
+    return {"not_found"}
+end
+local okMeta, meta = pcall(cjson.decode, metaRaw)
+if not okMeta or type(meta) ~= "table" then
+    return {"not_found"}
+end
+if meta.locked then
+    return {"locked"}
+end
+local reqId = ARGV[1]
+local reqJson = ARGV[2]
+local singerKey = ARGV[3]
+local songKey = ARGV[4]
+local maxPending = tonumber(ARGV[5]) or 50
+local ttlSec = tonumber(ARGV[6]) or 86400
+
+local function cleanLower(s)
+    if type(s) ~= "string" then return "" end
+    s = string.gsub(s, "%s+", " ")
+    s = string.gsub(s, "^%s+", "")
+    s = string.gsub(s, "%s+$", "")
+    return string.lower(s)
+end
+
+local function itemSingerKey(item)
+    if type(item.singerKey) == "string" and item.singerKey ~= "" then
+        return item.singerKey
+    end
+    return cleanLower(item.singer)
+end
+
+local function itemSongKey(item)
+    if type(item.songKey) == "string" and item.songKey ~= "" then
+        return item.songKey
+    end
+    return cleanLower(item.title) .. "||" .. cleanLower(item.artist)
+end
+
+local vals = redis.call("HVALS", KEYS[2])
+if #vals >= maxPending then
+    return {"inbox_full"}
+end
+
+local activeCount = 0
+if type(meta.upNext) == "table" then
+    for _, item in ipairs(meta.upNext) do
+        if type(item) == "table" and itemSingerKey(item) == singerKey then
+            activeCount = activeCount + 1
+            if itemSongKey(item) == songKey then
+                return {"duplicate"}
+            end
+        end
+    end
+end
+
+for _, raw in ipairs(vals) do
+    local okReq, item = pcall(cjson.decode, raw)
+    if okReq and type(item) == "table" and itemSingerKey(item) == singerKey then
+        activeCount = activeCount + 1
+        if itemSongKey(item) == songKey then
+            return {"duplicate"}
+        end
+    end
+end
+
+local maxPerSinger = tonumber(meta.maxPerSinger) or 0
+if maxPerSinger > 0 and activeCount >= maxPerSinger then
+    return {"capped", tostring(maxPerSinger)}
+end
+
+redis.call("HSET", KEYS[2], reqId, reqJson)
+redis.call("EXPIRE", KEYS[2], ttlSec)
+redis.call("EXPIRE", KEYS[1], ttlSec)
+local allReqs = redis.call("HGETALL", KEYS[2])
+return {"ok", metaRaw, allReqs}
+`;
 
 function createUpstashStore({ url, token, fetchImpl = fetch }) {
     const baseUrl = String(url || "").replace(/\/+$/, "");
@@ -258,15 +350,34 @@ function createUpstashStore({ url, token, fetchImpl = fetch }) {
             return { meta, pendingRequests: parseHgetallResult(reqRaw) };
         },
 
-        async addRequest(code, reqObj, ttlSec = ROOM_TTL_SECONDS) {
+        async submitRequest(code, reqObj, { singerKey, songKey, maxPending = MAX_PENDING_REQUESTS, ttlSec = ROOM_TTL_SECONDS }) {
             const { metaKey, reqKey } = roomKeys(code);
-            const results = await pipeline([
-                ["HSET", reqKey, reqObj.id, JSON.stringify(reqObj)],
-                ["EXPIRE", reqKey, String(ttlSec)],
-                ["EXPIRE", metaKey, String(ttlSec)],
-                ["HGETALL", reqKey],
-            ]);
-            return parseHgetallResult(results[3]);
+            const [res] = await pipeline([[
+                "EVAL",
+                SUBMIT_REQUEST_LUA,
+                "2",
+                metaKey,
+                reqKey,
+                reqObj.id,
+                JSON.stringify(reqObj),
+                singerKey,
+                songKey,
+                String(maxPending),
+                String(ttlSec),
+            ]]);
+            if (!Array.isArray(res) || !res.length) {
+                throw new Error("Invalid Upstash EVAL response");
+            }
+            const status = res[0];
+            if (status === "capped") {
+                return { status, maxPerSinger: clampMaxPerSinger(res[1]) };
+            }
+            if (status !== "ok") {
+                return { status };
+            }
+            const meta = JSON.parse(res[1]);
+            const pendingRequests = parseHgetallResult(res[2]);
+            return { status: "ok", meta, pendingRequests };
         },
 
         async deleteRoom(code) {
@@ -326,12 +437,29 @@ function createMemoryStore({ now = () => Date.now() } = {}) {
             rooms.set(code, nextEntry);
             return { meta, pendingRequests: listPending(nextEntry) };
         },
-        async addRequest(code, reqObj, ttlSec = ROOM_TTL_SECONDS) {
+        async submitRequest(code, reqObj, { singerKey, songKey, maxPending = MAX_PENDING_REQUESTS, ttlSec = ROOM_TTL_SECONDS }) {
+            // Executed synchronously without awaiting so concurrent submissions cannot interleave.
             const entry = getLive(code);
-            if (!entry) return [];
+            if (!entry) return { status: "not_found" };
+            const meta = JSON.parse(entry.meta);
+            if (meta.locked) return { status: "locked" };
+            const pending = listPending(entry);
+            if (pending.length >= maxPending) return { status: "inbox_full" };
+
+            const upNext = Array.isArray(meta.upNext) ? meta.upNext : [];
+            const matchSinger = (item) => (item.singerKey || normalizeSingerKey(item.singer)) === singerKey;
+            const matchSong = (item) => (item.songKey || normalizeSongKey(item.title, item.artist)) === songKey;
+            const singerEntries = [...upNext.filter(matchSinger), ...pending.filter(matchSinger)];
+            if (singerEntries.some(matchSong)) return { status: "duplicate" };
+
+            const maxPerSinger = clampMaxPerSinger(meta.maxPerSinger);
+            if (maxPerSinger > 0 && singerEntries.length >= maxPerSinger) {
+                return { status: "capped", maxPerSinger };
+            }
+
             entry.requests.set(reqObj.id, JSON.stringify(reqObj));
             entry.expiresAt = now() + ttlSec * 1000;
-            return listPending(entry);
+            return { status: "ok", meta, pendingRequests: listPending(entry) };
         },
         async deleteRoom(code) {
             rooms.delete(code);
@@ -512,6 +640,77 @@ function createRoomHandler({ store, env = process.env, fetchImpl = fetch, now = 
                 return sendJson(res, 400, { configured: true, error: "Valid room code is required." });
             }
 
+            if (action === "request") {
+                const singer = cleanText(body?.singer, 40);
+                const title = cleanText(body?.title, 140);
+                const artist = cleanText(body?.artist, 120);
+                if (!singer) {
+                    return sendJson(res, 400, { configured: true, error: "Please enter your name first." });
+                }
+                if (!title) {
+                    return sendJson(res, 400, { configured: true, error: "Song title is required." });
+                }
+
+                const singerKey = normalizeSingerKey(singer);
+                const songKey = normalizeSongKey(title, artist);
+                const seconds = Number(body?.seconds);
+                const bpm = Number(body?.bpm);
+                const reqObj = {
+                    id: `req_${crypto.randomBytes(6).toString("hex")}`,
+                    singer,
+                    title,
+                    artist,
+                    singerKey,
+                    songKey,
+                    songId: cleanText(body?.songId, 160),
+                    seconds: Number.isFinite(seconds) && seconds > 0 ? Math.min(3600, Math.round(seconds)) : 0,
+                    bpm: Number.isFinite(bpm) && bpm > 0 ? Math.min(300, Math.round(bpm)) : 0,
+                    referenceKey: cleanText(body?.referenceKey, 24),
+                    custom: Boolean(body?.custom),
+                    createdAt: now(),
+                };
+
+                const outcome = await activeStore.submitRequest(code, reqObj, {
+                    singerKey,
+                    songKey,
+                    maxPending: MAX_PENDING_REQUESTS,
+                    ttlSec: ROOM_TTL_SECONDS,
+                });
+                if (outcome.status === "not_found") {
+                    return sendJson(res, 404, { configured: true, error: "Room not found or expired." });
+                }
+                if (outcome.status === "locked") {
+                    return sendJson(res, 403, {
+                        configured: true,
+                        error: "Requests are currently paused by the host.",
+                    });
+                }
+                if (outcome.status === "inbox_full") {
+                    return sendJson(res, 429, {
+                        configured: true,
+                        error: "The request inbox is full right now — try again in a moment.",
+                    });
+                }
+                if (outcome.status === "duplicate") {
+                    return sendJson(res, 409, {
+                        configured: true,
+                        error: "You already requested that song!",
+                    });
+                }
+                if (outcome.status === "capped") {
+                    const max = outcome.maxPerSinger || 1;
+                    return sendJson(res, 429, {
+                        configured: true,
+                        error: `You already have ${max} ${max === 1 ? "song" : "songs"} in line — wait until one plays to request another.`,
+                    });
+                }
+                return sendJson(res, 201, {
+                    configured: true,
+                    request: stripInternalKeys(reqObj),
+                    room: toPublicRoom(outcome.meta, outcome.pendingRequests),
+                });
+            }
+
             const record = await activeStore.getRoom(code);
             if (!record) {
                 return sendJson(res, 404, { configured: true, error: "Room not found or expired." });
@@ -557,78 +756,6 @@ function createRoomHandler({ store, env = process.env, fetchImpl = fetch, now = 
                 return sendJson(res, 200, {
                     configured: true,
                     room: toPublicRoom(synced.meta, synced.pendingRequests),
-                });
-            }
-
-            if (action === "request") {
-                if (record.meta.locked) {
-                    return sendJson(res, 403, {
-                        configured: true,
-                        error: "Requests are currently paused by the host.",
-                    });
-                }
-
-                const singer = cleanText(body?.singer, 40);
-                const title = cleanText(body?.title, 140);
-                const artist = cleanText(body?.artist, 120);
-                if (!singer) {
-                    return sendJson(res, 400, { configured: true, error: "Please enter your name first." });
-                }
-                if (!title) {
-                    return sendJson(res, 400, { configured: true, error: "Song title is required." });
-                }
-                if (record.pendingRequests.length >= MAX_PENDING_REQUESTS) {
-                    return sendJson(res, 429, {
-                        configured: true,
-                        error: "The request inbox is full right now — try again in a moment.",
-                    });
-                }
-
-                const singerKey = normalizeSingerKey(singer);
-                const songKey = normalizeSongKey(title, artist);
-                const activeUpNext = Array.isArray(record.meta.upNext) ? record.meta.upNext : [];
-                const singerQueueEntries = activeUpNext.filter((item) => normalizeSingerKey(item.singer) === singerKey);
-                const singerPendingEntries = record.pendingRequests.filter((item) => normalizeSingerKey(item.singer) === singerKey);
-
-                const duplicate = [...singerQueueEntries, ...singerPendingEntries].some(
-                    (item) => normalizeSongKey(item.title, item.artist) === songKey
-                );
-                if (duplicate) {
-                    return sendJson(res, 409, {
-                        configured: true,
-                        error: "You already requested that song!",
-                    });
-                }
-
-                const maxPerSinger = clampMaxPerSinger(record.meta.maxPerSinger);
-                const activeCount = singerQueueEntries.length + singerPendingEntries.length;
-                if (maxPerSinger > 0 && activeCount >= maxPerSinger) {
-                    return sendJson(res, 429, {
-                        configured: true,
-                        error: `You already have ${maxPerSinger} ${maxPerSinger === 1 ? "song" : "songs"} in line — wait until one plays to request another.`,
-                    });
-                }
-
-                const seconds = Number(body?.seconds);
-                const bpm = Number(body?.bpm);
-                const reqObj = {
-                    id: `req_${crypto.randomBytes(6).toString("hex")}`,
-                    singer,
-                    title,
-                    artist,
-                    songId: cleanText(body?.songId, 160),
-                    seconds: Number.isFinite(seconds) && seconds > 0 ? Math.min(3600, Math.round(seconds)) : 0,
-                    bpm: Number.isFinite(bpm) && bpm > 0 ? Math.min(300, Math.round(bpm)) : 0,
-                    referenceKey: cleanText(body?.referenceKey, 24),
-                    custom: Boolean(body?.custom),
-                    createdAt: now(),
-                };
-
-                const nextPending = await activeStore.addRequest(code, reqObj, ROOM_TTL_SECONDS);
-                return sendJson(res, 201, {
-                    configured: true,
-                    request: reqObj,
-                    room: toPublicRoom(record.meta, nextPending),
                 });
             }
 

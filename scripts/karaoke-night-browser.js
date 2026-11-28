@@ -387,19 +387,43 @@ window.__markYtReady = () => {
         assert.equal(await cardReqBtn.textContent(), "Request");
         await cardReqBtn.click();
         await guestPage.waitForFunction(() => document.querySelector(".add-button")?.textContent === "Requested");
+        await page.evaluate(() => pollHostRoom());
+        await page.waitForFunction(() => nightState.queue.some((item) => item.singer === "Sam" && item.title === "Bohemian Rhapsody"));
 
         // Switch host to Approve-first mode and verify inbox approve flow
         await page.check("#nightRoomApprovalToggle");
-        await page.waitForTimeout(100);
+        await page.waitForFunction(() => !hostRoomDirty && !hostRoomSyncInflight);
         await guestPage.click("#guestBannerOpenButton");
         await guestPage.waitForSelector("#guestRoomPanel:not([hidden])");
         await guestPage.fill("#guestSongSearch", "Robyn - Dancing On My Own");
         await guestPage.locator("#guestSearchResults .night-search-custom button").click();
         await page.evaluate(() => pollHostRoom());
         await page.waitForSelector("#nightRoomInbox:not([hidden])");
-        assert.match(await page.locator("#nightRoomInboxList").textContent(), /Dancing On My Own/);
-        await page.locator("#nightRoomInboxList button", { hasText: "Approve" }).first().click();
+        const customInboxRow = page.locator("#nightRoomInboxList .night-inbox-item", { hasText: "Dancing On My Own" });
+        await customInboxRow.waitFor({ state: "visible" });
+        await customInboxRow.locator("button", { hasText: "Approve" }).click();
         await page.waitForFunction(() => nightState.queue.some((item) => item.title === "Dancing On My Own"));
+        await page.waitForFunction(() => !hostRoomDirty && !hostRoomSyncInflight);
+
+        // A failed host write (e.g. toggling Lock requests during a transient outage) must retry on the next poll
+        let failNextHostSync = true;
+        const failOnceRoute = async (route) => {
+            if (failNextHostSync && route.request().method() === "POST") {
+                failNextHostSync = false;
+                return route.fulfill({ status: 502, contentType: "application/json", body: JSON.stringify({ configured: true, error: "Temporary outage" }) });
+            }
+            return route.fallback();
+        };
+        await page.route("**/api/night-room*", failOnceRoute);
+        await page.check("#nightRoomLockToggle");
+        await page.waitForFunction(() => hostRoomDirty && hostRoomState.error.length > 0);
+        await page.evaluate(() => pollHostRoom());
+        await page.waitForFunction(() => !hostRoomDirty && !hostRoomState.error);
+        await guestPage.evaluate(() => pollGuestRoom());
+        await guestPage.waitForFunction(() => Boolean(guestRoomState.room?.locked));
+        await page.unroute("**/api/night-room*", failOnceRoute);
+        await page.uncheck("#nightRoomLockToggle");
+        await page.waitForFunction(() => !hostRoomDirty && !hostRoomSyncInflight);
 
         // Accessibility & 320px reflow check on Guest Room panel
         await guestPage.addScriptTag({ path: require.resolve("axe-core/axe.min.js") });
