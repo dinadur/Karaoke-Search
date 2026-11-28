@@ -26,6 +26,9 @@ function readRepertoire() {
             comfort: [1, 2, 3, 4, 5].includes(entry.comfort) ? entry.comfort : null,
             key: typeof entry.key === "string" ? entry.key.slice(0, 40) : "",
             notes: typeof entry.notes === "string" ? entry.notes.slice(0, 1000) : "",
+            ...(Number.isFinite(Number(entry.updatedAt)) && Number(entry.updatedAt) > 0
+                ? { updatedAt: Math.floor(Number(entry.updatedAt)) }
+                : {}),
         }]));
     } catch { return {}; }
 }
@@ -153,6 +156,9 @@ function sanitizeRepertoireMap(raw) {
             comfort: [1, 2, 3, 4, 5].includes(entry.comfort) ? entry.comfort : null,
             key: typeof entry.key === "string" ? entry.key.slice(0, 40) : "",
             notes: typeof entry.notes === "string" ? entry.notes.slice(0, 1000) : "",
+            ...(Number.isFinite(Number(entry.updatedAt)) && Number(entry.updatedAt) > 0
+                ? { updatedAt: Math.floor(Number(entry.updatedAt)) }
+                : {}),
         };
     }
     return cleaned;
@@ -208,13 +214,40 @@ async function importRepertoireBackup(file) {
 }
 
 function persistRepertoire(next) {
-    try { localStorage.setItem(REPERTOIRE_STORAGE_KEY, JSON.stringify({ songs: next, importedFavorites: [...migratedFavoriteIds] })); }
+    const prev = repertoire || {};
+    const isRemoteApply = typeof accountApplyingRemote !== "undefined" && accountApplyingRemote;
+    const nowMs = Date.now();
+    const stampedNext = {};
+    const addedOrUpdatedIds = [];
+    const removedIds = [];
+
+    for (const [id, entry] of Object.entries(next || {})) {
+        const prevEntry = prev[id];
+        const changed = !prevEntry
+            || prevEntry.status !== entry.status
+            || prevEntry.comfort !== entry.comfort
+            || prevEntry.key !== entry.key
+            || prevEntry.notes !== entry.notes;
+        if (!isRemoteApply && changed) {
+            stampedNext[id] = { ...entry, updatedAt: nowMs };
+            addedOrUpdatedIds.push(id);
+        } else {
+            stampedNext[id] = entry;
+        }
+    }
+    if (!isRemoteApply) {
+        for (const id of Object.keys(prev)) {
+            if (!(id in stampedNext)) removedIds.push(id);
+        }
+    }
+
+    try { localStorage.setItem(REPERTOIRE_STORAGE_KEY, JSON.stringify({ songs: stampedNext, importedFavorites: [...migratedFavoriteIds] })); }
     catch {
         showSnackbar("Couldn’t save on this device. Please free some browser storage and try again.");
         personalEl("repertoireError").textContent = "Couldn't save on this device. Your edits are still here; free some browser storage and try again.";
         return false;
     }
-    repertoire = next;
+    repertoire = stampedNext;
     updateRepertoireButtons();
     state.cachedDiscoverShelves = null;
     // Preserve the focused save button and open groups when membership is unchanged.
@@ -223,6 +256,9 @@ function persistRepertoire(next) {
         const song = FAVORITE_BUTTON_SONGS.get(button);
         if (song) updateFavoriteButton(button, song);
     });
+    if (!isRemoteApply && (addedOrUpdatedIds.length || removedIds.length) && typeof accountNotifyLocalChange === "function") {
+        accountNotifyLocalChange("repertoire", { addedOrUpdatedIds, removedIds });
+    }
     return true;
 }
 

@@ -379,11 +379,14 @@
             let loadGeneration = 0;
             let readyHandshakeTimer = 0;
 
-            function buildEmbedUrl(videoId, autoplay, widgetId) {
+            function buildEmbedUrl(videoId, autoplay, widgetId, startSeconds) {
                 const origin = window.location.origin && window.location.origin !== "null"
                     ? `&origin=${encodeURIComponent(window.location.origin)}`
                     : "";
-                return `https://www.youtube-nocookie.com/embed/${videoId}?rel=0&modestbranding=1&enablejsapi=1${origin}&widgetid=${widgetId}${autoplay ? "&autoplay=1" : ""}`;
+                const start = Number.isFinite(startSeconds) && startSeconds > 2
+                    ? `&start=${Math.floor(startSeconds)}`
+                    : "";
+                return `https://www.youtube-nocookie.com/embed/${videoId}?rel=0&modestbranding=1&enablejsapi=1${origin}&widgetid=${widgetId}${start}${autoplay ? "&autoplay=1" : ""}`;
             }
 
             function postToPlayer(message) {
@@ -574,7 +577,7 @@
                         playerReady = false;
                         hadPendingStateChange = false;
                         stageFrame.dataset.trackKey = trackKey;
-                        stageFrame.src = buildEmbedUrl(videoId, isPlaying, loadGeneration);
+                        stageFrame.src = buildEmbedUrl(videoId, isPlaying, loadGeneration, Number(payload?.startSeconds) || 0);
                     } else if (desiredPlayingState !== isPlaying) {
                         desiredPlayingState = isPlaying;
                         if (playerReady) {

@@ -25,6 +25,7 @@ let nightPlayerReady = false;
 let nightHadPendingStateChange = false;
 let nightFrameLoadGen = 0;
 let nightReadyHandshakeTimer = 0;
+let nightCurrentTimeSec = 0;
 let nightLookupToken = 0;
 
 function buildNightEmbedUrl(videoId, autoplay, widgetId) {
@@ -82,6 +83,7 @@ function resetNightEmbedState() {
     nightFrameLoaded = false;
     nightPlayerReady = false;
     nightHadPendingStateChange = false;
+    nightCurrentTimeSec = 0;
 }
 
 const nightState = {
@@ -367,6 +369,7 @@ function buildStagePayload() {
             }
             : null,
         playing: Boolean(nightState.playing && current && current.youtubeId),
+        startSeconds: nightCurrentTimeSec > 0 ? Math.floor(nightCurrentTimeSec) : 0,
         lookupStatus: nightState.lookupStatus || "",
         upNext,
         room: typeof getHostRoomStageInfo === "function" ? getHostRoomStageInfo() : null,
@@ -1113,6 +1116,7 @@ function renderNightStage() {
                 nightFrameLoaded = false;
                 nightPlayerReady = false;
                 nightHadPendingStateChange = false;
+                nightCurrentTimeSec = 0;
                 frame.src = buildNightEmbedUrl(current.youtubeId, isPlaying, nightFrameLoadGen);
             } else if (nightDesiredPlaying !== isPlaying) {
                 nightDesiredPlaying = isPlaying;
@@ -1438,8 +1442,13 @@ function bindKaraokeNight() {
                 return;
             }
         }
-        if (!data || data.event !== "onReady") return;
+        if (!data || typeof data !== "object") return;
         if (data.id != null && Number(data.id) !== nightFrameLoadGen) return;
+        if ((data.event === "infoDelivery" || data.event === "initialDelivery") && data.info && Number.isFinite(Number(data.info.currentTime))) {
+            nightCurrentTimeSec = Math.max(0, Number(data.info.currentTime));
+            return;
+        }
+        if (data.event !== "onReady") return;
         nightPlayerReady = true;
         stopNightReadyHandshake();
         if (nightHadPendingStateChange || nightDesiredPlaying !== nightAppliedPlaying) {

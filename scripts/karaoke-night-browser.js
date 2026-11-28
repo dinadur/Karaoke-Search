@@ -184,6 +184,19 @@ window.__markYtReady = () => {
         await hostYtFrame.waitForFunction(() => window.__ytCommandsAfterReady.includes("playVideo"));
         await previewStage.close();
 
+        // Popping out TV Stage mid-song must hand off the host player's current timestamp
+        await hostYtFrame.evaluate(() => {
+            window.parent.postMessage(JSON.stringify({ event: "infoDelivery", id: window.__ytListeningId, info: { currentTime: 47.6 } }), "*");
+        });
+        await page.waitForFunction(() => nightCurrentTimeSec >= 47);
+        await page.evaluate(() => broadcastStageState());
+        const midSongStage = await context.newPage();
+        await midSongStage.route(/^https:\/\/www\.youtube-nocookie\.com\//, mockYoutubeEmbed);
+        midSongStage.on("pageerror", (error) => errors.push(error.message));
+        await midSongStage.goto(BASE.replace("karaoke_explorer.html", "karaoke_stage.html"));
+        await midSongStage.waitForFunction(() => document.getElementById("stageFrame")?.src.includes("start=47"));
+        await midSongStage.close();
+
         // Switch to 2nd ranked YouTube karaoke version
         await page.locator("#nightCandidates .night-candidate").nth(1).click();
         await page.waitForFunction(() => document.getElementById("nightVideoFrame").src.includes("KaraFunBR02"));
