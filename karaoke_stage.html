@@ -267,25 +267,101 @@
             const fullscreenButton = document.getElementById("fullscreenButton");
 
             let loadedTrackKey = "";
-            let lastPlayingState = null;
+            let appliedPlayingState = null;
+            let desiredPlayingState = null;
+            let frameLoaded = false;
+            let playerReady = false;
+            let hadPendingStateChange = false;
+            let loadGeneration = 0;
+            let readyHandshakeTimer = 0;
 
-            function buildEmbedUrl(videoId) {
+            function buildEmbedUrl(videoId, autoplay, widgetId) {
                 const origin = window.location.origin && window.location.origin !== "null"
                     ? `&origin=${encodeURIComponent(window.location.origin)}`
                     : "";
-                return `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&enablejsapi=1${origin}`;
+                return `https://www.youtube-nocookie.com/embed/${videoId}?rel=0&modestbranding=1&enablejsapi=1${origin}&widgetid=${widgetId}${autoplay ? "&autoplay=1" : ""}`;
             }
 
-            function sendPlayerCommand(func) {
+            function postToPlayer(message) {
                 try {
                     stageFrame.contentWindow?.postMessage(
-                        JSON.stringify({ event: "command", func, args: [] }),
+                        JSON.stringify(message),
                         "https://www.youtube-nocookie.com"
                     );
                 } catch {
                     // Ignore detached or cross-origin frame errors.
                 }
             }
+
+            function sendPlayerCommand(func) {
+                postToPlayer({ event: "command", func, args: [] });
+            }
+
+            function stopReadyHandshake() {
+                if (readyHandshakeTimer) {
+                    window.clearInterval(readyHandshakeTimer);
+                    readyHandshakeTimer = 0;
+                }
+            }
+
+            function startReadyHandshake(generation) {
+                stopReadyHandshake();
+                let attempts = 0;
+                const ping = () => {
+                    if (playerReady || generation !== loadGeneration || !loadedTrackKey) {
+                        stopReadyHandshake();
+                        return;
+                    }
+                    postToPlayer({ event: "listening", id: generation, channel: "widget" });
+                    attempts += 1;
+                    if (attempts >= 40) stopReadyHandshake();
+                };
+                ping();
+                readyHandshakeTimer = window.setInterval(ping, 250);
+            }
+
+            function resetPlayerState() {
+                stopReadyHandshake();
+                loadGeneration += 1;
+                loadedTrackKey = "";
+                appliedPlayingState = null;
+                desiredPlayingState = null;
+                frameLoaded = false;
+                playerReady = false;
+                hadPendingStateChange = false;
+            }
+
+            stageFrame.addEventListener("load", () => {
+                if (!loadedTrackKey) return;
+                frameLoaded = true;
+                startReadyHandshake(loadGeneration);
+                if (hadPendingStateChange || desiredPlayingState !== appliedPlayingState) {
+                    sendPlayerCommand(desiredPlayingState ? "playVideo" : "pauseVideo");
+                }
+            });
+
+            window.addEventListener("message", (event) => {
+                if (!loadedTrackKey || !frameLoaded) return;
+                if (event.origin !== "https://www.youtube-nocookie.com") return;
+                if (event.source !== stageFrame.contentWindow) return;
+                let data = event.data;
+                if (typeof data === "string") {
+                    try {
+                        data = JSON.parse(data);
+                    } catch {
+                        return;
+                    }
+                }
+                if (!data || data.event !== "onReady") return;
+                if (data.id != null && Number(data.id) !== loadGeneration) return;
+                playerReady = true;
+                stopReadyHandshake();
+                if (hadPendingStateChange || desiredPlayingState !== appliedPlayingState) {
+                    appliedPlayingState = desiredPlayingState;
+                    hadPendingStateChange = false;
+                    sendPlayerCommand(desiredPlayingState ? "playVideo" : "pauseVideo");
+                }
+            });
 
             fullscreenButton.addEventListener("click", () => {
                 if (!document.fullscreenElement) {
@@ -305,7 +381,6 @@
                 const videoId = current && VIDEO_ID_PATTERN.test(String(current.youtubeId || "")) ? current.youtubeId : "";
                 const trackKey = current && videoId ? `${current.uid || ""}:${videoId}` : "";
                 const isPlaying = Boolean(payload?.playing);
-                const keepPausedPlayer = Boolean(trackKey && loadedTrackKey === trackKey);
 
                 if (current) {
                     headerNow.hidden = false;
@@ -318,34 +393,49 @@
                     headerIdle.hidden = false;
                 }
 
-                if (trackKey && (isPlaying || keepPausedPlayer)) {
+                if (trackKey) {
                     interstitial.hidden = true;
                     stageFrame.hidden = false;
                     if (loadedTrackKey !== trackKey) {
+                        stopReadyHandshake();
+                        loadGeneration += 1;
                         loadedTrackKey = trackKey;
-                        lastPlayingState = true;
+                        appliedPlayingState = isPlaying;
+                        desiredPlayingState = isPlaying;
+                        frameLoaded = false;
+                        playerReady = false;
+                        hadPendingStateChange = false;
                         stageFrame.dataset.trackKey = trackKey;
-                        stageFrame.src = buildEmbedUrl(videoId);
-                    } else if (lastPlayingState !== isPlaying) {
-                        lastPlayingState = isPlaying;
-                        sendPlayerCommand(isPlaying ? "playVideo" : "pauseVideo");
+                        stageFrame.src = buildEmbedUrl(videoId, isPlaying, loadGeneration);
+                    } else if (desiredPlayingState !== isPlaying) {
+                        desiredPlayingState = isPlaying;
+                        if (playerReady) {
+                            appliedPlayingState = isPlaying;
+                            hadPendingStateChange = false;
+                            sendPlayerCommand(isPlaying ? "playVideo" : "pauseVideo");
+                        } else {
+                            hadPendingStateChange = true;
+                            if (frameLoaded) {
+                                sendPlayerCommand(isPlaying ? "playVideo" : "pauseVideo");
+                            }
+                        }
                     }
                 } else {
                     stageFrame.hidden = true;
                     if (loadedTrackKey) {
-                        loadedTrackKey = "";
-                        lastPlayingState = null;
+                        resetPlayerState();
                         delete stageFrame.dataset.trackKey;
                         stageFrame.src = "about:blank";
                     }
                     interstitial.hidden = false;
                     if (current) {
-                        interstitialEyebrow.textContent = "Get ready on stage";
+                        interstitialEyebrow.textContent = "Now performing";
                         interstitialSinger.textContent = current.singer || "Open mic";
                         interstitialSong.textContent = current.title || "";
-                        interstitialSub.textContent = current.artist
-                            ? `${current.artist} · Waiting for host to start track`
-                            : "Waiting for host to start track";
+                        interstitialSub.textContent = payload?.lookupStatus
+                            || (current.artist
+                                ? `${current.artist} · Pick a YouTube karaoke track on the host screen`
+                                : "Pick a YouTube karaoke track on the host screen");
                     } else if (upNext.length) {
                         interstitialEyebrow.textContent = "Up next";
                         interstitialSinger.textContent = upNext[0].singer || "Open mic";
