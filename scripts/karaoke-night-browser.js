@@ -309,10 +309,15 @@ window.__markYtReady = () => {
         const secondTrackKey = await stagePage.locator("#stageFrame").getAttribute("data-track-key");
         assert.ok(secondTrackKey.endsWith(":SingKingDQ1") && secondTrackKey !== initialTrackKey);
         // Simulate playback advancing on TV Stage while TV-only audio is active, then close TV Stage
-        const stageFrameHandle = await stagePage.locator("#stageFrame").elementHandle();
-        const stageYtFrame2 = await stageFrameHandle.contentFrame();
+        const expectedWidgetParam = await stagePage.evaluate(() => new URL(document.getElementById("stageFrame").src).searchParams.get("widgetid"));
+        let stageYtFrame2 = null;
+        for (let attempt = 0; attempt < 60; attempt++) {
+            stageYtFrame2 = stagePage.frames().find((f) => f.url().includes(`widgetid=${expectedWidgetParam}`));
+            if (stageYtFrame2) break;
+            await stagePage.waitForTimeout(50);
+        }
         assert.ok(stageYtFrame2, "Second singer TV iframe should be mounted");
-        await stageYtFrame2.waitForFunction(() => window.__ytListeningId >= 2);
+        await stageYtFrame2.waitForFunction((expectedId) => window.__ytListeningId === expectedId, Number(expectedWidgetParam));
         await stageYtFrame2.evaluate(() => window.__markYtReady());
         await stageYtFrame2.evaluate(() => {
             window.parent.postMessage(JSON.stringify({ event: "infoDelivery", id: window.__ytListeningId, info: { currentTime: 83.2, playerState: 1 } }), "*");
