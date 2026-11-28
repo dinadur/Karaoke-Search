@@ -34,6 +34,7 @@ let accountApplyingRemote = false;
 let accountBound = false;
 let accountGsiPromise = null;
 let accountGsiRenderedClientId = "";
+let accountSessionChecked = false;
 
 function accountEl(id) {
     return document.getElementById(id);
@@ -56,6 +57,7 @@ function readAccountMeta() {
                     : {},
                 setlistUpdatedAt: Number(parsed.setlistUpdatedAt) || 0,
                 prefsUpdatedAt: Number(parsed.prefsUpdatedAt) || 0,
+                pendingLogout: Boolean(parsed.pendingLogout),
             };
         }
     } catch {
@@ -66,6 +68,7 @@ function readAccountMeta() {
         savedSetlistTombstones: {},
         setlistUpdatedAt: 0,
         prefsUpdatedAt: 0,
+        pendingLogout: false,
     };
 }
 
@@ -489,12 +492,33 @@ async function syncAccountNow({ allowConflictRetry = true } = {}) {
 
 async function fetchAccountSession({ mergeRemote = true } = {}) {
     try {
+        const meta = readAccountMeta();
+        if (meta.pendingLogout) {
+            const logoutRes = await fetch(ACCOUNT_API_ENDPOINT, {
+                method: "POST",
+                credentials: "same-origin",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "logout" }),
+            });
+            if (!logoutRes.ok) {
+                accountState.signedIn = false;
+                accountState.user = null;
+                accountState.revision = 0;
+                accountState.statusText = "Signed out locally — server sign-out will finish when back online.";
+                renderAccountUi();
+                return;
+            }
+            meta.pendingLogout = false;
+            writeAccountMeta(meta);
+        }
+
         const res = await fetch(ACCOUNT_API_ENDPOINT, {
             cache: "no-store",
             credentials: "same-origin",
         });
         if (!res.ok) return;
         const data = await res.json();
+        accountSessionChecked = true;
         accountState.configured = Boolean(data.configured);
         accountState.googleConfigured = Boolean(data.googleConfigured ?? data.configured);
         accountState.storageConfigured = Boolean(data.storageConfigured ?? data.configured);
@@ -553,6 +577,12 @@ async function handleGoogleCredentialResponse(response) {
             return;
         }
 
+        const meta = readAccountMeta();
+        if (meta.pendingLogout) {
+            meta.pendingLogout = false;
+            writeAccountMeta(meta);
+        }
+        accountSessionChecked = true;
         accountState.signedIn = true;
         accountState.user = data.user;
         const remoteRecord = data.record || null;
@@ -624,25 +654,37 @@ async function signOutAccount() {
         window.clearTimeout(accountSyncTimer);
         accountSyncTimer = 0;
     }
+    let serverSignedOut = false;
     try {
-        await fetch(ACCOUNT_API_ENDPOINT, {
+        const res = await fetch(ACCOUNT_API_ENDPOINT, {
             method: "POST",
             credentials: "same-origin",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ action: "logout" }),
         });
+        serverSignedOut = Boolean(res.ok);
     } catch {
-        // Proceed with local sign-out even if offline.
+        serverSignedOut = false;
     }
+    const meta = readAccountMeta();
+    meta.pendingLogout = !serverSignedOut;
+    writeAccountMeta(meta);
+
     accountState.signedIn = false;
     accountState.user = null;
     accountState.revision = 0;
     accountState.dirty = false;
     accountState.error = "";
-    accountState.statusText = "Signed out. Your saved songs remain on this device.";
+    accountState.statusText = serverSignedOut
+        ? "Signed out. Your saved songs remain on this device."
+        : "Signed out locally — server sign-out will finish when back online.";
     accountGsiRenderedClientId = "";
     renderAccountUi();
-    showSnackbar("Signed out — local saved songs kept on this device");
+    showSnackbar(
+        serverSignedOut
+            ? "Signed out — local saved songs kept on this device"
+            : "Signed out locally — will finish signing out once back online"
+    );
 }
 
 async function deleteCloudAccountCopy() {
@@ -658,6 +700,11 @@ async function deleteCloudAccountCopy() {
             accountState.error = "Couldn’t delete cloud data right now. Try again.";
             renderAccountUi();
             return;
+        }
+        const meta = readAccountMeta();
+        if (meta.pendingLogout) {
+            meta.pendingLogout = false;
+            writeAccountMeta(meta);
         }
         accountState.signedIn = false;
         accountState.user = null;
@@ -760,8 +807,8 @@ async function openAccountDialog() {
     if (more) more.open = false;
     const dialog = accountEl("accountDialog");
     if (!dialog) return;
-    if (!accountState.configured && !accountState.signedIn) {
-        await fetchAccountSession({ mergeRemote: false });
+    if (!accountSessionChecked || readAccountMeta().pendingLogout || (!accountState.configured && !accountState.signedIn)) {
+        await fetchAccountSession({ mergeRemote: true });
     }
     renderAccountUi();
     if (!dialog.open && typeof dialog.showModal === "function") {
@@ -787,17 +834,23 @@ function bindAccountSync() {
     accountEl("accountDeleteCloudButton")?.addEventListener("click", deleteCloudAccountCopy);
 
     window.addEventListener("online", () => {
-        if (accountState.signedIn && accountState.dirty) {
+        if (!accountSessionChecked || readAccountMeta().pendingLogout) {
+            fetchAccountSession({ mergeRemote: true });
+        } else if (accountState.signedIn && accountState.dirty) {
             syncAccountNow();
         }
     });
 
     document.addEventListener("visibilitychange", () => {
-        if (document.visibilityState !== "visible" || !accountState.signedIn) return;
-        if (accountState.dirty) {
-            syncAccountNow();
-        } else {
+        if (document.visibilityState !== "visible") return;
+        if (!accountSessionChecked || readAccountMeta().pendingLogout) {
             fetchAccountSession({ mergeRemote: true });
+        } else if (accountState.signedIn) {
+            if (accountState.dirty) {
+                syncAccountNow();
+            } else {
+                fetchAccountSession({ mergeRemote: true });
+            }
         }
     });
 

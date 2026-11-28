@@ -231,6 +231,8 @@ function persistRepertoire(next) {
         if (!isRemoteApply && changed) {
             stampedNext[id] = { ...entry, updatedAt: nowMs };
             addedOrUpdatedIds.push(id);
+        } else if (!isRemoteApply && !entry.updatedAt && prevEntry?.updatedAt) {
+            stampedNext[id] = { ...entry, updatedAt: prevEntry.updatedAt };
         } else {
             stampedNext[id] = entry;
         }

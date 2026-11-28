@@ -210,6 +210,44 @@ const fixtureSongs = [
         await pageA.evaluate(() => fetchAccountSession({ mergeRemote: true }));
         await pageA.waitForFunction(() => Object.values(repertoire).map((e) => e.song.song).join(",") === "Bohemian Rhapsody");
 
+        // Saving unchanged song notes must preserve updatedAt timestamp
+        const tsBeforeResave = await pageA.evaluate(() => Object.values(repertoire)[0]?.updatedAt || 0);
+        assert.ok(tsBeforeResave > 0, "Saved song should have an updatedAt timestamp");
+        await pageA.fill("#searchInput", "Bohemian");
+        await pageA.waitForFunction(() => state.query === "Bohemian" && !searchRenderTimer);
+        await pageA.locator(".favorite-button").first().click();
+        await pageA.waitForSelector("#songNotesDialog[open]");
+        await pageA.click('#songNotesForm button[type="submit"]');
+        await pageA.waitForFunction(() => !document.getElementById("songNotesDialog").open);
+        assert.equal(await pageA.evaluate(() => Object.values(repertoire)[0]?.updatedAt), tsBeforeResave, "Unchanged save must preserve updatedAt");
+
+        // Offline startup with an existing session cookie must restore session on reconnect
+        let blockAccountApi = true;
+        const offlineApiRoute = async (route) => {
+            if (blockAccountApi) return route.abort("internetdisconnected");
+            return route.fallback();
+        };
+        await pageA.route("**/api/account*", offlineApiRoute);
+        await pageA.reload();
+        await pageA.waitForFunction(() => state.songs.length === 3 && !songbookLoadPending);
+        assert.equal(await pageA.evaluate(() => accountState.signedIn), false);
+        blockAccountApi = false;
+        await pageA.evaluate(() => window.dispatchEvent(new Event("online")));
+        await pageA.waitForFunction(() => accountState.signedIn === true && accountState.user?.name === "Neal Singer");
+
+        // Signing out while offline must persist pendingLogout and finish clearing cookie on reconnect
+        blockAccountApi = true;
+        await menu(pageA, "#accountMenuButton");
+        await pageA.waitForSelector("#accountDialog[open]");
+        await pageA.click("#accountSignOutButton");
+        await pageA.waitForSelector("#accountSignedOut:not([hidden])");
+        assert.equal(await pageA.evaluate(() => readAccountMeta().pendingLogout), true);
+        blockAccountApi = false;
+        await pageA.evaluate(() => window.dispatchEvent(new Event("online")));
+        await pageA.waitForFunction(() => readAccountMeta().pendingLogout === false);
+        assert.equal(await pageA.evaluate(() => accountState.signedIn), false, "Pending logout must not silently restore session on reconnect");
+        await pageA.unroute("**/api/account*", offlineApiRoute);
+
         // Delete cloud copy keeps local data intact on Device B
         await menu(pageB, "#accountMenuButton");
         await pageB.waitForSelector("#accountDialog[open]");
@@ -221,7 +259,7 @@ const fixtureSongs = [
         await ctxA.close();
         await ctxB.close();
         assert.deepEqual(errors, []);
-        console.log(`ok   ${browserName}: Google Sign-In, cross-device merge, tombstone sync, delete-cloud, lazy GSI load, and 320px accessibility passed`);
+        console.log(`ok   ${browserName}: Google Sign-In, cross-device merge, tombstone sync, offline logout/reconnect, delete-cloud, lazy GSI load, and 320px accessibility passed`);
     } finally {
         await browser.close();
     }

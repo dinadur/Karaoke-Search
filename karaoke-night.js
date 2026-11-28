@@ -26,14 +26,34 @@ let nightHadPendingStateChange = false;
 let nightFrameLoadGen = 0;
 let nightReadyHandshakeTimer = 0;
 let nightCurrentTimeSec = 0;
+let nightPlaybackUpdatedAt = 0;
+let nightLastTimeSampleSec = 0;
+let nightLastTimeSampleAt = 0;
+let nightLastTrackKey = "";
+let nightSyncSeq = 0;
+let nightLastHeartbeatSentAt = 0;
+let nightLastLocalCommandAt = 0;
+let nightLastCommandedPlaying = null;
+let nightSuppressSeekDetectUntil = 0;
+let nightHostMutedForTv = false;
 let nightLookupToken = 0;
 
-function buildNightEmbedUrl(videoId, autoplay, widgetId) {
+function getLiveNightCurrentTime() {
+    const base = Number.isFinite(nightCurrentTimeSec) && nightCurrentTimeSec > 0 ? nightCurrentTimeSec : 0;
+    if (!nightState.playing || !nightPlaybackUpdatedAt) return base;
+    const elapsed = Math.max(0, Math.min(30, (Date.now() - nightPlaybackUpdatedAt) / 1000));
+    return base + elapsed;
+}
+
+function buildNightEmbedUrl(videoId, autoplay, widgetId, startSeconds = 0) {
     const origin = window.location.origin && window.location.origin !== "null"
         ? `&origin=${encodeURIComponent(window.location.origin)}`
         : "";
     const widget = Number.isFinite(widgetId) ? `&widgetid=${widgetId}` : "";
-    return `https://www.youtube-nocookie.com/embed/${videoId}?rel=0&modestbranding=1&enablejsapi=1${origin}${widget}${autoplay ? "&autoplay=1" : ""}`;
+    const start = Number.isFinite(startSeconds) && startSeconds > 2
+        ? `&start=${Math.floor(startSeconds)}`
+        : "";
+    return `https://www.youtube-nocookie.com/embed/${videoId}?rel=0&modestbranding=1&enablejsapi=1${origin}${widget}${start}${autoplay ? "&autoplay=1" : ""}`;
 }
 
 function postNightPlayerMessage(frame, message) {
@@ -47,8 +67,18 @@ function postNightPlayerMessage(frame, message) {
     }
 }
 
-function sendNightPlayerCommand(frame, func) {
-    postNightPlayerMessage(frame, { event: "command", func, args: [] });
+function sendNightPlayerCommand(frame, func, args = []) {
+    postNightPlayerMessage(frame, { event: "command", func, args });
+}
+
+function syncHostMuteState() {
+    const frame = nightEl("nightVideoFrame");
+    if (!frame || !nightLoadedFrameKey || !nightPlayerReady) return;
+    const shouldMute = Boolean(nightState.tvConnected && !nightState.tvOnlyAudio);
+    if (nightHostMutedForTv !== shouldMute) {
+        nightHostMutedForTv = shouldMute;
+        sendNightPlayerCommand(frame, shouldMute ? "mute" : "unMute");
+    }
 }
 
 function stopNightReadyHandshake() {
@@ -74,7 +104,7 @@ function startNightReadyHandshake(frame, generation) {
     nightReadyHandshakeTimer = window.setInterval(ping, 250);
 }
 
-function resetNightEmbedState() {
+function resetNightEmbedState({ preserveTime = false } = {}) {
     stopNightReadyHandshake();
     nightFrameLoadGen += 1;
     nightLoadedFrameKey = "";
@@ -83,7 +113,14 @@ function resetNightEmbedState() {
     nightFrameLoaded = false;
     nightPlayerReady = false;
     nightHadPendingStateChange = false;
-    nightCurrentTimeSec = 0;
+    nightHostMutedForTv = false;
+    nightLastTimeSampleSec = 0;
+    nightLastTimeSampleAt = 0;
+    if (!preserveTime) {
+        nightCurrentTimeSec = 0;
+        nightPlaybackUpdatedAt = 0;
+        nightLastTrackKey = "";
+    }
 }
 
 const nightState = {
@@ -329,20 +366,83 @@ function syncTvWindowState() {
     if (nightStageWindow?.closed) {
         nightStageWindow = null;
         nightState.tvConnected = false;
+        syncHostMuteState();
     }
+}
+
+function getCurrentNightTrackKey() {
+    const current = getNightCurrent();
+    return current && current.youtubeId ? `${current.uid}:${current.youtubeId}` : "";
 }
 
 function ensureStageChannel() {
     if (nightStageChannel || typeof BroadcastChannel !== "function") return;
     nightStageChannel = new BroadcastChannel(NIGHT_STAGE_CHANNEL);
     nightStageChannel.addEventListener("message", (event) => {
-        if (event.data?.type === "stage-ready") {
+        const msg = event.data;
+        if (!msg || typeof msg !== "object") return;
+        if (msg.type === "stage-ready") {
             nightState.tvConnected = true;
+            syncHostMuteState();
             broadcastStageState();
+            broadcastStageSync({ forceSeek: true });
             renderNightStage();
-        } else if (event.data?.type === "stage-closed") {
+        } else if (msg.type === "stage-playback") {
+            const currentKey = getCurrentNightTrackKey();
+            if (!currentKey || msg.trackKey !== currentKey) return;
+            const now = Date.now();
+            const reportedTime = Number(msg.currentTime);
+            const sentAt = Number.isFinite(Number(msg.sentAt)) ? Number(msg.sentAt) : now;
+            if (nightState.tvOnlyAudio) {
+                if (Number.isFinite(reportedTime) && reportedTime >= 0) {
+                    nightLastTrackKey = currentKey;
+                    nightCurrentTimeSec = reportedTime;
+                    nightPlaybackUpdatedAt = sentAt;
+                }
+                if (msg.userAction && typeof msg.playing === "boolean" && nightState.playing !== msg.playing) {
+                    nightState.playing = msg.playing;
+                    renderNightStageControls();
+                    broadcastStageState();
+                }
+            } else if (msg.userAction) {
+                const frame = nightEl("nightVideoFrame");
+                nightSuppressSeekDetectUntil = now + 1500;
+                if (Number.isFinite(reportedTime) && reportedTime >= 0) {
+                    nightLastTrackKey = currentKey;
+                    nightCurrentTimeSec = reportedTime;
+                    nightPlaybackUpdatedAt = sentAt;
+                    nightLastTimeSampleSec = reportedTime;
+                    nightLastTimeSampleAt = now;
+                    if (msg.seeked && frame && nightPlayerReady) {
+                        sendNightPlayerCommand(frame, "seekTo", [Math.round(reportedTime * 10) / 10, true]);
+                    }
+                }
+                if (typeof msg.playing === "boolean" && nightState.playing !== msg.playing) {
+                    nightState.playing = msg.playing;
+                    nightLastLocalCommandAt = now;
+                    nightLastCommandedPlaying = msg.playing;
+                    nightDesiredPlaying = msg.playing;
+                    if (frame && nightPlayerReady) {
+                        nightAppliedPlaying = msg.playing;
+                        nightHadPendingStateChange = false;
+                        sendNightPlayerCommand(frame, msg.playing ? "playVideo" : "pauseVideo");
+                    } else {
+                        nightHadPendingStateChange = true;
+                    }
+                    renderNightStageControls();
+                }
+            }
+        } else if (msg.type === "stage-closed") {
+            const currentKey = getCurrentNightTrackKey();
+            const reportedTime = Number(msg.currentTime);
+            if (currentKey && msg.trackKey === currentKey && Number.isFinite(reportedTime) && reportedTime >= 0) {
+                nightLastTrackKey = currentKey;
+                nightCurrentTimeSec = reportedTime;
+                nightPlaybackUpdatedAt = Number.isFinite(Number(msg.sentAt)) ? Number(msg.sentAt) : Date.now();
+            }
             nightStageWindow = null;
             nightState.tvConnected = false;
+            syncHostMuteState();
             renderNightStage();
         }
     });
@@ -358,6 +458,9 @@ function buildStagePayload() {
         artist: item.artist,
         waitMin: waits.get(item.uid) || 0,
     }));
+    const currentKey = current && current.youtubeId ? `${current.uid}:${current.youtubeId}` : "";
+    const liveTime = currentKey && currentKey === nightLastTrackKey ? getLiveNightCurrentTime() : 0;
+    const now = Date.now();
     return {
         current: current
             ? {
@@ -369,11 +472,14 @@ function buildStagePayload() {
             }
             : null,
         playing: Boolean(nightState.playing && current && current.youtubeId),
-        startSeconds: nightCurrentTimeSec > 0 ? Math.floor(nightCurrentTimeSec) : 0,
+        startSeconds: liveTime > 0 ? Math.floor(liveTime) : 0,
+        playbackTime: Number(liveTime.toFixed(2)),
+        playbackUpdatedAt: now,
+        syncSeq: nightSyncSeq,
         lookupStatus: nightState.lookupStatus || "",
         upNext,
         room: typeof getHostRoomStageInfo === "function" ? getHostRoomStageInfo() : null,
-        updatedAt: Date.now(),
+        updatedAt: now,
     };
 }
 
@@ -394,6 +500,36 @@ function broadcastStageState() {
     }
 }
 
+function broadcastStageSync({ forceSeek = false } = {}) {
+    syncTvWindowState();
+    const trackKey = getCurrentNightTrackKey();
+    if (!trackKey) return;
+    const now = Date.now();
+    const currentTime = Number(getLiveNightCurrentTime().toFixed(2));
+    if (forceSeek) nightSyncSeq += 1;
+    nightLastHeartbeatSentAt = now;
+    if (nightStageChannel) {
+        try {
+            nightStageChannel.postMessage({
+                type: "stage-sync",
+                payload: {
+                    trackKey,
+                    playing: Boolean(nightState.playing),
+                    playbackTime: currentTime,
+                    playbackUpdatedAt: now,
+                    forceSeek: Boolean(forceSeek),
+                    syncSeq: nightSyncSeq,
+                },
+            });
+        } catch {
+            // Ignore closed channel.
+        }
+    }
+    if (forceSeek) {
+        broadcastStageState();
+    }
+}
+
 function openTvStageWindow() {
     ensureStageChannel();
     broadcastStageState();
@@ -402,9 +538,10 @@ function openTvStageWindow() {
     if (win) {
         nightStageWindow = win;
         nightState.tvConnected = true;
+        syncHostMuteState();
         win.focus?.();
         renderNightStageControls();
-        showSnackbar("TV Stage opened — drag it to your TV or cast that tab");
+        showSnackbar("TV Stage opened — host preview muted to prevent echo");
     } else {
         showSnackbar("Popup blocked — allow popups for this site to open the TV Stage");
     }
@@ -1026,7 +1163,9 @@ function renderNightStageControls() {
     if (tvOnlyCheck) tvOnlyCheck.checked = nightState.tvOnlyAudio;
     if (tvStatus) {
         tvStatus.hidden = !nightState.tvConnected;
-        tvStatus.textContent = "TV Stage synced";
+        tvStatus.textContent = nightState.tvOnlyAudio
+            ? "TV Stage synced · TV-only audio"
+            : "TV Stage synced · Host muted";
     }
     if (playToggle) {
         playToggle.disabled = !current || !current.youtubeId;
@@ -1108,18 +1247,29 @@ function renderNightStage() {
             const frameKey = `${current.uid}:${current.youtubeId}`;
             const isPlaying = Boolean(nightState.playing);
             if (nightLoadedFrameKey !== frameKey) {
+                const isSameTrack = nightLastTrackKey === frameKey;
+                const resumeStart = isSameTrack ? getLiveNightCurrentTime() : 0;
                 stopNightReadyHandshake();
                 nightFrameLoadGen += 1;
                 nightLoadedFrameKey = frameKey;
+                nightLastTrackKey = frameKey;
                 nightAppliedPlaying = isPlaying;
                 nightDesiredPlaying = isPlaying;
                 nightFrameLoaded = false;
                 nightPlayerReady = false;
                 nightHadPendingStateChange = false;
-                nightCurrentTimeSec = 0;
-                frame.src = buildNightEmbedUrl(current.youtubeId, isPlaying, nightFrameLoadGen);
+                nightHostMutedForTv = false;
+                nightLastTimeSampleSec = resumeStart;
+                nightLastTimeSampleAt = 0;
+                if (!isSameTrack) {
+                    nightCurrentTimeSec = 0;
+                    nightPlaybackUpdatedAt = 0;
+                }
+                frame.src = buildNightEmbedUrl(current.youtubeId, isPlaying, nightFrameLoadGen, resumeStart);
             } else if (nightDesiredPlaying !== isPlaying) {
                 nightDesiredPlaying = isPlaying;
+                nightLastLocalCommandAt = Date.now();
+                nightLastCommandedPlaying = isPlaying;
                 if (nightPlayerReady) {
                     nightAppliedPlaying = isPlaying;
                     nightHadPendingStateChange = false;
@@ -1133,12 +1283,24 @@ function renderNightStage() {
             }
         } else {
             frame.hidden = true;
+            const currentKey = current.youtubeId ? `${current.uid}:${current.youtubeId}` : "";
+            const preserveForTvOnly = Boolean(currentKey && nightState.tvConnected && nightState.tvOnlyAudio);
+            if (preserveForTvOnly) {
+                if (nightLastTrackKey && nightLastTrackKey !== currentKey) {
+                    nightCurrentTimeSec = 0;
+                    nightPlaybackUpdatedAt = 0;
+                } else {
+                    nightCurrentTimeSec = getLiveNightCurrentTime();
+                    nightPlaybackUpdatedAt = Date.now();
+                }
+                nightLastTrackKey = currentKey;
+            }
             if (nightLoadedFrameKey || (frame.getAttribute("src") && frame.getAttribute("src") !== "about:blank")) {
-                resetNightEmbedState();
+                resetNightEmbedState({ preserveTime: preserveForTvOnly });
                 frame.src = "about:blank";
             }
             placeholder.hidden = false;
-            if (current.youtubeId && nightState.tvConnected && nightState.tvOnlyAudio) {
+            if (preserveForTvOnly) {
                 placeholder.textContent = nightState.playing
                     ? `Playing “${current.title}” on the TV Stage window.`
                     : `Ready on TV Stage — press Play on stage to start “${current.title}”.`;
@@ -1444,17 +1606,66 @@ function bindKaraokeNight() {
         }
         if (!data || typeof data !== "object") return;
         if (data.id != null && Number(data.id) !== nightFrameLoadGen) return;
-        if ((data.event === "infoDelivery" || data.event === "initialDelivery") && data.info && Number.isFinite(Number(data.info.currentTime))) {
-            nightCurrentTimeSec = Math.max(0, Number(data.info.currentTime));
+
+        if (data.event === "onReady") {
+            nightPlayerReady = true;
+            stopNightReadyHandshake();
+            sendNightPlayerCommand(videoFrame, "addEventListener", ["onStateChange"]);
+            syncHostMuteState();
+            if (nightHadPendingStateChange || nightDesiredPlaying !== nightAppliedPlaying) {
+                nightAppliedPlaying = nightDesiredPlaying;
+                nightHadPendingStateChange = false;
+                nightLastLocalCommandAt = Date.now();
+                nightLastCommandedPlaying = nightDesiredPlaying;
+                sendNightPlayerCommand(videoFrame, nightDesiredPlaying ? "playVideo" : "pauseVideo");
+            }
             return;
         }
-        if (data.event !== "onReady") return;
-        nightPlayerReady = true;
-        stopNightReadyHandshake();
-        if (nightHadPendingStateChange || nightDesiredPlaying !== nightAppliedPlaying) {
-            nightAppliedPlaying = nightDesiredPlaying;
-            nightHadPendingStateChange = false;
-            sendNightPlayerCommand(videoFrame, nightDesiredPlaying ? "playVideo" : "pauseVideo");
+
+        const now = Date.now();
+        let seekDetected = false;
+        if ((data.event === "infoDelivery" || data.event === "initialDelivery") && data.info && typeof data.info === "object") {
+            if (data.info.currentTime !== undefined && data.info.currentTime !== null && Number.isFinite(Number(data.info.currentTime))) {
+                const reportedTime = Math.max(0, Number(data.info.currentTime));
+                if (now >= nightSuppressSeekDetectUntil && nightLastTimeSampleAt > 0) {
+                    const expected = nightLastTimeSampleSec + (nightState.playing ? (now - nightLastTimeSampleAt) / 1000 : 0);
+                    if (Math.abs(reportedTime - expected) > 1.25) {
+                        seekDetected = true;
+                    }
+                }
+                nightCurrentTimeSec = reportedTime;
+                nightPlaybackUpdatedAt = now;
+                nightLastTimeSampleSec = reportedTime;
+                nightLastTimeSampleAt = now;
+            }
+        }
+
+        const rawState = data.event === "onStateChange"
+            ? data.info
+            : ((data.event === "infoDelivery" || data.event === "initialDelivery") ? data.info?.playerState : undefined);
+        let stateFlipped = false;
+        if (rawState !== undefined && rawState !== null && Number.isFinite(Number(rawState))) {
+            const ytState = Number(rawState);
+            if (ytState === 1 || ytState === 2) {
+                const isNowPlaying = ytState === 1;
+                const isStaleEcho = nightLastCommandedPlaying !== null
+                    && (now - nightLastLocalCommandAt) < 900
+                    && isNowPlaying !== nightLastCommandedPlaying;
+                if (!isStaleEcho && nightState.playing !== isNowPlaying) {
+                    nightState.playing = isNowPlaying;
+                    nightAppliedPlaying = isNowPlaying;
+                    nightDesiredPlaying = isNowPlaying;
+                    nightPlaybackUpdatedAt = now;
+                    stateFlipped = true;
+                    renderNightStageControls();
+                }
+            }
+        }
+
+        if (seekDetected || stateFlipped) {
+            broadcastStageSync({ forceSeek: true });
+        } else if (nightState.tvConnected && nightState.playing && (now - nightLastHeartbeatSentAt) >= 1000) {
+            broadcastStageSync({ forceSeek: false });
         }
     });
 
@@ -1489,8 +1700,13 @@ function bindKaraokeNight() {
     nightEl("nightPlayToggleButton")?.addEventListener("click", () => {
         const current = getNightCurrent();
         if (!current || !current.youtubeId) return;
+        nightCurrentTimeSec = getLiveNightCurrentTime();
+        nightPlaybackUpdatedAt = Date.now();
         nightState.playing = !nightState.playing;
+        nightLastLocalCommandAt = Date.now();
+        nightLastCommandedPlaying = nightState.playing;
         saveNightSession();
+        broadcastStageSync({ forceSeek: true });
         renderNightStage();
     });
 
@@ -1500,6 +1716,7 @@ function bindKaraokeNight() {
     nightEl("nightTvOnlyAudio")?.addEventListener("change", (event) => {
         nightState.tvOnlyAudio = Boolean(event.target.checked);
         renderNightStage();
+        syncHostMuteState();
     });
 
     nightEl("nightYoutubeUrlForm")?.addEventListener("submit", (event) => {
