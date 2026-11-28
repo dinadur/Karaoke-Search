@@ -266,7 +266,26 @@
             const tickerList = document.getElementById("tickerList");
             const fullscreenButton = document.getElementById("fullscreenButton");
 
-            let loadedVideoId = "";
+            let loadedTrackKey = "";
+            let lastPlayingState = null;
+
+            function buildEmbedUrl(videoId) {
+                const origin = window.location.origin && window.location.origin !== "null"
+                    ? `&origin=${encodeURIComponent(window.location.origin)}`
+                    : "";
+                return `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&enablejsapi=1${origin}`;
+            }
+
+            function sendPlayerCommand(func) {
+                try {
+                    stageFrame.contentWindow?.postMessage(
+                        JSON.stringify({ event: "command", func, args: [] }),
+                        "https://www.youtube-nocookie.com"
+                    );
+                } catch {
+                    // Ignore detached or cross-origin frame errors.
+                }
+            }
 
             fullscreenButton.addEventListener("click", () => {
                 if (!document.fullscreenElement) {
@@ -284,7 +303,9 @@
                 const current = payload?.current || null;
                 const upNext = Array.isArray(payload?.upNext) ? payload.upNext : [];
                 const videoId = current && VIDEO_ID_PATTERN.test(String(current.youtubeId || "")) ? current.youtubeId : "";
-                const showVideo = Boolean(current && payload?.playing && videoId);
+                const trackKey = current && videoId ? `${current.uid || ""}:${videoId}` : "";
+                const isPlaying = Boolean(payload?.playing);
+                const keepPausedPlayer = Boolean(trackKey && loadedTrackKey === trackKey);
 
                 if (current) {
                     headerNow.hidden = false;
@@ -297,17 +318,24 @@
                     headerIdle.hidden = false;
                 }
 
-                if (showVideo) {
+                if (trackKey && (isPlaying || keepPausedPlayer)) {
                     interstitial.hidden = true;
                     stageFrame.hidden = false;
-                    if (loadedVideoId !== videoId) {
-                        loadedVideoId = videoId;
-                        stageFrame.src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1`;
+                    if (loadedTrackKey !== trackKey) {
+                        loadedTrackKey = trackKey;
+                        lastPlayingState = true;
+                        stageFrame.dataset.trackKey = trackKey;
+                        stageFrame.src = buildEmbedUrl(videoId);
+                    } else if (lastPlayingState !== isPlaying) {
+                        lastPlayingState = isPlaying;
+                        sendPlayerCommand(isPlaying ? "playVideo" : "pauseVideo");
                     }
                 } else {
                     stageFrame.hidden = true;
-                    if (loadedVideoId) {
-                        loadedVideoId = "";
+                    if (loadedTrackKey) {
+                        loadedTrackKey = "";
+                        lastPlayingState = null;
+                        delete stageFrame.dataset.trackKey;
                         stageFrame.src = "about:blank";
                     }
                     interstitial.hidden = false;

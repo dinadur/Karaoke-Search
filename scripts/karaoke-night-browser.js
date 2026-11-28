@@ -57,9 +57,23 @@ const mockYoutubeBySong = {
         await context.route("https://www.youtube-nocookie.com/**", (route) =>
             route.fulfill({ status: 200, contentType: "text/html", body: "<html><body>Mock YouTube Embed</body></html>" })
         );
-        await context.route("**/api/youtube-search?*", (route) => {
+        let releaseSlowLookup = null;
+        await context.route("**/api/youtube-search?*", async (route) => {
             const url = new URL(route.request().url());
             const song = (url.searchParams.get("song") || "").toLowerCase();
+            if (song === "don't stop believin'") {
+                await new Promise((resolve) => { releaseSlowLookup = resolve; });
+                return route.fulfill({
+                    json: {
+                        configured: true,
+                        quotaExceeded: false,
+                        searchUrl: "https://www.youtube.com/results?search_query=Journey%20karaoke",
+                        candidates: [
+                            { id: "SingKingDSB", title: "Journey - Don't Stop Believin' (Karaoke)", channel: "Sing King", durationSec: 251, tags: ["Trusted channel"] },
+                        ],
+                    },
+                });
+            }
             const match = mockYoutubeBySong[song] || {
                 configured: false,
                 quotaExceeded: false,
@@ -124,17 +138,54 @@ const mockYoutubeBySong = {
         assert.equal(stageSnapshot.current.youtubeId, "SingKingDQ1");
         assert.equal(stageSnapshot.upNext[0].title, "Pink Pony Club");
 
-        // 5. Verify standalone TV stage window renders synced snapshot cleanly
+        // 5. Verify standalone TV stage window renders synced snapshot, preserves iframe on pause/resume,
+        //    and restarts cleanly when a second singer sings the exact same YouTube video ID.
         const stagePage = await context.newPage();
         stagePage.on("pageerror", (error) => errors.push(error.message));
         await stagePage.goto(BASE.replace("karaoke_explorer.html", "karaoke_stage.html"));
         await stagePage.waitForFunction(() => document.getElementById("headerTitle").textContent === "Dancing Queen");
         assert.equal(await stagePage.locator("#headerSinger").textContent(), "Alice");
         assert.match(await stagePage.locator("#tickerList").textContent(), /Pink Pony Club/);
+        const initialTrackKey = await stagePage.locator("#stageFrame").getAttribute("data-track-key");
+        assert.ok(initialTrackKey && initialTrackKey.endsWith(":SingKingDQ1"));
+
+        // Pause & resume must keep both host and TV iframes mounted (no reload to 0:00)
+        const hostSrcBeforePause = await page.evaluate(() => document.getElementById("nightVideoFrame").src);
+        await page.evaluate(() => {
+            window.__hostLoads = 0;
+            document.getElementById("nightVideoFrame").addEventListener("load", () => window.__hostLoads++);
+        });
+        await stagePage.evaluate(() => {
+            window.__tvLoads = 0;
+            document.getElementById("stageFrame").addEventListener("load", () => window.__tvLoads++);
+        });
+        await page.click("#nightPlayToggleButton"); // Pause stage
+        await page.waitForFunction(() => document.querySelector("#nightPlayToggleButton span").textContent === "Play on stage");
+        assert.equal(await page.evaluate(() => document.getElementById("nightVideoFrame").src), hostSrcBeforePause);
+        assert.equal(await stagePage.locator("#stageFrame").isVisible(), true, "TV stage keeps paused iframe mounted");
+        await page.click("#nightPlayToggleButton"); // Play on stage
+        await page.waitForFunction(() => document.querySelector("#nightPlayToggleButton span").textContent === "Pause stage");
+        assert.equal(await page.evaluate(() => window.__hostLoads), 0, "Pause/resume must not reload host iframe");
+        assert.equal(await stagePage.evaluate(() => window.__tvLoads), 0, "Pause/resume must not reload TV iframe");
+
+        // Queue another singer with the same song/video ID and advance directly to verify TV restarts via new uid
+        await page.fill("#nightSingerInput", "Cara");
+        await page.click('#nightAddSingerForm button[type="submit"]');
+        await page.fill("#nightSongSearch", "Dancing Queen");
+        await page.locator("#nightSearchResults .night-queue-btn").first().click();
+        await page.locator("#nightQueueList .night-queue-item", { hasText: "Cara" }).locator('button[title="Put on stage now"]').click();
+        await stagePage.waitForFunction(
+            (prevKey) => document.getElementById("stageFrame").getAttribute("data-track-key") !== prevKey,
+            initialTrackKey
+        );
+        const secondTrackKey = await stagePage.locator("#stageFrame").getAttribute("data-track-key");
+        assert.ok(secondTrackKey.endsWith(":SingKingDQ1") && secondTrackKey !== initialTrackKey);
         await stagePage.close();
 
-        // 6. Push back current singer, then test manual YouTube URL paste on the unconfigured custom song
+        // 6. Push back Cara's track (returns Alice's Dancing Queen to stage), then put Pink Pony Club on stage for manual URL paste
         await page.click("#nightSkipSingerButton");
+        await page.waitForFunction(() => document.getElementById("nightCurrentSinger").textContent === "Alice");
+        await page.locator("#nightQueueList .night-queue-item", { hasText: "Pink Pony Club" }).locator('button[title="Put on stage now"]').click();
         await page.waitForFunction(() => document.getElementById("nightCurrentTitle").textContent === "Pink Pony Club");
         await page.fill("#nightYoutubeUrlInput", "https://youtu.be/CustomVid99");
         await page.click('#nightYoutubeUrlForm button[type="submit"]');
@@ -154,17 +205,33 @@ const mockYoutubeBySong = {
             assert.deepEqual(violations, [], `Accessibility violations at ${width}px`);
         }
 
-        // 8. Persistence across reload and clean exit back to songbook
+        // 8. Persistence across reload
         await page.reload();
         await page.waitForFunction(() => state.songs.length === 4 && !songbookLoadPending);
         await menu(page, "#karaokeNightButton");
         await page.waitForSelector("#karaokeNightPanel:not([hidden])");
         assert.equal(await page.locator("#nightCurrentTitle").textContent(), "Pink Pony Club");
 
+        // 9. Closing Karaoke Night while a lookup is in flight must cancel pending autoplay
+        await page.fill("#nightSongSearch", "Don't Stop Believin'");
+        await page.locator("#nightSearchResults .night-queue-btn").first().click();
+        await page.locator("#nightQueueList .night-queue-item", { hasText: "Don't Stop Believin'" }).locator('button[title="Put on stage now"]').click();
+        await page.waitForFunction(() => document.getElementById("nightCurrentTitle").textContent === "Don't Stop Believin'");
         await page.click("#nightBackButton");
         assert.equal(await page.locator("#karaokeNightPanel").isVisible(), false);
+        if (releaseSlowLookup) releaseSlowLookup();
+        await page.waitForTimeout(150);
+        const afterClose = await page.evaluate(() => ({
+            playing: nightState.playing,
+            iframeSrc: document.getElementById("nightVideoFrame").src,
+            stagePlaying: JSON.parse(localStorage.getItem("karaokeNightStageV1") || "null")?.playing,
+        }));
+        assert.equal(afterClose.playing, false, "Pending lookup must not flip playing back to true after closing");
+        assert.equal(afterClose.iframeSrc, "about:blank", "Hidden panel must not load an autoplaying iframe after closing");
+        assert.equal(afterClose.stagePlaying, false, "TV stage must stay stopped after closing Karaoke Night");
+
         assert.deepEqual(errors, []);
-        console.log(`ok   ${browserName}: Karaoke Night host mode, rotation, YouTube finder, TV stage sync, persistence, and accessibility passed`);
+        console.log(`ok   ${browserName}: Karaoke Night host mode, rotation, YouTube finder, pause/resume, TV stage sync, close-cancel, persistence, and accessibility passed`);
     } finally {
         await browser.close();
     }

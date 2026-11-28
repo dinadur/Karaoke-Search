@@ -18,6 +18,26 @@ let nightSearchTimer = 0;
 let nightLastFocused = null;
 let nightBound = false;
 let nightLoadedFrameKey = "";
+let nightLastSentPlaying = null;
+let nightLookupToken = 0;
+
+function buildNightEmbedUrl(videoId, autoplay) {
+    const origin = window.location.origin && window.location.origin !== "null"
+        ? `&origin=${encodeURIComponent(window.location.origin)}`
+        : "";
+    return `https://www.youtube-nocookie.com/embed/${videoId}?rel=0&modestbranding=1&enablejsapi=1${origin}${autoplay ? "&autoplay=1" : ""}`;
+}
+
+function sendNightPlayerCommand(frame, func) {
+    try {
+        frame?.contentWindow?.postMessage(
+            JSON.stringify({ event: "command", func, args: [] }),
+            "https://www.youtube-nocookie.com"
+        );
+    } catch {
+        // Ignore detached or cross-origin iframe errors.
+    }
+}
 
 const nightState = {
     active: false,
@@ -383,8 +403,9 @@ async function lookupYoutubeKaraoke(entry, { silent = false } = {}) {
 }
 
 async function resolveYoutubeForCurrent({ autoplay = false } = {}) {
+    const lookupToken = ++nightLookupToken;
     const current = getNightCurrent();
-    if (!current) {
+    if (!current || !nightState.active) {
         nightState.lookupStatus = "";
         nightState.lookupError = "";
         renderNightStage();
@@ -392,7 +413,7 @@ async function resolveYoutubeForCurrent({ autoplay = false } = {}) {
     }
 
     if (current.youtubeId && current.candidates?.length) {
-        if (autoplay) nightState.playing = true;
+        if (autoplay && nightState.active) nightState.playing = true;
         nightState.lookupStatus = "";
         saveNightSession();
         renderNightStage();
@@ -405,8 +426,9 @@ async function resolveYoutubeForCurrent({ autoplay = false } = {}) {
     renderNightStage();
 
     const data = await lookupYoutubeKaraoke(current);
-    // Guard against the host switching songs while the request was in flight.
-    if (getNightCurrent()?.uid !== current.uid) {
+    // Guard against the host switching songs, resetting, or leaving Karaoke Night
+    // while the lookup was in flight.
+    if (lookupToken !== nightLookupToken || !nightState.active || getNightCurrent()?.uid !== current.uid) {
         return;
     }
 
@@ -418,7 +440,7 @@ async function resolveYoutubeForCurrent({ autoplay = false } = {}) {
         current.youtubeTitle = candidates[0].title;
         current.youtubeChannel = candidates[0].channel;
     }
-    if (autoplay && current.youtubeId) {
+    if (autoplay && nightState.active && current.youtubeId) {
         nightState.playing = true;
     }
     if (!candidates.length) {
@@ -605,6 +627,7 @@ function startNightEntryNow(uid, { autoplay = true } = {}) {
     target.status = "performing";
     nightState.playing = Boolean(autoplay && target.youtubeId);
     nightLoadedFrameKey = "";
+    nightLastSentPlaying = null;
     saveNightSession();
     renderKaraokeNight();
     resolveYoutubeForCurrent({ autoplay });
@@ -621,14 +644,17 @@ function advanceNightNext(event) {
         next.status = "performing";
         nightState.playing = Boolean(next.youtubeId);
         nightLoadedFrameKey = "";
+        nightLastSentPlaying = null;
         saveNightSession();
         renderKaraokeNight();
         resolveYoutubeForCurrent({ autoplay: true });
         if (sourceRect) window.StageFx?.confetti(sourceRect);
         showSnackbar(`Up now: ${next.singer || "Open mic"} — “${next.title}”`);
     } else {
+        nightLookupToken++;
         nightState.playing = false;
         nightLoadedFrameKey = "";
+        nightLastSentPlaying = null;
         saveNightSession();
         renderKaraokeNight();
         showSnackbar("Queue finished — add more songs to keep singing!");
@@ -656,6 +682,7 @@ function skipAndPushBackCurrent() {
     nightState.queue = [...sung, nextUp, ...remaining];
     nightState.playing = Boolean(nextUp.youtubeId);
     nightLoadedFrameKey = "";
+    nightLastSentPlaying = null;
     saveNightSession();
     renderKaraokeNight();
     resolveYoutubeForCurrent({ autoplay: true });
@@ -685,6 +712,7 @@ function removeNightEntry(uid) {
         if (next) next.status = "performing";
         nightState.playing = false;
         nightLoadedFrameKey = "";
+        nightLastSentPlaying = null;
     }
     saveNightSession();
     renderKaraokeNight();
@@ -704,6 +732,7 @@ function resetKaraokeNight() {
     const prevSingers = [...nightState.singers];
     const prevSelected = nightState.selectedSinger;
 
+    nightLookupToken++;
     nightState.queue = [];
     nightState.singers = [];
     nightState.selectedSinger = "";
@@ -711,6 +740,7 @@ function resetKaraokeNight() {
     nightState.lookupStatus = "";
     nightState.lookupError = "";
     nightLoadedFrameKey = "";
+    nightLastSentPlaying = null;
 
     saveNightSession();
     renderKaraokeNight();
@@ -732,6 +762,7 @@ function selectNightCandidate(candidate) {
     nightState.playing = true;
     nightState.lookupError = "";
     nightLoadedFrameKey = "";
+    nightLastSentPlaying = null;
     saveNightSession();
     renderNightStage();
 }
@@ -750,6 +781,7 @@ function applyManualYoutubeUrl(rawInput) {
     nightState.playing = true;
     nightState.lookupError = "";
     nightLoadedFrameKey = "";
+    nightLastSentPlaying = null;
     saveNightSession();
     renderNightStage();
     showSnackbar("Loaded YouTube track on stage");
@@ -773,9 +805,12 @@ function openKaraokeNight() {
 }
 
 function closeKaraokeNight() {
+    nightLookupToken++;
     nightState.active = false;
     nightState.playing = false;
+    nightState.lookupStatus = "";
     nightLoadedFrameKey = "";
+    nightLastSentPlaying = null;
     const iframe = nightEl("nightVideoFrame");
     if (iframe) iframe.src = "about:blank";
     document.body.classList.remove("karaoke-night-active");
@@ -927,6 +962,7 @@ function renderNightStage() {
         if (activeStage) activeStage.hidden = true;
         if (frame) {
             nightLoadedFrameKey = "";
+            nightLastSentPlaying = null;
             frame.src = "about:blank";
         }
         return;
@@ -959,21 +995,29 @@ function renderNightStage() {
         statusEl.hidden = !msg;
     }
 
-    const showLocalIframe = Boolean(current.youtubeId && !(nightState.tvConnected && nightState.tvOnlyAudio));
+    const showLocalIframe = Boolean(
+        nightState.active &&
+        current.youtubeId &&
+        !(nightState.tvConnected && nightState.tvOnlyAudio)
+    );
     if (frameWrap && frame && placeholder) {
         if (showLocalIframe) {
             frame.hidden = false;
             placeholder.hidden = true;
-            const frameKey = `${current.uid}:${current.youtubeId}:${nightState.playing ? "1" : "0"}`;
+            const frameKey = `${current.uid}:${current.youtubeId}`;
             if (nightLoadedFrameKey !== frameKey) {
                 nightLoadedFrameKey = frameKey;
-                const autoplayParam = nightState.playing ? "&autoplay=1" : "";
-                frame.src = `https://www.youtube-nocookie.com/embed/${current.youtubeId}?rel=0&modestbranding=1${autoplayParam}`;
+                nightLastSentPlaying = nightState.playing;
+                frame.src = buildNightEmbedUrl(current.youtubeId, nightState.playing);
+            } else if (nightLastSentPlaying !== nightState.playing) {
+                nightLastSentPlaying = nightState.playing;
+                sendNightPlayerCommand(frame, nightState.playing ? "playVideo" : "pauseVideo");
             }
         } else {
             frame.hidden = true;
             if (nightLoadedFrameKey) {
                 nightLoadedFrameKey = "";
+                nightLastSentPlaying = null;
                 frame.src = "about:blank";
             }
             placeholder.hidden = false;
@@ -1291,7 +1335,6 @@ function bindKaraokeNight() {
         const current = getNightCurrent();
         if (!current || !current.youtubeId) return;
         nightState.playing = !nightState.playing;
-        nightLoadedFrameKey = "";
         saveNightSession();
         renderNightStage();
     });
@@ -1302,6 +1345,7 @@ function bindKaraokeNight() {
     nightEl("nightTvOnlyAudio")?.addEventListener("change", (event) => {
         nightState.tvOnlyAudio = Boolean(event.target.checked);
         nightLoadedFrameKey = "";
+        nightLastSentPlaying = null;
         renderNightStage();
     });
 
