@@ -370,6 +370,7 @@
             const stageInterstitialHint = document.getElementById("stageInterstitialHint");
 
             let loadedTrackKey = "";
+            let pendingFrameUrl = "";
             let renderedRoomUrl = "";
             let appliedPlayingState = null;
             let desiredPlayingState = null;
@@ -378,12 +379,27 @@
             let hadPendingStateChange = false;
             let loadGeneration = 0;
             let readyHandshakeTimer = 0;
+            let latestSync = null;
+            let stageCurrentTimeSec = 0;
+            let stageHasCurrentTime = false;
+            let stageLastTimeSampleSec = 0;
+            let stageLastTimeSampleAt = 0;
+            let lastSeekCommandAt = 0;
+            let lastHostCommandAt = 0;
+            let lastCommandedPlaying = null;
+            let suppressStageSeekDetectUntil = 0;
+            let lastStageReportAt = 0;
+            let lastAppliedSyncSeq = -1;
+            const channel = typeof BroadcastChannel === "function" ? new BroadcastChannel(CHANNEL_NAME) : null;
 
-            function buildEmbedUrl(videoId, autoplay, widgetId) {
+            function buildEmbedUrl(videoId, autoplay, widgetId, startSeconds) {
                 const origin = window.location.origin && window.location.origin !== "null"
                     ? `&origin=${encodeURIComponent(window.location.origin)}`
                     : "";
-                return `https://www.youtube-nocookie.com/embed/${videoId}?rel=0&modestbranding=1&enablejsapi=1${origin}&widgetid=${widgetId}${autoplay ? "&autoplay=1" : ""}`;
+                const start = Number.isFinite(startSeconds) && startSeconds > 2
+                    ? `&start=${Math.floor(startSeconds)}`
+                    : "";
+                return `https://www.youtube-nocookie.com/embed/${videoId}?rel=0&modestbranding=1&enablejsapi=1${origin}&widgetid=${widgetId}${start}${autoplay ? "&autoplay=1" : ""}`;
             }
 
             function postToPlayer(message) {
@@ -397,8 +413,96 @@
                 }
             }
 
-            function sendPlayerCommand(func) {
-                postToPlayer({ event: "command", func, args: [] });
+            function sendPlayerCommand(func, args = []) {
+                postToPlayer({ event: "command", func, args });
+            }
+
+            function getTargetSyncTime(sync) {
+                if (!sync || !Number.isFinite(sync.playbackTime)) return 0;
+                const elapsed = sync.playing && Number.isFinite(sync.playbackUpdatedAt)
+                    ? Math.max(0, Math.min(30, (Date.now() - sync.playbackUpdatedAt) / 1000))
+                    : 0;
+                return Math.max(0, sync.playbackTime + elapsed);
+            }
+
+            function reportStagePlayback({ userAction = false, seeked = false } = {}) {
+                if (!channel || !loadedTrackKey) return;
+                const now = Date.now();
+                lastStageReportAt = now;
+                try {
+                    channel.postMessage({
+                        type: "stage-playback",
+                        trackKey: loadedTrackKey,
+                        currentTime: Number(stageCurrentTimeSec.toFixed(2)),
+                        playing: Boolean(desiredPlayingState),
+                        sentAt: now,
+                        userAction: Boolean(userAction),
+                        seeked: Boolean(seeked),
+                    });
+                } catch {
+                    // Ignore closed channel.
+                }
+            }
+
+            function applyPlaybackSync(sync, { fromReady = false } = {}) {
+                if (!sync || !loadedTrackKey || sync.trackKey !== loadedTrackKey) return;
+                latestSync = sync;
+                const nextPlaying = Boolean(sync.playing);
+                const now = Date.now();
+
+                if (desiredPlayingState !== nextPlaying || (fromReady && (hadPendingStateChange || desiredPlayingState !== appliedPlayingState))) {
+                    desiredPlayingState = nextPlaying;
+                    if (playerReady) {
+                        appliedPlayingState = nextPlaying;
+                        hadPendingStateChange = false;
+                        lastHostCommandAt = now;
+                        lastCommandedPlaying = nextPlaying;
+                        sendPlayerCommand(nextPlaying ? "playVideo" : "pauseVideo");
+                    } else {
+                        hadPendingStateChange = true;
+                        if (frameLoaded) {
+                            sendPlayerCommand(nextPlaying ? "playVideo" : "pauseVideo");
+                        }
+                    }
+                }
+
+                if (!playerReady) return;
+
+                const targetSec = getTargetSyncTime(sync);
+                const drift = stageHasCurrentTime ? Math.abs(stageCurrentTimeSec - targetSec) : Infinity;
+                const seq = Number.isFinite(Number(sync.syncSeq)) ? Number(sync.syncSeq) : -1;
+                const isNewForceSeek = Boolean(sync.forceSeek) && (seq < 0 || seq !== lastAppliedSyncSeq);
+
+                let shouldSeek = false;
+                if (fromReady && targetSec > 1.5 && (!stageHasCurrentTime || drift > 0.75)) {
+                    shouldSeek = true;
+                } else if (isNewForceSeek && (!stageHasCurrentTime || drift > 0.4)) {
+                    shouldSeek = true;
+                } else if (nextPlaying && stageHasCurrentTime && drift > 1.5 && (now - lastSeekCommandAt) > 2000) {
+                    shouldSeek = true;
+                } else if (!nextPlaying && stageHasCurrentTime && drift > 0.75 && (now - lastSeekCommandAt) > 800) {
+                    shouldSeek = true;
+                }
+
+                if (seq >= 0) {
+                    lastAppliedSyncSeq = Math.max(lastAppliedSyncSeq, seq);
+                }
+
+                if (shouldSeek) {
+                    const rounded = Math.round(targetSec * 10) / 10;
+                    lastSeekCommandAt = now;
+                    lastHostCommandAt = now;
+                    suppressStageSeekDetectUntil = now + 1500;
+                    stageCurrentTimeSec = rounded;
+                    stageHasCurrentTime = true;
+                    stageLastTimeSampleSec = rounded;
+                    stageLastTimeSampleAt = now;
+                    sendPlayerCommand("seekTo", [rounded, true]);
+                    if (!desiredPlayingState) {
+                        lastCommandedPlaying = false;
+                        sendPlayerCommand("pauseVideo");
+                    }
+                }
             }
 
             function stopReadyHandshake() {
@@ -428,15 +532,39 @@
                 stopReadyHandshake();
                 loadGeneration += 1;
                 loadedTrackKey = "";
+                pendingFrameUrl = "";
                 appliedPlayingState = null;
                 desiredPlayingState = null;
                 frameLoaded = false;
                 playerReady = false;
                 hadPendingStateChange = false;
+                latestSync = null;
+                stageCurrentTimeSec = 0;
+                stageHasCurrentTime = false;
+                stageLastTimeSampleSec = 0;
+                stageLastTimeSampleAt = 0;
+                lastSeekCommandAt = 0;
+                lastHostCommandAt = 0;
+                lastCommandedPlaying = null;
+                suppressStageSeekDetectUntil = 0;
+                lastAppliedSyncSeq = -1;
             }
 
             stageFrame.addEventListener("load", () => {
                 if (!loadedTrackKey) return;
+                let landedOnBlank = false;
+                try {
+                    landedOnBlank = stageFrame.contentWindow?.location?.href === "about:blank";
+                } catch {
+                    landedOnBlank = false;
+                }
+                if (landedOnBlank && pendingFrameUrl) {
+                    const retryUrl = pendingFrameUrl;
+                    pendingFrameUrl = "";
+                    stageFrame.src = retryUrl;
+                    return;
+                }
+                pendingFrameUrl = "";
                 frameLoaded = true;
                 startReadyHandshake(loadGeneration);
                 if (hadPendingStateChange || desiredPlayingState !== appliedPlayingState) {
@@ -456,14 +584,68 @@
                         return;
                     }
                 }
-                if (!data || data.event !== "onReady") return;
+                if (!data || typeof data !== "object") return;
                 if (data.id != null && Number(data.id) !== loadGeneration) return;
-                playerReady = true;
-                stopReadyHandshake();
-                if (hadPendingStateChange || desiredPlayingState !== appliedPlayingState) {
-                    appliedPlayingState = desiredPlayingState;
-                    hadPendingStateChange = false;
-                    sendPlayerCommand(desiredPlayingState ? "playVideo" : "pauseVideo");
+
+                if (data.event === "onReady") {
+                    playerReady = true;
+                    stopReadyHandshake();
+                    sendPlayerCommand("addEventListener", ["onStateChange"]);
+                    applyPlaybackSync(
+                        latestSync || {
+                            trackKey: loadedTrackKey,
+                            playing: Boolean(desiredPlayingState),
+                            playbackTime: 0,
+                            playbackUpdatedAt: Date.now(),
+                            forceSeek: false,
+                            syncSeq: lastAppliedSyncSeq,
+                        },
+                        { fromReady: true }
+                    );
+                    return;
+                }
+
+                const now = Date.now();
+                let userSeeked = false;
+                if ((data.event === "infoDelivery" || data.event === "initialDelivery") && data.info && typeof data.info === "object") {
+                    if (data.info.currentTime !== undefined && data.info.currentTime !== null && Number.isFinite(Number(data.info.currentTime))) {
+                        const reportedTime = Math.max(0, Number(data.info.currentTime));
+                        if (now >= suppressStageSeekDetectUntil && stageLastTimeSampleAt > 0) {
+                            const expected = stageLastTimeSampleSec + (desiredPlayingState ? (now - stageLastTimeSampleAt) / 1000 : 0);
+                            if (Math.abs(reportedTime - expected) > 1.25) {
+                                userSeeked = true;
+                            }
+                        }
+                        stageCurrentTimeSec = reportedTime;
+                        stageHasCurrentTime = true;
+                        stageLastTimeSampleSec = reportedTime;
+                        stageLastTimeSampleAt = now;
+                    }
+                }
+
+                const rawState = data.event === "onStateChange"
+                    ? data.info
+                    : ((data.event === "infoDelivery" || data.event === "initialDelivery") ? data.info?.playerState : undefined);
+                let userToggledPlay = false;
+                if (rawState !== undefined && rawState !== null && Number.isFinite(Number(rawState))) {
+                    const ytState = Number(rawState);
+                    if (ytState === 1 || ytState === 2) {
+                        const isNowPlaying = ytState === 1;
+                        const isStaleEcho = lastCommandedPlaying !== null
+                            && (now - lastHostCommandAt) < 900
+                            && isNowPlaying !== lastCommandedPlaying;
+                        if (!isStaleEcho && desiredPlayingState !== isNowPlaying) {
+                            desiredPlayingState = isNowPlaying;
+                            appliedPlayingState = isNowPlaying;
+                            userToggledPlay = true;
+                        }
+                    }
+                }
+
+                if (userSeeked || userToggledPlay) {
+                    reportStagePlayback({ userAction: true, seeked: userSeeked });
+                } else if (stageHasCurrentTime && (now - lastStageReportAt) >= 1000) {
+                    reportStagePlayback({ userAction: false, seeked: false });
                 }
             });
 
@@ -547,6 +729,20 @@
                 const videoId = current && VIDEO_ID_PATTERN.test(String(current.youtubeId || "")) ? current.youtubeId : "";
                 const trackKey = current && videoId ? `${current.uid || ""}:${videoId}` : "";
                 const isPlaying = Boolean(payload?.playing);
+                const syncData = trackKey
+                    ? {
+                        trackKey,
+                        playing: isPlaying,
+                        playbackTime: Number.isFinite(Number(payload?.playbackTime))
+                            ? Math.max(0, Number(payload.playbackTime))
+                            : (Number.isFinite(Number(payload?.startSeconds)) ? Math.max(0, Number(payload.startSeconds)) : 0),
+                        playbackUpdatedAt: Number.isFinite(Number(payload?.playbackUpdatedAt))
+                            ? Number(payload.playbackUpdatedAt)
+                            : (Number.isFinite(Number(payload?.updatedAt)) ? Number(payload.updatedAt) : Date.now()),
+                        forceSeek: false,
+                        syncSeq: Number.isFinite(Number(payload?.syncSeq)) ? Number(payload.syncSeq) : -1,
+                    }
+                    : null;
 
                 renderRoomQr(payload?.room || null);
 
@@ -573,20 +769,22 @@
                         frameLoaded = false;
                         playerReady = false;
                         hadPendingStateChange = false;
+                        latestSync = syncData;
+                        stageCurrentTimeSec = 0;
+                        stageHasCurrentTime = false;
+                        stageLastTimeSampleSec = 0;
+                        stageLastTimeSampleAt = 0;
+                        lastSeekCommandAt = 0;
+                        lastAppliedSyncSeq = -1;
                         stageFrame.dataset.trackKey = trackKey;
-                        stageFrame.src = buildEmbedUrl(videoId, isPlaying, loadGeneration);
-                    } else if (desiredPlayingState !== isPlaying) {
-                        desiredPlayingState = isPlaying;
-                        if (playerReady) {
-                            appliedPlayingState = isPlaying;
-                            hadPendingStateChange = false;
-                            sendPlayerCommand(isPlaying ? "playVideo" : "pauseVideo");
-                        } else {
-                            hadPendingStateChange = true;
-                            if (frameLoaded) {
-                                sendPlayerCommand(isPlaying ? "playVideo" : "pauseVideo");
-                            }
-                        }
+                        const initialStart = getTargetSyncTime(syncData);
+                        pendingFrameUrl = buildEmbedUrl(videoId, isPlaying, loadGeneration, initialStart);
+                        stageFrame.src = pendingFrameUrl;
+                    } else if (syncData) {
+                        applyPlaybackSync({
+                            ...syncData,
+                            forceSeek: syncData.syncSeq >= 0 && syncData.syncSeq !== lastAppliedSyncSeq,
+                        });
                     }
                 } else {
                     stageFrame.hidden = true;
@@ -660,19 +858,26 @@
                 }
             });
 
-            if (typeof BroadcastChannel === "function") {
-                const channel = new BroadcastChannel(CHANNEL_NAME);
+            if (channel) {
                 channel.addEventListener("message", (event) => {
-                    if (event.data?.type === "stage-ready") {
-                        return;
-                    }
-                    if (event.data?.type === "stage-state") {
-                        renderStage(event.data.payload);
+                    const msg = event.data;
+                    if (!msg || typeof msg !== "object") return;
+                    if (msg.type === "stage-ready") return;
+                    if (msg.type === "stage-state") {
+                        renderStage(msg.payload);
+                    } else if (msg.type === "stage-sync") {
+                        applyPlaybackSync(msg.payload);
                     }
                 });
                 const notifyClosed = () => {
                     try {
-                        channel.postMessage({ type: "stage-closed" });
+                        channel.postMessage({
+                            type: "stage-closed",
+                            trackKey: loadedTrackKey,
+                            currentTime: stageHasCurrentTime ? Number(stageCurrentTimeSec.toFixed(2)) : null,
+                            playing: Boolean(desiredPlayingState),
+                            sentAt: Date.now(),
+                        });
                     } catch {
                         // Ignore closed channel.
                     }

@@ -24,6 +24,7 @@ Live site: https://karaokesearch.uk
 - Search-match highlighting, gradient cover tiles per artist, and skeleton loading states.
 - A light layer of stage effects: songs fly into the setlist, saves sparkle, random picks spin like a slot reel, Draft throws confetti, and switching theme sends a bloom of stage light from the button. All of it respects reduced motion and never blocks input. See [STAGE_EFFECTS.md](STAGE_EFFECTS.md).
 - **Karaoke Night host mode & Live Multi-Phone Rooms** (via **More → Host karaoke night** or **More → Join live room**): singer roster chips, fair round-robin rotation that slots newcomers ahead of regulars' later rounds, catalog + custom YouTube requests, automatic embeddable YouTube karaoke finder (`/api/youtube-search`) with top-5 version switcher and manual YouTube URL fallback, dual-screen **TV Stage** pop-out window (`karaoke_stage.html`) with live QR code, and multi-phone guest rooms (`/api/night-room`) where guests scan the TV QR code to request songs from their own phones and track their place in line.
+- **Optional Google Sign-In & Cloud Sync** (via **More → Sign in & sync**): passwordless Google Sign-In syncing your saved songs (notes, preferred keys, comfort ratings), setlists, theme, compact view, and default singer name across devices via Upstash Redis, with local-first merging and offline support.
 - No external runtime dependencies: icons ship as an inline SVG sprite.
 
 ## Data
@@ -49,11 +50,12 @@ The requested weekly venue updater is the maintained exception: GitHub Actions c
 - `browse-discover.js` contains the Discover shelves, batched Song Browse, lazy Artist Browse, and result grouping.
 - `setlist-panel.js` contains the setlist queue, singer editing, Draft/Swap, QR sharing, and snackbar logic.
 - `karaoke-night.js`, `night-room.js`, `karaoke_stage.html`, `api/youtube-search.js`, and `api/night-room.js` power Karaoke Night host mode, Live Multi-Phone Rooms, the dual-screen TV stage window, and automatic YouTube karaoke lookup (set `YOUTUBE_API_KEY` in Vercel Environment Variables for automatic YouTube lookup, and connect **Upstash Redis** in Vercel Storage to enable live multi-phone rooms).
+- `account-sync.js` and `api/account.js` power optional passwordless Google Sign-In and cross-device cloud sync on the same Upstash Redis store (set `GOOGLE_CLIENT_ID` in Vercel Environment Variables to enable).
 - `personal-songbook.js` contains the saved-songs notes/repertoire, guided picker, and era/audio overlay logic.
 - `stage-effects.js` contains the decorative effects (`window.StageFx`).
 - `vercel.json` rewrites `/` to `karaoke_explorer.html`.
 
-There is no build step. The app is plain HTML/CSS/JavaScript served as static files, with two zero-dependency Vercel serverless routes (`api/youtube-search.js` and `api/night-room.js`).
+There is no build step. The app is plain HTML/CSS/JavaScript served as static files, with three zero-dependency Vercel serverless routes (`api/youtube-search.js`, `api/night-room.js`, and `api/account.js`).
 
 ## Local Use
 

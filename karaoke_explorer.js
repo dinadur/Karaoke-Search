@@ -1,4 +1,4 @@
-const APP_VERSION = "20261128-2";
+const APP_VERSION = "20261128-3";
 const DATA_URL = `karaoke_songs_enriched.json?v=${APP_VERSION}`;
 const TAG_CONSOLIDATION_URL = `tag_consolidation.json?v=${APP_VERSION}`;
 const MOOD_CONSOLIDATION_URL = `mood_consolidation.json?v=${APP_VERSION}`;
@@ -190,6 +190,7 @@ async function init() {
     bindSavedSetlistsDialog();
     bindKaraokeNight();
     bindNightRooms();
+    bindAccountSync();
     bindResultsSentinel();
     registerServiceWorker();
     renderThemeButton();
@@ -2908,6 +2909,9 @@ function setTheme(theme) {
         // Theme persistence is a nicety; the UI should still toggle if storage is unavailable.
     }
     renderThemeButton();
+    if (typeof accountNotifyLocalChange === "function") {
+        accountNotifyLocalChange("preferences");
+    }
 }
 
 function renderThemeButton() {
@@ -2939,6 +2943,9 @@ function setCompactView(compact) {
         // Density preference is a convenience; keep working if storage is unavailable.
     }
     renderCompactViewButton();
+    if (typeof accountNotifyLocalChange === "function") {
+        accountNotifyLocalChange("preferences");
+    }
 }
 
 function renderCompactViewButton() {

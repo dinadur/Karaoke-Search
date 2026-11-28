@@ -713,6 +713,9 @@ function readSavedSetlists() {
             .map((entry) => ({
                 name: entry.name.trim().slice(0, 60),
                 savedAt: typeof entry.savedAt === "string" ? entry.savedAt : "",
+                updatedAt: Number.isFinite(Number(entry.updatedAt)) && Number(entry.updatedAt) > 0
+                    ? Math.floor(Number(entry.updatedAt))
+                    : 0,
                 songs: entry.songs
                     .filter((song) => song && typeof song.song === "string" && typeof song.artist === "string")
                     .map((song) => toSetlistEntry(song)),
@@ -723,8 +726,25 @@ function readSavedSetlists() {
 }
 
 function writeSavedSetlists(lists) {
+    const isRemoteApply = typeof accountApplyingRemote !== "undefined" && accountApplyingRemote;
+    const prevLists = isRemoteApply ? [] : readSavedSetlists();
+    const nowMs = Date.now();
+    const stampedLists = isRemoteApply
+        ? lists
+        : lists.map((item) => ({
+            ...item,
+            updatedAt: Number(item.updatedAt) > 0 ? Math.floor(Number(item.updatedAt)) : nowMs,
+        }));
     try {
-        localStorage.setItem(SAVED_SETLISTS_STORAGE_KEY, JSON.stringify(lists));
+        localStorage.setItem(SAVED_SETLISTS_STORAGE_KEY, JSON.stringify(stampedLists));
+        if (!isRemoteApply && typeof accountNotifyLocalChange === "function") {
+            const nextKeys = new Set(stampedLists.map((item) => normalize(item.name)));
+            const addedOrUpdatedNames = stampedLists.map((item) => item.name);
+            const removedNames = prevLists
+                .filter((item) => !nextKeys.has(normalize(item.name)))
+                .map((item) => item.name);
+            accountNotifyLocalChange("savedSetlists", { addedOrUpdatedNames, removedNames });
+        }
         return true;
     } catch {
         showSnackbar("Couldn't save setlists on this device. Free some browser storage and try again.");
@@ -908,6 +928,9 @@ function saveSetlist() {
         localStorage.setItem("karaokeSetlist", JSON.stringify(state.setlist));
     } catch {
         // Setlist remains available in memory for the current page.
+    }
+    if (typeof accountNotifyLocalChange === "function") {
+        accountNotifyLocalChange("setlist");
     }
 }
 

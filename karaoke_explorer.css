@@ -4545,3 +4545,61 @@ body.guest-room-connected .mini-add {
         padding: 12px;
     }
 }
+
+/* Account & cloud sync dialog */
+.account-section {
+    display: grid;
+    gap: 14px;
+}
+
+.google-signin-holder {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.account-profile-card {
+    display: grid;
+    gap: 4px;
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--panel-strong);
+}
+
+.account-user-email {
+    color: var(--muted);
+    font-size: 13px;
+    overflow-wrap: anywhere;
+}
+
+.account-sync-counts {
+    margin: 6px 0 0;
+    font-size: 13px;
+    color: var(--ink);
+}
+
+.account-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.account-danger-details {
+    border-top: 1px solid var(--line);
+    padding-top: 12px;
+}
+
+.account-danger-details summary {
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--muted);
+}
+
+.account-danger-details[open] {
+    display: grid;
+    gap: 10px;
+}

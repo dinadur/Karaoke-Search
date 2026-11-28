@@ -675,7 +675,7 @@ function createRoomHandler({ store, env = process.env, fetchImpl = fetch, now = 
                     artist,
                     singerKey,
                     songKey,
-                    songId: cleanText(body?.songId, 160),
+                    songId: String(body?.songId || "").replace(/[\u0000-\u001e\u007f]/g, "").trim().slice(0, 200),
                     seconds: Number.isFinite(seconds) && seconds > 0 ? Math.min(3600, Math.round(seconds)) : 0,
                     bpm: Number.isFinite(bpm) && bpm > 0 ? Math.min(300, Math.round(bpm)) : 0,
                     referenceKey: cleanText(body?.referenceKey, 24),

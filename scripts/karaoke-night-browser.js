@@ -83,6 +83,7 @@ const mockYoutubeBySong = {
 window.__ytReady = false;
 window.__ytListeningId = null;
 window.__ytCommandsAfterReady = [];
+window.__ytCommandLog = [];
 window.addEventListener("message", (event) => {
     let data = event.data;
     if (typeof data === "string") { try { data = JSON.parse(data); } catch { return; } }
@@ -94,6 +95,7 @@ window.addEventListener("message", (event) => {
         }
     } else if (data.event === "command" && window.__ytReady) {
         window.__ytCommandsAfterReady.push(data.func);
+        window.__ytCommandLog.push({ func: data.func, args: data.args || [] });
     }
 });
 window.__markYtReady = () => {
@@ -182,7 +184,47 @@ window.__markYtReady = () => {
         await hostYtFrame.evaluate(() => window.__markYtReady());
         await tvYtFrame.waitForFunction(() => window.__ytCommandsAfterReady.includes("playVideo"));
         await hostYtFrame.waitForFunction(() => window.__ytCommandsAfterReady.includes("playVideo"));
+        await hostYtFrame.waitForFunction(() => window.__ytCommandsAfterReady.includes("mute"));
         await previewStage.close();
+        await hostYtFrame.waitForFunction(() => window.__ytCommandsAfterReady.includes("unMute"));
+
+        // Popping out TV Stage mid-song must hand off the host player's current timestamp,
+        // catch up on onReady via seekTo, follow host scrubs, and mirror in-iframe pause/play.
+        await hostYtFrame.evaluate(() => {
+            window.parent.postMessage(JSON.stringify({ event: "infoDelivery", id: window.__ytListeningId, info: { currentTime: 47.6, playerState: 1 } }), "*");
+        });
+        await page.waitForFunction(() => nightCurrentTimeSec >= 47);
+        await page.evaluate(() => broadcastStageState());
+        const midSongStage = await context.newPage();
+        await midSongStage.route(/^https:\/\/www\.youtube-nocookie\.com\//, mockYoutubeEmbed);
+        midSongStage.on("pageerror", (error) => errors.push(error.message));
+        await midSongStage.goto(BASE.replace("karaoke_explorer.html", "karaoke_stage.html"));
+        await midSongStage.waitForFunction(() => document.getElementById("stageFrame")?.src.includes("start=47"));
+        const midYtFrame = midSongStage.frames().find((f) => f.url().includes("SingKingBR1"));
+        assert.ok(midYtFrame, "Mid-song TV stage iframe should be mounted");
+        await midYtFrame.waitForFunction(() => window.__ytListeningId != null);
+        await midYtFrame.evaluate(() => window.__markYtReady());
+        await midYtFrame.waitForFunction(() => window.__ytCommandLog.some((c) => c.func === "seekTo" && c.args[0] >= 47 && c.args[1] === true));
+
+        // Scrubbing inside Host YouTube player must immediately seek TV Stage
+        await hostYtFrame.evaluate(() => {
+            window.parent.postMessage(JSON.stringify({ event: "infoDelivery", id: window.__ytListeningId, info: { currentTime: 120.4 } }), "*");
+        });
+        await midYtFrame.waitForFunction(() => window.__ytCommandLog.some((c) => c.func === "seekTo" && c.args[0] >= 120));
+
+        // Pausing & resuming directly inside the Host YouTube iframe must sync TV Stage and host controls
+        await page.waitForTimeout(950);
+        await hostYtFrame.evaluate(() => {
+            window.parent.postMessage(JSON.stringify({ event: "onStateChange", id: window.__ytListeningId, info: 2 }), "*");
+        });
+        await page.waitForFunction(() => document.querySelector("#nightPlayToggleButton span").textContent === "Play on stage");
+        await midYtFrame.waitForFunction(() => window.__ytCommandsAfterReady.includes("pauseVideo"));
+        await hostYtFrame.evaluate(() => {
+            window.parent.postMessage(JSON.stringify({ event: "onStateChange", id: window.__ytListeningId, info: 1 }), "*");
+        });
+        await page.waitForFunction(() => document.querySelector("#nightPlayToggleButton span").textContent === "Pause stage");
+        await midYtFrame.waitForFunction(() => window.__ytCommandsAfterReady.filter((cmd) => cmd === "playVideo").length >= 1);
+        await midSongStage.close();
 
         // Switch to 2nd ranked YouTube karaoke version
         await page.locator("#nightCandidates .night-candidate").nth(1).click();
@@ -266,9 +308,27 @@ window.__markYtReady = () => {
         );
         const secondTrackKey = await stagePage.locator("#stageFrame").getAttribute("data-track-key");
         assert.ok(secondTrackKey.endsWith(":SingKingDQ1") && secondTrackKey !== initialTrackKey);
+        // Simulate playback advancing on TV Stage while TV-only audio is active, then close TV Stage
+        const expectedWidgetParam = await stagePage.evaluate(() => new URL(document.getElementById("stageFrame").src).searchParams.get("widgetid"));
+        let stageYtFrame2 = null;
+        for (let attempt = 0; attempt < 60; attempt++) {
+            stageYtFrame2 = stagePage.frames().find((f) => f.url().includes(`widgetid=${expectedWidgetParam}`));
+            if (stageYtFrame2) break;
+            await stagePage.waitForTimeout(50);
+        }
+        assert.ok(stageYtFrame2, "Second singer TV iframe should be mounted");
+        await stageYtFrame2.waitForFunction((expectedId) => window.__ytListeningId === expectedId, Number(expectedWidgetParam));
+        await stageYtFrame2.evaluate(() => window.__markYtReady());
+        await stageYtFrame2.evaluate(() => {
+            window.parent.postMessage(JSON.stringify({ event: "infoDelivery", id: window.__ytListeningId, info: { currentTime: 83.2, playerState: 1 } }), "*");
+        });
+        await page.waitForFunction(() => nightCurrentTimeSec >= 83);
         await stagePage.close();
-        // Closing the TV stage must clear tvConnected and restore local playback automatically
-        await page.waitForFunction(() => document.getElementById("nightTvStatus").hidden && document.getElementById("nightVideoFrame").src.includes("SingKingDQ1"));
+        // Closing the TV stage must clear tvConnected and restore local playback at the TV's timestamp
+        await page.waitForFunction(() => {
+            const src = document.getElementById("nightVideoFrame").src;
+            return document.getElementById("nightTvStatus").hidden && src.includes("SingKingDQ1") && src.includes("start=83");
+        });
 
         // 6. Push back Cara's track (returns Alice's Dancing Queen to stage), then put Pink Pony Club on stage for manual URL paste
         await page.click("#nightSkipSingerButton");

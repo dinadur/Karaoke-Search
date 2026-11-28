@@ -6,22 +6,23 @@
     <title>Karaoke Songbook</title>
     <meta name="theme-color" content="#f5f4fa" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#14121d" media="(prefers-color-scheme: dark)">
-    <link rel="icon" href="app-icon.svg?v=20261128-2" type="image/svg+xml">
-    <link rel="apple-touch-icon" href="apple-touch-icon.png?v=20261128-2">
+    <link rel="icon" href="app-icon.svg?v=20261128-3" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png?v=20261128-3">
     <link rel="manifest" href="manifest.json">
     <link rel="preload" href="fonts/space-grotesk-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="karaoke_explorer.css?v=20261128-2">
-    <script defer src="qrcode.js?v=20261128-2"></script>
-    <script defer src="personal-songbook.js?v=20261128-2"></script>
-    <script defer src="stage-effects.js?v=20261128-2"></script>
-    <script defer src="search-ranking.js?v=20261128-2"></script>
-    <script defer src="catalog-prep.js?v=20261128-2"></script>
-    <script defer src="filters-panel.js?v=20261128-2"></script>
-    <script defer src="browse-discover.js?v=20261128-2"></script>
-    <script defer src="setlist-panel.js?v=20261128-2"></script>
-    <script defer src="karaoke-night.js?v=20261128-2"></script>
-    <script defer src="night-room.js?v=20261128-2"></script>
-    <script defer src="karaoke_explorer.js?v=20261128-2"></script>
+    <link rel="stylesheet" href="karaoke_explorer.css?v=20261128-3">
+    <script defer src="qrcode.js?v=20261128-3"></script>
+    <script defer src="personal-songbook.js?v=20261128-3"></script>
+    <script defer src="stage-effects.js?v=20261128-3"></script>
+    <script defer src="search-ranking.js?v=20261128-3"></script>
+    <script defer src="catalog-prep.js?v=20261128-3"></script>
+    <script defer src="filters-panel.js?v=20261128-3"></script>
+    <script defer src="browse-discover.js?v=20261128-3"></script>
+    <script defer src="setlist-panel.js?v=20261128-3"></script>
+    <script defer src="karaoke-night.js?v=20261128-3"></script>
+    <script defer src="night-room.js?v=20261128-3"></script>
+    <script defer src="account-sync.js?v=20261128-3"></script>
+    <script defer src="karaoke_explorer.js?v=20261128-3"></script>
 </head>
 <body>
     <svg xmlns="http://www.w3.org/2000/svg" class="icon-sprite" aria-hidden="true" focusable="false">
@@ -68,6 +69,7 @@
         <symbol id="icon-arrow-left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></symbol>
         <symbol id="icon-user-plus" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/></symbol>
         <symbol id="icon-smartphone" viewBox="0 0 24 24"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></symbol>
+        <symbol id="icon-cloud" viewBox="0 0 24 24"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></symbol>
     </svg>
 
     <header class="topbar">
@@ -117,6 +119,7 @@
                     <button id="planSetlistButton" type="button"><i data-lucide="list-music" aria-hidden="true"></i><span id="planSetlistLabel">Plan a setlist</span></button>
                     <button id="karaokeNightButton" type="button"><i data-lucide="mic" aria-hidden="true"></i>Host karaoke night</button>
                     <button id="joinRoomMenuButton" type="button"><i data-lucide="smartphone" aria-hidden="true"></i>Join live room</button>
+                    <button id="accountMenuButton" type="button"><i data-lucide="cloud" aria-hidden="true"></i><span id="accountMenuLabel">Sign in &amp; sync</span></button>
                     <button id="chooseSongButton" type="button" disabled><i data-lucide="sparkles" aria-hidden="true"></i>Help me choose</button>
                     <button id="randomButton" type="button" title="Random song"><i data-lucide="shuffle" aria-hidden="true"></i>Random song</button>
                     <button id="compactViewButton" type="button" aria-pressed="false" title="Compact view"><i data-lucide="rows-3" aria-hidden="true"></i>Compact view</button>
@@ -609,6 +612,7 @@
         <div class="personal-backup-bar">
             <button id="exportRepertoireButton" class="command subtle-command" type="button"><i data-lucide="download" aria-hidden="true"></i>Export backup</button>
             <button id="importRepertoireButton" class="command subtle-command" type="button"><i data-lucide="upload" aria-hidden="true"></i>Import backup</button>
+            <button id="repertoireSyncButton" class="command subtle-command" type="button">Sync across devices</button>
             <input id="importRepertoireFile" type="file" accept=".json,application/json" hidden aria-label="Import saved songs backup file">
         </div>
         <p id="repertoireBackupStatus" class="personal-hint" role="status"></p>
@@ -679,6 +683,43 @@
                 <button class="command subtle-command" type="submit" formmethod="dialog" formnovalidate>Cancel</button>
             </div>
         </form>
+    </dialog>
+
+    <dialog id="accountDialog" class="personal-dialog notes-dialog" aria-labelledby="accountDialogTitle" aria-describedby="accountDialogIntro">
+        <div class="personal-dialog-head">
+            <div>
+                <h2 id="accountDialogTitle">Account &amp; cloud sync</h2>
+                <p id="accountDialogIntro">Keep your saved songs, notes, keys, setlists, and preferences synced across your phone and computer. No passwords stored.</p>
+            </div>
+            <button class="icon-button" type="button" data-close-dialog="accountDialog" aria-label="Close account dialog">×</button>
+        </div>
+
+        <div id="accountSignedOut" class="account-section">
+            <div id="googleSignInButton" class="google-signin-holder"></div>
+            <p id="accountSetupNotice" class="personal-hint" hidden></p>
+            <p class="personal-hint">Signing in merges songs already saved on this device with your account. You can keep using the songbook signed out or offline anytime.</p>
+        </div>
+
+        <div id="accountSignedIn" class="account-section" hidden>
+            <div class="account-profile-card">
+                <strong id="accountUserName"></strong>
+                <span id="accountUserEmail" class="account-user-email"></span>
+                <p id="accountSyncCounts" class="account-sync-counts"></p>
+            </div>
+            <div class="account-actions">
+                <button id="accountSyncNowButton" class="command" type="button">Sync now</button>
+                <button id="accountSignOutButton" class="command subtle-command" type="button">Sign out</button>
+            </div>
+            <details class="account-danger-details">
+                <summary>Manage cloud copy</summary>
+                <p class="personal-hint">Delete the synced copy stored in the cloud and sign out. Your saved songs and setlists on this device will stay intact.</p>
+                <button id="accountDeleteCloudButton" class="command subtle-command" type="button">Delete cloud copy</button>
+            </details>
+        </div>
+
+        <p id="accountSyncStatus" class="personal-hint" role="status" hidden></p>
+        <p id="accountSyncError" class="personal-error" role="alert" hidden></p>
+        <p class="personal-hint"><a href="privacy.html" target="_blank" rel="noopener">Privacy policy</a></p>
     </dialog>
 
     <dialog id="importDialog" aria-labelledby="importDialogTitle" aria-describedby="importCaption">

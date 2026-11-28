@@ -1,6 +1,6 @@
 // Bump CACHE_VERSION together with APP_VERSION in karaoke_explorer.js so a
 // deploy invalidates the previous offline cache.
-const CACHE_VERSION = "20261128-2";
+const CACHE_VERSION = "20261128-3";
 const CACHE_NAME = `karaoke-${CACHE_VERSION}`;
 
 const PRECACHE_URLS = [
@@ -16,6 +16,7 @@ const PRECACHE_URLS = [
     `/setlist-panel.js?v=${CACHE_VERSION}`,
     `/karaoke-night.js?v=${CACHE_VERSION}`,
     `/night-room.js?v=${CACHE_VERSION}`,
+    `/account-sync.js?v=${CACHE_VERSION}`,
     "/karaoke_stage.html",
     `/qrcode.js?v=${CACHE_VERSION}`,
     `/personal-songbook.js?v=${CACHE_VERSION}`,

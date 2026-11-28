@@ -529,11 +529,14 @@ function declineGuestRequest(reqId) {
 async function endHostRoom() {
     const code = hostRoomState.code;
     const token = hostRoomState.hostToken;
-    clearHostRoomLocalState();
-    showSnackbar("Live room ended");
-    if (!code || !token) return;
+    if (!code || !token) {
+        clearHostRoomLocalState();
+        return;
+    }
+    const endBtn = roomEl("nightEndRoomButton");
+    if (endBtn) endBtn.disabled = true;
     try {
-        await fetch(ROOM_API_ENDPOINT, {
+        const res = await fetch(ROOM_API_ENDPOINT, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -541,8 +544,20 @@ async function endHostRoom() {
             },
             body: JSON.stringify({ action: "close", code }),
         });
+        if (!res.ok && res.status !== 404) {
+            hostRoomState.error = "Couldn’t close the room on the server — try End room again.";
+            renderHostRoomControls();
+            showSnackbar(hostRoomState.error);
+            return;
+        }
+        clearHostRoomLocalState();
+        showSnackbar("Live room ended");
     } catch {
-        // Local room is already closed; Redis key expires automatically.
+        hostRoomState.error = "Network error closing the room — try End room again.";
+        renderHostRoomControls();
+        showSnackbar(hostRoomState.error);
+    } finally {
+        if (endBtn) endBtn.disabled = false;
     }
 }
 
@@ -695,12 +710,16 @@ function loadGuestSingerName() {
 
 function saveGuestSingerName(name) {
     const cleaned = cleanSingerName(name);
+    const changed = cleaned !== guestRoomState.singer;
     guestRoomState.singer = cleaned;
     try {
         if (cleaned) localStorage.setItem(ROOM_GUEST_SINGER_KEY, cleaned);
         else localStorage.removeItem(ROOM_GUEST_SINGER_KEY);
     } catch {
         // Ignore storage errors.
+    }
+    if (changed && typeof accountNotifyLocalChange === "function") {
+        accountNotifyLocalChange("preferences");
     }
 }
 
