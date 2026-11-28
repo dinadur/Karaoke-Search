@@ -739,8 +739,17 @@ function removeNightEntry(uid) {
     }
     showSnackbar(`Removed “${removed.title}”`, () => {
         nightState.queue = previous;
+        if (removed.status === "performing") {
+            nightState.playing = false;
+            nightLoadedFrameKey = "";
+            nightLastSentPlaying = null;
+        }
         saveNightSession();
         renderKaraokeNight();
+        const restored = getNightCurrent();
+        if (restored && !restored.youtubeId) {
+            resolveYoutubeForCurrent({ autoplay: false });
+        }
     });
 }
 
@@ -768,6 +777,10 @@ function resetKaraokeNight() {
         nightState.selectedSinger = prevSelected;
         saveNightSession();
         renderKaraokeNight();
+        const restored = getNightCurrent();
+        if (restored && !restored.youtubeId) {
+            resolveYoutubeForCurrent({ autoplay: false });
+        }
     });
 }
 
