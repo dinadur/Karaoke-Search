@@ -54,13 +54,35 @@ const mockYoutubeBySong = {
         await context.route("**/era_enrichment.json?*", (route) => route.fulfill({ json: { entries: [] } }));
         await context.route("**/audio_enrichment.json?*", (route) => route.fulfill({ json: { entries: [] } }));
         await context.route("**/whats_new.json?*", (route) => route.fulfill({ json: { batches: [] } }));
+        const mockYoutubeHtml = `<!doctype html><html><body><script>
+window.__ytReady = false;
+window.__ytListeningId = null;
+window.__ytCommandsAfterReady = [];
+window.addEventListener("message", (event) => {
+    let data = event.data;
+    if (typeof data === "string") { try { data = JSON.parse(data); } catch { return; } }
+    if (!data) return;
+    if (data.event === "listening") {
+        window.__ytListeningId = data.id;
+        if (window.__ytReady) {
+            window.parent.postMessage(JSON.stringify({ event: "onReady", id: data.id, channel: "widget" }), "*");
+        }
+    } else if (data.event === "command" && window.__ytReady) {
+        window.__ytCommandsAfterReady.push(data.func);
+    }
+});
+window.__markYtReady = () => {
+    window.__ytReady = true;
+    window.parent.postMessage(JSON.stringify({ event: "onReady", id: window.__ytListeningId, channel: "widget" }), "*");
+};
+</script>Mock YouTube Embed</body></html>`;
         const mockYoutubeEmbed = (route) => {
             if (route.request().resourceType() === "document") {
                 return route.fulfill({
                     status: 200,
                     contentType: "text/html",
                     headers: { "Cache-Control": "no-store" },
-                    body: "<html><body>Mock YouTube Embed</body></html>",
+                    body: mockYoutubeHtml,
                 });
             }
             return route.abort();
@@ -113,7 +135,8 @@ const mockYoutubeBySong = {
         assert.equal(await page.locator("#nightCurrentTitle").textContent(), "Bohemian Rhapsody");
         assert.equal(await page.locator("#nightCandidates .night-candidate").count(), 2);
 
-        // Pop-out TV Stage must show the same video box even before clicking Play on stage
+        // Pop-out TV Stage must show the same video box even before clicking Play on stage,
+        // and clicking Play before the YouTube iframe posts onReady must replay playVideo once ready.
         const previewStage = await context.newPage();
         await previewStage.route(/^https:\/\/www\.youtube-nocookie\.com\//, mockYoutubeEmbed);
         previewStage.on("pageerror", (error) => errors.push(error.message));
@@ -122,6 +145,18 @@ const mockYoutubeBySong = {
             const frame = document.getElementById("stageFrame");
             return frame && !frame.hidden && frame.src.includes("SingKingBR1") && !frame.src.includes("autoplay=1");
         });
+        const tvYtFrame = previewStage.frames().find((f) => f.url().includes("SingKingBR1"));
+        const hostYtFrame = page.frames().find((f) => f.url().includes("SingKingBR1"));
+        assert.ok(tvYtFrame && hostYtFrame, "Both host and TV stage iframes should be loaded");
+        await tvYtFrame.waitForFunction(() => window.__ytListeningId != null);
+        await hostYtFrame.waitForFunction(() => window.__ytListeningId != null);
+        await page.click("#nightPlayToggleButton"); // Play while players are still not ready
+        await page.waitForFunction(() => document.querySelector("#nightPlayToggleButton span").textContent === "Pause stage");
+        await previewStage.waitForTimeout(80);
+        await tvYtFrame.evaluate(() => window.__markYtReady());
+        await hostYtFrame.evaluate(() => window.__markYtReady());
+        await tvYtFrame.waitForFunction(() => window.__ytCommandsAfterReady.includes("playVideo"));
+        await hostYtFrame.waitForFunction(() => window.__ytCommandsAfterReady.includes("playVideo"));
         await previewStage.close();
 
         // Switch to 2nd ranked YouTube karaoke version
