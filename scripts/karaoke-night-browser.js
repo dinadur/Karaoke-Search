@@ -54,9 +54,19 @@ const mockYoutubeBySong = {
         await context.route("**/era_enrichment.json?*", (route) => route.fulfill({ json: { entries: [] } }));
         await context.route("**/audio_enrichment.json?*", (route) => route.fulfill({ json: { entries: [] } }));
         await context.route("**/whats_new.json?*", (route) => route.fulfill({ json: { batches: [] } }));
-        await context.route("https://www.youtube-nocookie.com/**", (route) =>
-            route.fulfill({ status: 200, contentType: "text/html", body: "<html><body>Mock YouTube Embed</body></html>" })
-        );
+        const mockYoutubeEmbed = (route) => {
+            if (route.request().resourceType() === "document") {
+                return route.fulfill({
+                    status: 200,
+                    contentType: "text/html",
+                    headers: { "Cache-Control": "no-store" },
+                    body: "<html><body>Mock YouTube Embed</body></html>",
+                });
+            }
+            return route.abort();
+        };
+        await context.route(/^https:\/\/www\.youtube-nocookie\.com\//, mockYoutubeEmbed);
+        await page.route(/^https:\/\/www\.youtube-nocookie\.com\//, mockYoutubeEmbed);
         let releaseSlowLookup = null;
         await context.route("**/api/youtube-search?*", async (route) => {
             const url = new URL(route.request().url());
@@ -141,6 +151,7 @@ const mockYoutubeBySong = {
         // 5. Verify standalone TV stage window renders synced snapshot, preserves iframe on pause/resume,
         //    and restarts cleanly when a second singer sings the exact same YouTube video ID.
         const stagePage = await context.newPage();
+        await stagePage.route(/^https:\/\/www\.youtube-nocookie\.com\//, mockYoutubeEmbed);
         stagePage.on("pageerror", (error) => errors.push(error.message));
         await stagePage.goto(BASE.replace("karaoke_explorer.html", "karaoke_stage.html"));
         await stagePage.waitForFunction(() => document.getElementById("headerTitle").textContent === "Dancing Queen");
@@ -168,6 +179,10 @@ const mockYoutubeBySong = {
         assert.equal(await page.evaluate(() => window.__hostLoads), 0, "Pause/resume must not reload host iframe");
         assert.equal(await stagePage.evaluate(() => window.__tvLoads), 0, "Pause/resume must not reload TV iframe");
 
+        // Enabling TV-only audio must immediately stop/unload the hidden host iframe
+        await page.check("#nightTvOnlyAudio");
+        assert.equal(await page.evaluate(() => document.getElementById("nightVideoFrame").src), "about:blank");
+
         // Queue another singer with the same song/video ID and advance directly to verify TV restarts via new uid
         await page.fill("#nightSingerInput", "Cara");
         await page.click('#nightAddSingerForm button[type="submit"]');
@@ -181,6 +196,8 @@ const mockYoutubeBySong = {
         const secondTrackKey = await stagePage.locator("#stageFrame").getAttribute("data-track-key");
         assert.ok(secondTrackKey.endsWith(":SingKingDQ1") && secondTrackKey !== initialTrackKey);
         await stagePage.close();
+        await page.uncheck("#nightTvOnlyAudio");
+        await page.waitForFunction(() => document.getElementById("nightVideoFrame").src.includes("SingKingDQ1"));
 
         // 6. Push back Cara's track (returns Alice's Dancing Queen to stage), then put Pink Pony Club on stage for manual URL paste
         await page.click("#nightSkipSingerButton");

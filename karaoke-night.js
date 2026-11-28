@@ -1015,7 +1015,7 @@ function renderNightStage() {
             }
         } else {
             frame.hidden = true;
-            if (nightLoadedFrameKey) {
+            if (nightLoadedFrameKey || (frame.getAttribute("src") && frame.getAttribute("src") !== "about:blank")) {
                 nightLoadedFrameKey = "";
                 nightLastSentPlaying = null;
                 frame.src = "about:blank";
@@ -1344,8 +1344,6 @@ function bindKaraokeNight() {
 
     nightEl("nightTvOnlyAudio")?.addEventListener("change", (event) => {
         nightState.tvOnlyAudio = Boolean(event.target.checked);
-        nightLoadedFrameKey = "";
-        nightLastSentPlaying = null;
         renderNightStage();
     });
 
